@@ -2,7 +2,7 @@
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  * SSH Tunnel for VNC connections via JSch
  */
-package com.sikulix.vnc;
+package com.sikulix.util;
 
 import com.jcraft.jsch.*;
 import com.sikulix.util.SikuliLogger;
