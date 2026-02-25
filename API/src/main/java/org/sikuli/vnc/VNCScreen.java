@@ -3,19 +3,22 @@
  */
 package org.sikuli.vnc;
 
+import com.sikulix.vnc.VNCClient;
 import org.sikuli.basics.Debug;
-import org.sikuli.script.*;
+import org.sikuli.script.FindFailed;
+import org.sikuli.script.Location;
+import org.sikuli.script.Region;
+import org.sikuli.script.ScreenImage;
 import org.sikuli.script.support.IRobot;
 import org.sikuli.script.support.IScreen;
 import org.sikuli.util.OverlayCapturePrompt;
 
-import java.awt.Rectangle;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.*;
-
-import com.sikulix.vnc.*;
+import java.util.HashMap;
+import java.util.Map;
 
 public class VNCScreen extends Region implements IScreen {
   private VNCClient client;
@@ -29,7 +32,7 @@ public class VNCScreen extends Region implements IScreen {
   private int port = -1;
   private String id = "";
 
-  private static Map<String, VNCScreen> screens = new HashMap<>();
+  private static Map<String, org.sikuli.vnc.VNCScreen> screens = new HashMap<>();
 
   private static int startUpWait = 3;
 
@@ -39,26 +42,26 @@ public class VNCScreen extends Region implements IScreen {
 
   private VNCScreen() {}
 
-  public static VNCScreen start() {
+  public static org.sikuli.vnc.VNCScreen start() {
     return start(stdIP);
   }
 
-  public static VNCScreen start(String theIP) {
-    VNCScreen vscr = null;
+  public static org.sikuli.vnc.VNCScreen start(String theIP) {
+    org.sikuli.vnc.VNCScreen vscr = null;
     vscr = start(theIP, stdPort, null, 3, 0);
     return vscr;
   }
 
-  public static VNCScreen start(String theIP, int thePort) {
+  public static org.sikuli.vnc.VNCScreen start(String theIP, int thePort) {
     return start(theIP, thePort, null, 3, 0);
   }
 
-  public static VNCScreen start(String theIP, int thePort, int cTimeout, int timeout) {
+  public static org.sikuli.vnc.VNCScreen start(String theIP, int thePort, int cTimeout, int timeout) {
     return start(theIP, thePort, null, cTimeout, timeout);
   }
 
-  public static VNCScreen start(String theIP, int thePort, String password, int cTimeout, int timeout) {
-    VNCScreen scr = canConnect(theIP, thePort, cTimeout);
+  public static org.sikuli.vnc.VNCScreen start(String theIP, int thePort, String password, int cTimeout, int timeout) {
+    org.sikuli.vnc.VNCScreen scr = canConnect(theIP, thePort, cTimeout);
     if (null != scr) {
       if (scr.id.isEmpty()) {
         scr.init(theIP, thePort, password);
@@ -66,7 +69,7 @@ public class VNCScreen extends Region implements IScreen {
       } else
         Debug.log(3, "VNCScreen: start: using existing: %s", scr);
     } else {
-      scr = new VNCScreen();
+      scr = new org.sikuli.vnc.VNCScreen();
     }
     return scr;
   }
@@ -99,10 +102,10 @@ public class VNCScreen extends Region implements IScreen {
     this.wait((double) startUpWait);
   }
 
-  private static VNCScreen canConnect(String theIP, int thePort, int timeout) {
+  private static org.sikuli.vnc.VNCScreen canConnect(String theIP, int thePort, int timeout) {
     String address = theIP + ":" + thePort;
     boolean validIP;
-    VNCScreen vncScreen;
+    org.sikuli.vnc.VNCScreen vncScreen;
     String[] parts = theIP.split("\\.");
     if (parts.length == 4) {
       validIP = true;
@@ -129,7 +132,7 @@ public class VNCScreen extends Region implements IScreen {
       }
       try (Socket socket = new Socket()) {
         socket.connect(new InetSocketAddress(theIP, thePort), timeout * 1000);
-        vncScreen = new VNCScreen();
+        vncScreen = new org.sikuli.vnc.VNCScreen();
         return vncScreen;
       } catch (Exception ex) {
         Debug.error("VNCScreen: start: connection %s:%d not possible", theIP, thePort);
@@ -152,7 +155,7 @@ public class VNCScreen extends Region implements IScreen {
   public static void stopAll() {
     if (screens.size() > 0) {
       Debug.log(3, "VNCScreen: stopping all");
-      for (VNCScreen scr : screens.values()) {
+      for (org.sikuli.vnc.VNCScreen scr : screens.values()) {
         scr.close();
       }
       screens.clear();
