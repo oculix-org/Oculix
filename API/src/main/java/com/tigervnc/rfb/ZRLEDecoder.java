@@ -32,7 +32,7 @@ public class ZRLEDecoder extends Decoder {
     int[] buf = reader.getImageBuf(64 * 64 * 4);
     PixelFormat pf = handler.cp.pf();
     int bpp = pf.bpp;
-    int bytesPerPixel = pf.is888() ? 3 : bpp / 8;
+    int bytesPerPixel = bpp / 8;
     boolean bigEndian = pf.bigEndian;
 
     int length = is.readU32();

@@ -61,11 +61,6 @@ public class TightDecoder extends Decoder {
     serverpf = handler.cp.pf();
     int bpp = serverpf.bpp;
     cutZeros = false;
-    if (bpp == 32) {
-      if (serverpf.is888()) {
-        cutZeros = true;
-      }
-    }
 
     int comp_ctl = is.readU8();
 
