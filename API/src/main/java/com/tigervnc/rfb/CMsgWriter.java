@@ -80,12 +80,8 @@ abstract public class CMsgWriter {
     /*
      * Prefer encodings in this order:
      *
-     *   Tight, ZRLE, Hextile, *
+     *   ZRLE, Hextile, *
      */
-
-    if ((preferredEncoding != Encodings.encodingTight) &&
-        Decoder.supported(Encodings.encodingTight))
-      encodings[nEncodings++] = Encodings.encodingTight;
 
     if ((preferredEncoding != Encodings.encodingZRLE) &&
         Decoder.supported(Encodings.encodingZRLE))
@@ -98,7 +94,6 @@ abstract public class CMsgWriter {
     // Remaining encodings
     for (int i = Encodings.encodingMax; i >= 0; i--) {
       switch (i) {
-      case Encodings.encodingTight:
       case Encodings.encodingZRLE:
       case Encodings.encodingHextile:
         break;
