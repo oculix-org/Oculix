@@ -94,6 +94,7 @@ abstract public class CMsgWriter {
     // Remaining encodings
     for (int i = Encodings.encodingMax; i >= 0; i--) {
       switch (i) {
+      case Encodings.encodingTight:
       case Encodings.encodingZRLE:
       case Encodings.encodingHextile:
         break;
