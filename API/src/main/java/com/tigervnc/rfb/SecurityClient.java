@@ -81,6 +81,6 @@ public class SecurityClient extends Security {
   static StringParameter secTypes
   = new StringParameter("SecurityTypes",
                         "Specify which security scheme to use (None, VncAuth)",
-                        "Ident,TLSIdent,X509Ident,X509Plain,TLSPlain,X509Vnc,TLSVnc,X509None,TLSNone,VncAuth,None", Configuration.ConfigurationObject.ConfViewer);
+                        "VncAuth,None", Configuration.ConfigurationObject.ConfViewer);
 
 }
