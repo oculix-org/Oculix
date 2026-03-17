@@ -399,6 +399,22 @@ public class Mouse {
     return move(at().offset(xoff, yoff));
   }
 
+  public static boolean isNotUseable() {
+    return notUseable;
+  }
+
+  public static void setNotUseable() {
+    notUseable = true;
+    if (Commons.runningMac()) {
+      Debug.error("Mouse: not useable (blocked)\n" +
+          "See: https://github.com/RaiMan/SikuliX1/wiki/Allow-SikuliX-actions-on-macOS");
+    } else {
+      Debug.error("Mouse: not useable (blocked)");
+    }
+  }
+
+  private static boolean notUseable = false;
+
   protected static int move(Location loc, Region region) {
     if (MouseDevice.isNotUseable("move")) {
       return 0;

@@ -402,6 +402,7 @@ public class App {
    * tries to close the app defined by this App instance, waits max 10 seconds for
    * the app to no longer be running
    *
+   * @param waitTime to wait for app to close (secs)
    * @return this or null on failure
    */
   public boolean close() {

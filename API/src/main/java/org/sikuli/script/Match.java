@@ -7,6 +7,8 @@ import org.sikuli.support.devices.IScreen;
 
 import java.awt.*;
 
+import java.awt.*;
+
 /**
  * The region on the screen or rectangle in the image,
  * where the given image or text was found.

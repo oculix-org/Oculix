@@ -3,6 +3,8 @@
  */
 package org.sikuli.basics;
 
+import org.sikuli.script.Sikulix;
+
 import java.awt.Dimension;
 import java.awt.Event;
 import java.awt.Point;
@@ -110,7 +112,7 @@ public class PreferencesUser {
     try {
       pref.flush();
     } catch (BackingStoreException e) {
-      Debug.error("UserPrefs: reset: did not work: ", e.getMessage());
+      Debug.error("UserPrefs: store: did not work: ", e.getMessage());
     }
   }
 
@@ -511,7 +513,7 @@ public class PreferencesUser {
     setCheckUpdateTime();
 
 // ***** IDE general support
-    setIdeSize(new Dimension(0, 0));
+    setIdeSize(new Dimension(1024, 700));
     setIdeLocation(new Point(0, 0));
 
     setPrefMoreImages(false);

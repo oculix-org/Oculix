@@ -328,7 +328,14 @@ public class SX {
         }
       }
     }
-    return popRun.getReturnValue();
+    Object returnValue = popRun.getReturnValue();
+    if (timeoutJob.isDone()) {
+      returnValue = null;
+    } else {
+      timeoutJob.cancel(false);
+    }
+    timeoutScheduler.shutdown();
+    return returnValue;
   }
 
   private static Map<String, Object> getPopParameters(Object... args) {

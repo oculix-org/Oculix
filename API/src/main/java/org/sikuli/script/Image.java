@@ -618,6 +618,24 @@ public class Image extends Element {
   }
 
   /**
+   * create a new image from the given file <br>
+   * file ending .png is added if missing (currently valid: png, jpg, jpeg)<br>
+   * relative filename: [...path.../]name[.png] is searched on current image path<br>
+   * absolute filename is taken as is
+   * if image exists, it is loaded to cache <br>
+   * already loaded image with same name (given path) is reused (taken from cache) <br>
+   * <p>
+   * if image not found, it might be a text to be searched (imageIsText = true)
+   *
+   * @param imageFile a Java File object
+   * @return an Image object (might not be valid - check with isValid())
+   */
+  public static Image create(File imageFile) {
+    Image img = get(imageFile.getAbsolutePath());
+    return createImageValidate(img);
+  }
+
+  /**
    * create a new Image with Pattern aspects from an existing Pattern
    *
    * @param p a Pattern

@@ -137,10 +137,10 @@ class VNCRobot implements IRobot {
     boolean addShift = requiresShift(xlibCode) && !shiftPressed;
     if (mode == KeyMode.PRESS_RELEASE || mode == KeyMode.PRESS_ONLY) {
       if (addShift) {
-        pressKey(XKeySym.XK_Shift_L);
+        pressKey(org.sikuli.vnc.XKeySym.XK_Shift_L);
       }
       pressKey(xlibCode);
-      if (xlibCode == XKeySym.XK_Shift_L || xlibCode == XKeySym.XK_Shift_R || xlibCode == XKeySym.XK_Shift_Lock) {
+      if (xlibCode == org.sikuli.vnc.XKeySym.XK_Shift_L || xlibCode == org.sikuli.vnc.XKeySym.XK_Shift_R || xlibCode == org.sikuli.vnc.XKeySym.XK_Shift_Lock) {
         shiftPressed = true;
       }
     }
@@ -148,10 +148,10 @@ class VNCRobot implements IRobot {
     if (mode == KeyMode.PRESS_RELEASE || mode == KeyMode.RELEASE_ONLY) {
       releaseKey(xlibCode);
       if (addShift) {
-        releaseKey(XKeySym.XK_Shift_L);
+        releaseKey(org.sikuli.vnc.XKeySym.XK_Shift_L);
       }
 
-      if (xlibCode == XKeySym.XK_Shift_L || xlibCode == XKeySym.XK_Shift_R || xlibCode == XKeySym.XK_Shift_Lock) {
+      if (xlibCode == org.sikuli.vnc.XKeySym.XK_Shift_L || xlibCode == org.sikuli.vnc.XKeySym.XK_Shift_R || xlibCode == org.sikuli.vnc.XKeySym.XK_Shift_Lock) {
         shiftPressed = false;
       }
     }
@@ -177,30 +177,30 @@ class VNCRobot implements IRobot {
 
   private int charToXlib(char c) {
     if (c == 0x007F) {
-      return XKeySym.XK_Delete;
+      return org.sikuli.vnc.XKeySym.XK_Delete;
     }
     if (c >= 0x0020 && c <= 0x00FF) {
       return c;
     }
     switch (c) {
       case '\u0008':
-        return XKeySym.XK_BackSpace;
+        return org.sikuli.vnc.XKeySym.XK_BackSpace;
       case '\u0009':
-        return XKeySym.XK_Tab;
+        return org.sikuli.vnc.XKeySym.XK_Tab;
       case '\n':
-        return XKeySym.XK_Linefeed;
+        return org.sikuli.vnc.XKeySym.XK_Linefeed;
       case '\u000b':
-        return XKeySym.XK_Clear;
+        return org.sikuli.vnc.XKeySym.XK_Clear;
       case '\r':
-        return XKeySym.XK_Return;
+        return org.sikuli.vnc.XKeySym.XK_Return;
       case '\u0013':
-        return XKeySym.XK_Pause;
+        return org.sikuli.vnc.XKeySym.XK_Pause;
       case '\u0014':
-        return XKeySym.XK_Scroll_Lock;
+        return org.sikuli.vnc.XKeySym.XK_Scroll_Lock;
       case '\u0015':
-        return XKeySym.XK_Sys_Req;
+        return org.sikuli.vnc.XKeySym.XK_Sys_Req;
       case '\u001b':
-        return XKeySym.XK_Escape;
+        return org.sikuli.vnc.XKeySym.XK_Escape;
       default:
         throw new IllegalArgumentException("Cannot type character " + c);
     }
@@ -209,315 +209,315 @@ class VNCRobot implements IRobot {
   private int keyToXlib(int code) {
     switch (code) {
       case VK_ENTER:
-        return XKeySym.XK_Return;
+        return org.sikuli.vnc.XKeySym.XK_Return;
       case VK_BACK_SPACE:
-        return XKeySym.XK_BackSpace;
+        return org.sikuli.vnc.XKeySym.XK_BackSpace;
       case VK_TAB:
-        return XKeySym.XK_Tab;
+        return org.sikuli.vnc.XKeySym.XK_Tab;
       case VK_CANCEL:
-        return XKeySym.XK_Cancel;
+        return org.sikuli.vnc.XKeySym.XK_Cancel;
       case VK_CLEAR:
-        return XKeySym.XK_Clear;
+        return org.sikuli.vnc.XKeySym.XK_Clear;
       case VK_SHIFT:
-        return XKeySym.XK_Shift_L;
+        return org.sikuli.vnc.XKeySym.XK_Shift_L;
       case VK_CONTROL:
-        return XKeySym.XK_Control_L;
+        return org.sikuli.vnc.XKeySym.XK_Control_L;
       case VK_ALT:
-        return XKeySym.XK_Alt_L;
+        return org.sikuli.vnc.XKeySym.XK_Alt_L;
       case VK_PAUSE:
-        return XKeySym.XK_Pause;
+        return org.sikuli.vnc.XKeySym.XK_Pause;
       case VK_CAPS_LOCK:
-        return XKeySym.XK_Caps_Lock;
+        return org.sikuli.vnc.XKeySym.XK_Caps_Lock;
       case VK_ESCAPE:
-        return XKeySym.XK_Escape;
+        return org.sikuli.vnc.XKeySym.XK_Escape;
       case VK_SPACE:
-        return XKeySym.XK_space;
+        return org.sikuli.vnc.XKeySym.XK_space;
       case VK_PAGE_UP:
-        return XKeySym.XK_Page_Up;
+        return org.sikuli.vnc.XKeySym.XK_Page_Up;
       case VK_PAGE_DOWN:
-        return XKeySym.XK_Page_Down;
+        return org.sikuli.vnc.XKeySym.XK_Page_Down;
       case VK_END:
-        return XKeySym.XK_End;
+        return org.sikuli.vnc.XKeySym.XK_End;
       case VK_HOME:
-        return XKeySym.XK_Home;
+        return org.sikuli.vnc.XKeySym.XK_Home;
       case VK_LEFT:
-        return XKeySym.XK_Left;
+        return org.sikuli.vnc.XKeySym.XK_Left;
       case VK_UP:
-        return XKeySym.XK_Up;
+        return org.sikuli.vnc.XKeySym.XK_Up;
       case VK_RIGHT:
-        return XKeySym.XK_Right;
+        return org.sikuli.vnc.XKeySym.XK_Right;
       case VK_DOWN:
-        return XKeySym.XK_Down;
+        return org.sikuli.vnc.XKeySym.XK_Down;
       case VK_COMMA:
-        return XKeySym.XK_comma;
+        return org.sikuli.vnc.XKeySym.XK_comma;
       case VK_MINUS:
-        return XKeySym.XK_minus;
+        return org.sikuli.vnc.XKeySym.XK_minus;
       case VK_PERIOD:
-        return XKeySym.XK_period;
+        return org.sikuli.vnc.XKeySym.XK_period;
       case VK_SLASH:
-        return XKeySym.XK_slash;
+        return org.sikuli.vnc.XKeySym.XK_slash;
       case VK_0:
-        return XKeySym.XK_0;
+        return org.sikuli.vnc.XKeySym.XK_0;
       case VK_1:
-        return XKeySym.XK_1;
+        return org.sikuli.vnc.XKeySym.XK_1;
       case VK_2:
-        return XKeySym.XK_2;
+        return org.sikuli.vnc.XKeySym.XK_2;
       case VK_3:
-        return XKeySym.XK_3;
+        return org.sikuli.vnc.XKeySym.XK_3;
       case VK_4:
-        return XKeySym.XK_4;
+        return org.sikuli.vnc.XKeySym.XK_4;
       case VK_5:
-        return XKeySym.XK_5;
+        return org.sikuli.vnc.XKeySym.XK_5;
       case VK_6:
-        return XKeySym.XK_6;
+        return org.sikuli.vnc.XKeySym.XK_6;
       case VK_7:
-        return XKeySym.XK_7;
+        return org.sikuli.vnc.XKeySym.XK_7;
       case VK_8:
-        return XKeySym.XK_8;
+        return org.sikuli.vnc.XKeySym.XK_8;
       case VK_9:
-        return XKeySym.XK_9;
+        return org.sikuli.vnc.XKeySym.XK_9;
       case VK_SEMICOLON:
-        return XKeySym.XK_semicolon;
+        return org.sikuli.vnc.XKeySym.XK_semicolon;
       case VK_EQUALS:
-        return XKeySym.XK_equal;
+        return org.sikuli.vnc.XKeySym.XK_equal;
       case VK_A:
-        return shiftPressed ? XKeySym.XK_A : XKeySym.XK_a;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_A : org.sikuli.vnc.XKeySym.XK_a;
       case VK_B:
-        return shiftPressed ? XKeySym.XK_B : XKeySym.XK_b;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_B : org.sikuli.vnc.XKeySym.XK_b;
       case VK_C:
-        return shiftPressed ? XKeySym.XK_C : XKeySym.XK_c;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_C : org.sikuli.vnc.XKeySym.XK_c;
       case VK_D:
-        return shiftPressed ? XKeySym.XK_D : XKeySym.XK_d;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_D : org.sikuli.vnc.XKeySym.XK_d;
       case VK_E:
-        return shiftPressed ? XKeySym.XK_E : XKeySym.XK_e;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_E : org.sikuli.vnc.XKeySym.XK_e;
       case VK_F:
-        return shiftPressed ? XKeySym.XK_F : XKeySym.XK_f;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_F : org.sikuli.vnc.XKeySym.XK_f;
       case VK_G:
-        return shiftPressed ? XKeySym.XK_G : XKeySym.XK_g;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_G : org.sikuli.vnc.XKeySym.XK_g;
       case VK_H:
-        return shiftPressed ? XKeySym.XK_H : XKeySym.XK_h;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_H : org.sikuli.vnc.XKeySym.XK_h;
       case VK_I:
-        return shiftPressed ? XKeySym.XK_I : XKeySym.XK_i;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_I : org.sikuli.vnc.XKeySym.XK_i;
       case VK_J:
-        return shiftPressed ? XKeySym.XK_J : XKeySym.XK_j;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_J : org.sikuli.vnc.XKeySym.XK_j;
       case VK_K:
-        return shiftPressed ? XKeySym.XK_K : XKeySym.XK_k;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_K : org.sikuli.vnc.XKeySym.XK_k;
       case VK_L:
-        return shiftPressed ? XKeySym.XK_L : XKeySym.XK_l;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_L : org.sikuli.vnc.XKeySym.XK_l;
       case VK_M:
-        return shiftPressed ? XKeySym.XK_M : XKeySym.XK_m;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_M : org.sikuli.vnc.XKeySym.XK_m;
       case VK_N:
-        return shiftPressed ? XKeySym.XK_N : XKeySym.XK_n;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_N : org.sikuli.vnc.XKeySym.XK_n;
       case VK_O:
-        return shiftPressed ? XKeySym.XK_O : XKeySym.XK_o;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_O : org.sikuli.vnc.XKeySym.XK_o;
       case VK_P:
-        return shiftPressed ? XKeySym.XK_P : XKeySym.XK_p;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_P : org.sikuli.vnc.XKeySym.XK_p;
       case VK_Q:
-        return shiftPressed ? XKeySym.XK_Q : XKeySym.XK_q;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_Q : org.sikuli.vnc.XKeySym.XK_q;
       case VK_R:
-        return shiftPressed ? XKeySym.XK_R : XKeySym.XK_r;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_R : org.sikuli.vnc.XKeySym.XK_r;
       case VK_S:
-        return shiftPressed ? XKeySym.XK_S : XKeySym.XK_s;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_S : org.sikuli.vnc.XKeySym.XK_s;
       case VK_T:
-        return shiftPressed ? XKeySym.XK_T : XKeySym.XK_t;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_T : org.sikuli.vnc.XKeySym.XK_t;
       case VK_U:
-        return shiftPressed ? XKeySym.XK_U : XKeySym.XK_u;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_U : org.sikuli.vnc.XKeySym.XK_u;
       case VK_V:
-        return shiftPressed ? XKeySym.XK_V : XKeySym.XK_v;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_V : org.sikuli.vnc.XKeySym.XK_v;
       case VK_W:
-        return shiftPressed ? XKeySym.XK_W : XKeySym.XK_w;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_W : org.sikuli.vnc.XKeySym.XK_w;
       case VK_X:
-        return shiftPressed ? XKeySym.XK_X : XKeySym.XK_x;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_X : org.sikuli.vnc.XKeySym.XK_x;
       case VK_Y:
-        return shiftPressed ? XKeySym.XK_Y : XKeySym.XK_y;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_Y : org.sikuli.vnc.XKeySym.XK_y;
       case VK_Z:
-        return shiftPressed ? XKeySym.XK_Z : XKeySym.XK_z;
+        return shiftPressed ? org.sikuli.vnc.XKeySym.XK_Z : org.sikuli.vnc.XKeySym.XK_z;
       case VK_OPEN_BRACKET:
-        return XKeySym.XK_bracketleft;
+        return org.sikuli.vnc.XKeySym.XK_bracketleft;
       case VK_BACK_SLASH:
-        return XKeySym.XK_backslash;
+        return org.sikuli.vnc.XKeySym.XK_backslash;
       case VK_CLOSE_BRACKET:
-        return XKeySym.XK_bracketright;
+        return org.sikuli.vnc.XKeySym.XK_bracketright;
       case VK_NUMPAD0:
-        return XKeySym.XK_KP_0;
+        return org.sikuli.vnc.XKeySym.XK_KP_0;
       case VK_NUMPAD1:
-        return XKeySym.XK_KP_1;
+        return org.sikuli.vnc.XKeySym.XK_KP_1;
       case VK_NUMPAD2:
-        return XKeySym.XK_KP_2;
+        return org.sikuli.vnc.XKeySym.XK_KP_2;
       case VK_NUMPAD3:
-        return XKeySym.XK_KP_3;
+        return org.sikuli.vnc.XKeySym.XK_KP_3;
       case VK_NUMPAD4:
-        return XKeySym.XK_KP_4;
+        return org.sikuli.vnc.XKeySym.XK_KP_4;
       case VK_NUMPAD5:
-        return XKeySym.XK_KP_5;
+        return org.sikuli.vnc.XKeySym.XK_KP_5;
       case VK_NUMPAD6:
-        return XKeySym.XK_KP_6;
+        return org.sikuli.vnc.XKeySym.XK_KP_6;
       case VK_NUMPAD7:
-        return XKeySym.XK_KP_7;
+        return org.sikuli.vnc.XKeySym.XK_KP_7;
       case VK_NUMPAD8:
-        return XKeySym.XK_KP_8;
+        return org.sikuli.vnc.XKeySym.XK_KP_8;
       case VK_NUMPAD9:
-        return XKeySym.XK_KP_9;
+        return org.sikuli.vnc.XKeySym.XK_KP_9;
       case VK_MULTIPLY:
-        return XKeySym.XK_KP_Multiply;
+        return org.sikuli.vnc.XKeySym.XK_KP_Multiply;
       case VK_ADD:
-        return XKeySym.XK_KP_Add;
+        return org.sikuli.vnc.XKeySym.XK_KP_Add;
       case VK_SEPARATOR:
-        return XKeySym.XK_KP_Separator;
+        return org.sikuli.vnc.XKeySym.XK_KP_Separator;
       case VK_SUBTRACT:
-        return XKeySym.XK_KP_Subtract;
+        return org.sikuli.vnc.XKeySym.XK_KP_Subtract;
       case VK_DECIMAL:
-        return XKeySym.XK_KP_Decimal;
+        return org.sikuli.vnc.XKeySym.XK_KP_Decimal;
       case VK_DIVIDE:
-        return XKeySym.XK_KP_Divide;
+        return org.sikuli.vnc.XKeySym.XK_KP_Divide;
       case VK_DELETE:
-        return XKeySym.XK_KP_Delete;
+        return org.sikuli.vnc.XKeySym.XK_KP_Delete;
       case VK_NUM_LOCK:
-        return XKeySym.XK_Num_Lock;
+        return org.sikuli.vnc.XKeySym.XK_Num_Lock;
       case VK_SCROLL_LOCK:
-        return XKeySym.XK_Scroll_Lock;
+        return org.sikuli.vnc.XKeySym.XK_Scroll_Lock;
       case VK_F1:
-        return XKeySym.XK_F1;
+        return org.sikuli.vnc.XKeySym.XK_F1;
       case VK_F2:
-        return XKeySym.XK_F2;
+        return org.sikuli.vnc.XKeySym.XK_F2;
       case VK_F3:
-        return XKeySym.XK_F3;
+        return org.sikuli.vnc.XKeySym.XK_F3;
       case VK_F4:
-        return XKeySym.XK_F4;
+        return org.sikuli.vnc.XKeySym.XK_F4;
       case VK_F5:
-        return XKeySym.XK_F5;
+        return org.sikuli.vnc.XKeySym.XK_F5;
       case VK_F6:
-        return XKeySym.XK_F6;
+        return org.sikuli.vnc.XKeySym.XK_F6;
       case VK_F7:
-        return XKeySym.XK_F7;
+        return org.sikuli.vnc.XKeySym.XK_F7;
       case VK_F8:
-        return XKeySym.XK_F8;
+        return org.sikuli.vnc.XKeySym.XK_F8;
       case VK_F9:
-        return XKeySym.XK_F9;
+        return org.sikuli.vnc.XKeySym.XK_F9;
       case VK_F10:
-        return XKeySym.XK_F10;
+        return org.sikuli.vnc.XKeySym.XK_F10;
       case VK_F11:
-        return XKeySym.XK_F11;
+        return org.sikuli.vnc.XKeySym.XK_F11;
       case VK_F12:
-        return XKeySym.XK_F12;
+        return org.sikuli.vnc.XKeySym.XK_F12;
       case VK_F13:
-        return XKeySym.XK_F13;
+        return org.sikuli.vnc.XKeySym.XK_F13;
       case VK_F14:
-        return XKeySym.XK_F14;
+        return org.sikuli.vnc.XKeySym.XK_F14;
       case VK_F15:
-        return XKeySym.XK_F15;
+        return org.sikuli.vnc.XKeySym.XK_F15;
       case VK_F16:
-        return XKeySym.XK_F16;
+        return org.sikuli.vnc.XKeySym.XK_F16;
       case VK_F17:
-        return XKeySym.XK_F17;
+        return org.sikuli.vnc.XKeySym.XK_F17;
       case VK_F18:
-        return XKeySym.XK_F18;
+        return org.sikuli.vnc.XKeySym.XK_F18;
       case VK_F19:
-        return XKeySym.XK_F19;
+        return org.sikuli.vnc.XKeySym.XK_F19;
       case VK_F20:
-        return XKeySym.XK_F20;
+        return org.sikuli.vnc.XKeySym.XK_F20;
       case VK_F21:
-        return XKeySym.XK_F21;
+        return org.sikuli.vnc.XKeySym.XK_F21;
       case VK_F22:
-        return XKeySym.XK_F22;
+        return org.sikuli.vnc.XKeySym.XK_F22;
       case VK_F23:
-        return XKeySym.XK_F23;
+        return org.sikuli.vnc.XKeySym.XK_F23;
       case VK_F24:
-        return XKeySym.XK_F24;
+        return org.sikuli.vnc.XKeySym.XK_F24;
       case VK_PRINTSCREEN:
-        return XKeySym.XK_Print;
+        return org.sikuli.vnc.XKeySym.XK_Print;
       case VK_INSERT:
-        return XKeySym.XK_Insert;
+        return org.sikuli.vnc.XKeySym.XK_Insert;
       case VK_HELP:
-        return XKeySym.XK_Help;
+        return org.sikuli.vnc.XKeySym.XK_Help;
       case VK_META:
-        return XKeySym.XK_Meta_L;
+        return org.sikuli.vnc.XKeySym.XK_Meta_L;
       case VK_KP_UP:
-        return XKeySym.XK_KP_Up;
+        return org.sikuli.vnc.XKeySym.XK_KP_Up;
       case VK_KP_DOWN:
-        return XKeySym.XK_KP_Down;
+        return org.sikuli.vnc.XKeySym.XK_KP_Down;
       case VK_KP_LEFT:
-        return XKeySym.XK_KP_Left;
+        return org.sikuli.vnc.XKeySym.XK_KP_Left;
       case VK_KP_RIGHT:
-        return XKeySym.XK_KP_Right;
+        return org.sikuli.vnc.XKeySym.XK_KP_Right;
       case VK_DEAD_GRAVE:
-        return XKeySym.XK_dead_grave;
+        return org.sikuli.vnc.XKeySym.XK_dead_grave;
       case VK_DEAD_ACUTE:
-        return XKeySym.XK_dead_acute;
+        return org.sikuli.vnc.XKeySym.XK_dead_acute;
       case VK_DEAD_CIRCUMFLEX:
-        return XKeySym.XK_dead_circumflex;
+        return org.sikuli.vnc.XKeySym.XK_dead_circumflex;
       case VK_DEAD_TILDE:
-        return XKeySym.XK_dead_tilde;
+        return org.sikuli.vnc.XKeySym.XK_dead_tilde;
       case VK_DEAD_MACRON:
-        return XKeySym.XK_dead_macron;
+        return org.sikuli.vnc.XKeySym.XK_dead_macron;
       case VK_DEAD_BREVE:
-        return XKeySym.XK_dead_breve;
+        return org.sikuli.vnc.XKeySym.XK_dead_breve;
       case VK_DEAD_ABOVEDOT:
-        return XKeySym.XK_dead_abovedot;
+        return org.sikuli.vnc.XKeySym.XK_dead_abovedot;
       case VK_DEAD_DIAERESIS:
-        return XKeySym.XK_dead_diaeresis;
+        return org.sikuli.vnc.XKeySym.XK_dead_diaeresis;
       case VK_DEAD_ABOVERING:
-        return XKeySym.XK_dead_abovering;
+        return org.sikuli.vnc.XKeySym.XK_dead_abovering;
       case VK_DEAD_DOUBLEACUTE:
-        return XKeySym.XK_dead_doubleacute;
+        return org.sikuli.vnc.XKeySym.XK_dead_doubleacute;
       case VK_DEAD_CARON:
-        return XKeySym.XK_dead_caron;
+        return org.sikuli.vnc.XKeySym.XK_dead_caron;
       case VK_DEAD_CEDILLA:
-        return XKeySym.XK_dead_cedilla;
+        return org.sikuli.vnc.XKeySym.XK_dead_cedilla;
       case VK_DEAD_OGONEK:
-        return XKeySym.XK_dead_ogonek;
+        return org.sikuli.vnc.XKeySym.XK_dead_ogonek;
       case VK_DEAD_IOTA:
-        return XKeySym.XK_dead_iota;
+        return org.sikuli.vnc.XKeySym.XK_dead_iota;
       case VK_DEAD_VOICED_SOUND:
-        return XKeySym.XK_dead_voiced_sound;
+        return org.sikuli.vnc.XKeySym.XK_dead_voiced_sound;
       case VK_DEAD_SEMIVOICED_SOUND:
-        return XKeySym.XK_dead_semivoiced_sound;
+        return org.sikuli.vnc.XKeySym.XK_dead_semivoiced_sound;
       case VK_AMPERSAND:
-        return XKeySym.XK_ampersand;
+        return org.sikuli.vnc.XKeySym.XK_ampersand;
       case VK_ASTERISK:
-        return XKeySym.XK_asterisk;
+        return org.sikuli.vnc.XKeySym.XK_asterisk;
       case VK_QUOTEDBL:
-        return XKeySym.XK_quotedbl;
+        return org.sikuli.vnc.XKeySym.XK_quotedbl;
       case VK_LESS:
-        return XKeySym.XK_less;
+        return org.sikuli.vnc.XKeySym.XK_less;
       case VK_GREATER:
-        return XKeySym.XK_greater;
+        return org.sikuli.vnc.XKeySym.XK_greater;
       case VK_BRACELEFT:
-        return XKeySym.XK_bracketleft;
+        return org.sikuli.vnc.XKeySym.XK_bracketleft;
       case VK_BRACERIGHT:
-        return XKeySym.XK_bracketright;
+        return org.sikuli.vnc.XKeySym.XK_bracketright;
       case VK_AT:
-        return XKeySym.XK_at;
+        return org.sikuli.vnc.XKeySym.XK_at;
       case VK_COLON:
-        return XKeySym.XK_colon;
+        return org.sikuli.vnc.XKeySym.XK_colon;
       case VK_CIRCUMFLEX:
-        return XKeySym.XK_acircumflex;
+        return org.sikuli.vnc.XKeySym.XK_acircumflex;
       case VK_DOLLAR:
-        return XKeySym.XK_dollar;
+        return org.sikuli.vnc.XKeySym.XK_dollar;
       case VK_EURO_SIGN:
-        return XKeySym.XK_EuroSign;
+        return org.sikuli.vnc.XKeySym.XK_EuroSign;
       case VK_EXCLAMATION_MARK:
-        return XKeySym.XK_exclam;
+        return org.sikuli.vnc.XKeySym.XK_exclam;
       case VK_INVERTED_EXCLAMATION_MARK:
-        return XKeySym.XK_exclamdown;
+        return org.sikuli.vnc.XKeySym.XK_exclamdown;
       case VK_LEFT_PARENTHESIS:
-        return XKeySym.XK_parenleft;
+        return org.sikuli.vnc.XKeySym.XK_parenleft;
       case VK_NUMBER_SIGN:
-        return XKeySym.XK_numbersign;
+        return org.sikuli.vnc.XKeySym.XK_numbersign;
       case VK_PLUS:
-        return XKeySym.XK_plus;
+        return org.sikuli.vnc.XKeySym.XK_plus;
       case VK_RIGHT_PARENTHESIS:
-        return XKeySym.XK_parenright;
+        return org.sikuli.vnc.XKeySym.XK_parenright;
       case VK_UNDERSCORE:
-        return XKeySym.XK_underscore;
+        return org.sikuli.vnc.XKeySym.XK_underscore;
       case VK_WINDOWS:
-        return XKeySym.XK_Super_L;
+        return org.sikuli.vnc.XKeySym.XK_Super_L;
       case VK_COMPOSE:
-        return XKeySym.XK_Multi_key;
+        return org.sikuli.vnc.XKeySym.XK_Multi_key;
       case VK_ALT_GRAPH:
-        return XKeySym.XK_ISO_Level3_Shift;
+        return org.sikuli.vnc.XKeySym.XK_ISO_Level3_Shift;
       case VK_BEGIN:
-        return XKeySym.XK_Begin;
+        return org.sikuli.vnc.XKeySym.XK_Begin;
     }
     throw new IllegalArgumentException("Cannot type keycode " + code);
   }
@@ -526,54 +526,54 @@ class VNCRobot implements IRobot {
     // This is keyboard layout dependent.
     // What's encoded here is for a basic US layout
     switch (xlibKeySym) {
-      case XKeySym.XK_A:
-      case XKeySym.XK_B:
-      case XKeySym.XK_C:
-      case XKeySym.XK_D:
-      case XKeySym.XK_E:
-      case XKeySym.XK_F:
-      case XKeySym.XK_G:
-      case XKeySym.XK_H:
-      case XKeySym.XK_I:
-      case XKeySym.XK_J:
-      case XKeySym.XK_K:
-      case XKeySym.XK_L:
-      case XKeySym.XK_M:
-      case XKeySym.XK_N:
-      case XKeySym.XK_O:
-      case XKeySym.XK_P:
-      case XKeySym.XK_Q:
-      case XKeySym.XK_R:
-      case XKeySym.XK_S:
-      case XKeySym.XK_T:
-      case XKeySym.XK_U:
-      case XKeySym.XK_V:
-      case XKeySym.XK_W:
-      case XKeySym.XK_X:
-      case XKeySym.XK_Y:
-      case XKeySym.XK_Z:
-      case XKeySym.XK_exclam:
-      case XKeySym.XK_at:
-      case XKeySym.XK_numbersign:
-      case XKeySym.XK_dollar:
-      case XKeySym.XK_percent:
-      case XKeySym.XK_asciicircum:
-      case XKeySym.XK_ampersand:
-      case XKeySym.XK_asterisk:
-      case XKeySym.XK_parenleft:
-      case XKeySym.XK_parenright:
-      case XKeySym.XK_underscore:
-      case XKeySym.XK_plus:
-      case XKeySym.XK_braceleft:
-      case XKeySym.XK_braceright:
-      case XKeySym.XK_colon:
-      case XKeySym.XK_quotedbl:
-      case XKeySym.XK_bar:
-      case XKeySym.XK_less:
-      case XKeySym.XK_greater:
-      case XKeySym.XK_question:
-      case XKeySym.XK_asciitilde:
-      case XKeySym.XK_plusminus:
+      case org.sikuli.vnc.XKeySym.XK_A:
+      case org.sikuli.vnc.XKeySym.XK_B:
+      case org.sikuli.vnc.XKeySym.XK_C:
+      case org.sikuli.vnc.XKeySym.XK_D:
+      case org.sikuli.vnc.XKeySym.XK_E:
+      case org.sikuli.vnc.XKeySym.XK_F:
+      case org.sikuli.vnc.XKeySym.XK_G:
+      case org.sikuli.vnc.XKeySym.XK_H:
+      case org.sikuli.vnc.XKeySym.XK_I:
+      case org.sikuli.vnc.XKeySym.XK_J:
+      case org.sikuli.vnc.XKeySym.XK_K:
+      case org.sikuli.vnc.XKeySym.XK_L:
+      case org.sikuli.vnc.XKeySym.XK_M:
+      case org.sikuli.vnc.XKeySym.XK_N:
+      case org.sikuli.vnc.XKeySym.XK_O:
+      case org.sikuli.vnc.XKeySym.XK_P:
+      case org.sikuli.vnc.XKeySym.XK_Q:
+      case org.sikuli.vnc.XKeySym.XK_R:
+      case org.sikuli.vnc.XKeySym.XK_S:
+      case org.sikuli.vnc.XKeySym.XK_T:
+      case org.sikuli.vnc.XKeySym.XK_U:
+      case org.sikuli.vnc.XKeySym.XK_V:
+      case org.sikuli.vnc.XKeySym.XK_W:
+      case org.sikuli.vnc.XKeySym.XK_X:
+      case org.sikuli.vnc.XKeySym.XK_Y:
+      case org.sikuli.vnc.XKeySym.XK_Z:
+      case org.sikuli.vnc.XKeySym.XK_exclam:
+      case org.sikuli.vnc.XKeySym.XK_at:
+      case org.sikuli.vnc.XKeySym.XK_numbersign:
+      case org.sikuli.vnc.XKeySym.XK_dollar:
+      case org.sikuli.vnc.XKeySym.XK_percent:
+      case org.sikuli.vnc.XKeySym.XK_asciicircum:
+      case org.sikuli.vnc.XKeySym.XK_ampersand:
+      case org.sikuli.vnc.XKeySym.XK_asterisk:
+      case org.sikuli.vnc.XKeySym.XK_parenleft:
+      case org.sikuli.vnc.XKeySym.XK_parenright:
+      case org.sikuli.vnc.XKeySym.XK_underscore:
+      case org.sikuli.vnc.XKeySym.XK_plus:
+      case org.sikuli.vnc.XKeySym.XK_braceleft:
+      case org.sikuli.vnc.XKeySym.XK_braceright:
+      case org.sikuli.vnc.XKeySym.XK_colon:
+      case org.sikuli.vnc.XKeySym.XK_quotedbl:
+      case org.sikuli.vnc.XKeySym.XK_bar:
+      case org.sikuli.vnc.XKeySym.XK_less:
+      case org.sikuli.vnc.XKeySym.XK_greater:
+      case org.sikuli.vnc.XKeySym.XK_question:
+      case org.sikuli.vnc.XKeySym.XK_asciitilde:
+      case org.sikuli.vnc.XKeySym.XK_plusminus:
         return true;
       default:
         return false;

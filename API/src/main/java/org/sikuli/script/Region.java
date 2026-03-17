@@ -65,7 +65,6 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="001 Fields x, y, w, h">
-
   /**
    * set the horizontal position of the top-left corner
    *
@@ -152,7 +151,6 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="2 findFailedResponse">
-
   /**
    * FindFailedResponse.<br>
    * ABORT - abort script on FindFailed <br>
@@ -3035,7 +3033,6 @@ public class Region extends Element {
 
   private class RepeatableFind extends Repeatable {
     Object _target;
-
     public void setTarget(String target) {
       _target = target;
     }

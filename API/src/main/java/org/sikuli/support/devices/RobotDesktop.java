@@ -157,6 +157,8 @@ public class RobotDesktop extends Robot implements IRobot {
             Debug.error("RobotDesktop: checkMousePosition: should be %s - but is %s!",
                     new Location(x, y), new Location(actualPos));
           }
+        } else {
+          Mouse.setNotUseable();
         }
       }
     }

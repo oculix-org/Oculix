@@ -133,7 +133,7 @@ public class AutoUpdater { //TODO
       conn = url.openConnection();
     }
     BufferedReader in = new BufferedReader(
-            new InputStreamReader(conn.getInputStream()));
+        new InputStreamReader(conn.getInputStream()));
     String line;
     if ((line = in.readLine()) != null) {
       String[] vinfo = line.trim().split(" ");
@@ -169,7 +169,7 @@ public class AutoUpdater { //TODO
         details += line;
       }
       if (beta > 0) {
-        if (! "".equals(bdetails)) {
+        if (!"".equals(bdetails)) {
           bserver = bdetails.split(" ")[1];
           bdetails = "Please download at: " + bserver + "<br>";
           bdetails += "-------------------------------------------------------------------------";
@@ -197,6 +197,7 @@ public class AutoUpdater { //TODO
     }
   }
 }
+
 class UpdateFrame extends JFrame {
   public UpdateFrame(String title, String text, String server) {
     setTitle(title);

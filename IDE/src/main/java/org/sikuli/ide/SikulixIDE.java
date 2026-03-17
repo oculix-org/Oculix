@@ -2330,6 +2330,10 @@ public class SikulixIDE extends JFrame {
             null,
             new ToolAction(ToolAction.JARWITHJYTHON)));
 
+    _toolMenu.add(createMenuItem("Pack Jar with Jython",
+        null,
+        new ToolAction(ToolAction.JARWITHJYTHON)));
+
     _toolMenu.add(createMenuItem(_I("menuToolAndroid"),
             null,
             new ToolAction(ToolAction.ANDROID)));
@@ -2696,8 +2700,10 @@ public class SikulixIDE extends JFrame {
     toolbar.add(btnSubregion);
     toolbar.add(btnLocation);
     toolbar.add(btnOffset);
+/*
     toolbar.add(btnShow);
     toolbar.add(btnShowIn);
+*/
     toolbar.add(Box.createHorizontalGlue());
     btnRun = new ButtonRun();
     toolbar.add(btnRun);
