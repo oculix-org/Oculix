@@ -14,7 +14,7 @@ import java.util.zip.ZipFile;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 import org.sikuli.script.support.Runner;
 
 /**

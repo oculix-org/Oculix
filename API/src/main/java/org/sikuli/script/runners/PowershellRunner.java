@@ -5,9 +5,9 @@ package org.sikuli.script.runners;
 
 import java.io.File;
 
-import org.sikuli.basics.FileManager;
-import org.sikuli.script.support.IScriptRunner;
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.FileManager;
+import org.sikuli.support.runner.IRunner;
+import org.sikuli.support.RunTime;
 
 public class PowershellRunner extends AbstractLocalFileScriptRunner {
 
@@ -18,14 +18,14 @@ public class PowershellRunner extends AbstractLocalFileScriptRunner {
   private static final RunTime RUN_TIME = RunTime.get();
 
   @Override
-  protected int doEvalScript(String script, IScriptRunner.Options options) {
+  protected int doEvalScript(String script, IRunner.Options options) {
     File aFile = FileManager.createTempFile("ps1");
     FileManager.writeStringToFile(script, aFile);
     return runScript(aFile.getAbsolutePath(), null, null);
   }
 
   @Override
-  protected int doRunScript(String scriptFile, String[] scriptArgs, IScriptRunner.Options options) {
+  protected int doRunScript(String scriptFile, String[] scriptArgs, IRunner.Options options) {
     File fScriptFile = new File(scriptFile);
 
     String[] psDirect = new String[]{

@@ -4,7 +4,9 @@
 
 package org.sikuli.script.runners;
 
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.runner.AbstractRunner;
+
+import org.sikuli.support.RunTime;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -12,7 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class ProcessRunner extends AbstractScriptRunner{
+public class ProcessRunner extends AbstractRunner{
 
   public static final String NAME = "Process";
   public static final String TYPE = "text/application";

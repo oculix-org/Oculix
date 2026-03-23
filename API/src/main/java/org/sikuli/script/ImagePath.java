@@ -175,27 +175,6 @@ public class ImagePath {
     }
   }
 
-  /**
-   * empty path list and add path as bundle path (entry 0)
-   * Image cache is cleared completely
-   *
-   * @param path absolute path
-   * @return true on success, false otherwise
-   */
-  public static boolean reset(String path) {
-    reset();
-    if (bundleEquals(path)) {
-      return true;
-    }
-    return setBundlePath(path);
-  }
-
-  public static void clear() {
-    reset();
-    log(lvl, "clear");
-    Image.purge();
-    imagePaths.set(0, null);
-  }
   //</editor-fold>
 
   //<editor-fold desc="02 path entry">

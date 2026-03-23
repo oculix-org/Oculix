@@ -11,11 +11,11 @@ import org.python.core.PyList;
 import org.python.core.PySystemState;
 import org.python.util.PythonInterpreter;
 import org.sikuli.basics.Debug;
-import org.sikuli.basics.FileManager;
+import org.sikuli.support.FileManager;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.ImagePath;
 import org.sikuli.script.SikulixForJython;
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.RunTime;
 
 import java.io.File;
 import java.io.IOException;

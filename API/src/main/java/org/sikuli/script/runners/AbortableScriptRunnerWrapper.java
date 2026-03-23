@@ -4,19 +4,19 @@
 
 package org.sikuli.script.runners;
 
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 
 public class AbortableScriptRunnerWrapper {
   private Object runnerLock = new Object();
-  private IScriptRunner runner;
+  private IRunner runner;
 
-  public IScriptRunner getRunner() {
+  public IRunner getRunner() {
     synchronized(runnerLock) {
       return runner;
     }
   }
 
-  public void setRunner(IScriptRunner runner) {
+  public void setRunner(IRunner runner) {
     synchronized(runnerLock) {
       this.runner = runner;
     }

@@ -3,6 +3,8 @@
  */
 package org.sikuli.script.runners;
 
+import org.sikuli.support.runner.AbstractRunner;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -16,15 +18,15 @@ import javax.script.ScriptEngine;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.script.ImagePath;
-import org.sikuli.script.support.Commons;
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.Commons;
+import org.sikuli.support.RunTime;
 import org.sikuli.script.support.Runner;
 
 /**
  * EXPERIMENTAL --- NOT official API<br>
  *   not as is in version 2
  */
-public class ServerRunner extends AbstractScriptRunner {
+public class ServerRunner extends AbstractRunner {
 
   public static final String NAME = "Server";
   public static final String TYPE = "text/server";

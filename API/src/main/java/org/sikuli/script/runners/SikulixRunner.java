@@ -3,9 +3,11 @@
  */
 package org.sikuli.script.runners;
 
+import org.sikuli.support.runner.AbstractRunner;
+
 import java.io.File;
 
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 import org.sikuli.script.support.Runner;
 
 /**
@@ -16,7 +18,7 @@ import org.sikuli.script.support.Runner;
  * @author mbalmer
  */
 
-public class SikulixRunner extends AbstractScriptRunner {
+public class SikulixRunner extends AbstractRunner {
 
   public static final String NAME = "Sikulix";
   public static final String TYPE = "directory/sikulix";
@@ -56,9 +58,9 @@ public class SikulixRunner extends AbstractScriptRunner {
   }
 
   @Override
-  protected int doRunScript(String scriptFolder, String[] scriptArgs, IScriptRunner.Options options) {
+  protected int doRunScript(String scriptFolder, String[] scriptArgs, IRunner.Options options) {
     EffectiveRunner runnerAndFile = getEffectiveRunner(scriptFolder);
-    IScriptRunner runner = runnerAndFile.getRunner();
+    IRunner runner = runnerAndFile.getRunner();
     String innerScriptFile = runnerAndFile.getScript();
     if (null != runner) {
       try {

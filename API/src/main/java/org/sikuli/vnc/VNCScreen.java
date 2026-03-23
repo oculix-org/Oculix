@@ -9,8 +9,8 @@ import org.sikuli.script.FindFailed;
 import org.sikuli.script.Location;
 import org.sikuli.script.Region;
 import org.sikuli.script.ScreenImage;
-import org.sikuli.script.support.IRobot;
-import org.sikuli.script.support.IScreen;
+import org.sikuli.support.devices.IRobot;
+import org.sikuli.support.devices.IScreen;
 import org.sikuli.util.OverlayCapturePrompt;
 
 import java.awt.*;

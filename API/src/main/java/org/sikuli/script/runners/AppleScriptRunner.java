@@ -6,9 +6,9 @@ package org.sikuli.script.runners;
 
 import java.io.File;
 
-import org.sikuli.basics.FileManager;
-import org.sikuli.script.support.IScriptRunner;
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.FileManager;
+import org.sikuli.support.runner.IRunner;
+import org.sikuli.support.RunTime;
 
 public class AppleScriptRunner extends AbstractLocalFileScriptRunner {
 
@@ -20,7 +20,7 @@ public class AppleScriptRunner extends AbstractLocalFileScriptRunner {
   private static final RunTime RUN_TIME = RunTime.get();
 
   @Override
-  protected int doEvalScript(String script, IScriptRunner.Options options) {
+  protected int doEvalScript(String script, IRunner.Options options) {
     String osascriptShebang = "#!/usr/bin/osascript\n";
     script = osascriptShebang + script;
     File aFile = FileManager.createTempFile("script");
@@ -40,7 +40,7 @@ public class AppleScriptRunner extends AbstractLocalFileScriptRunner {
   }
 
   @Override
-  protected int doRunScript(String scriptFile, String[] scriptArgs, IScriptRunner.Options options) {
+  protected int doRunScript(String scriptFile, String[] scriptArgs, IRunner.Options options) {
     String prefix = options != null && options.isSilent() ? "!" : "";
 
     String retVal = RUN_TIME.runcmd(new String[]{prefix + new File(scriptFile).getAbsolutePath()});
