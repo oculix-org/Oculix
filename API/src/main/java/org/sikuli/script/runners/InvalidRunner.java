@@ -4,13 +4,15 @@
 
 package org.sikuli.script.runners;
 
+import org.sikuli.support.runner.AbstractRunner;
+
 import org.sikuli.basics.Debug;
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 import org.sikuli.script.support.Runner;
 
 import java.io.File;
 
-public class InvalidRunner extends AbstractScriptRunner {
+public class InvalidRunner extends AbstractRunner {
 
   String identifier;
 
@@ -21,7 +23,7 @@ public class InvalidRunner extends AbstractScriptRunner {
     this.identifier = identifier;
   }
 
-  public InvalidRunner(Class<? extends IScriptRunner> cl) {
+  public InvalidRunner(Class<? extends IRunner> cl) {
     this(cl.getName());
   }
 
@@ -48,7 +50,7 @@ public class InvalidRunner extends AbstractScriptRunner {
     return "invalid/" + identifier;
   }
 
-  protected int doRunScript(String scriptfile, String[] scriptArgs, IScriptRunner.Options options) {
+  protected int doRunScript(String scriptfile, String[] scriptArgs, IRunner.Options options) {
     Debug.error("no runner available for: %s", new File(scriptfile).getName());
     return Runner.NOT_SUPPORTED;
   }

@@ -10,9 +10,10 @@ import org.reflections8.scanners.SubTypesScanner;
 import org.reflections8.util.ClasspathHelper;
 import org.sikuli.basics.Debug;
 import org.sikuli.script.ImagePath;
-import org.sikuli.script.runners.AbstractScriptRunner;
+import org.sikuli.support.runner.AbstractRunner;
 import org.sikuli.script.runners.InvalidRunner;
-import org.sikuli.script.support.IScriptRunner.EffectiveRunner;
+import org.sikuli.support.runner.IRunner;
+import org.sikuli.support.runner.IRunner.EffectiveRunner;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,8 +27,8 @@ public class Runner {
   static final RunTime runTime = RunTime.get();
 
   // <editor-fold desc="00 runner handling">
-  private static List<IScriptRunner> runners = new LinkedList<>();
-  private static List<IScriptRunner> supportedRunners = new LinkedList<>();
+  private static List<IRunner> runners = new LinkedList<>();
+  private static List<IRunner> supportedRunners = new LinkedList<>();
 
   static void log(int level, String message, Object... args) {
     Debug.logx(level, me + message, args);
@@ -46,10 +47,10 @@ public class Runner {
         Reflections reflections = new Reflections(ClasspathHelper.forPackage("org.sikuli.script.runners"),
             new SubTypesScanner());
 
-        Set<Class<? extends AbstractScriptRunner>> classes = reflections.getSubTypesOf(AbstractScriptRunner.class);
+        Set<Class<? extends AbstractRunner>> classes = reflections.getSubTypesOf(AbstractRunner.class);
 
-        for (Class<? extends AbstractScriptRunner> cl : classes) {
-          IScriptRunner current = null;
+        for (Class<? extends AbstractRunner> cl : classes) {
+          IRunner current = null;
 
           try {
             current = cl.getConstructor().newInstance();
@@ -75,13 +76,13 @@ public class Runner {
     }
   }
 
-  public static IScriptRunner getRunner(String identifier) {
+  public static IRunner getRunner(String identifier) {
     if (identifier == null) {
       return null;
     }
     synchronized (runners) {
       initRunners();
-      for (IScriptRunner runner : supportedRunners) {
+      for (IRunner runner : supportedRunners) {
         if (runner.canHandle(identifier)) {
           return runner;
         }
@@ -91,22 +92,22 @@ public class Runner {
   }
 
   public static EffectiveRunner getEffectiveRunner(String identifier) {
-    IScriptRunner runner = getRunner(identifier);
+    IRunner runner = getRunner(identifier);
     return runner.getEffectiveRunner(identifier);
   }
 
-  public static List<IScriptRunner> getRunners() {
+  public static List<IRunner> getRunners() {
     synchronized (runners) {
       initRunners();
 
-      return new LinkedList<IScriptRunner>(supportedRunners);
+      return new LinkedList<IRunner>(supportedRunners);
     }
   }
 
-  public static IScriptRunner getRunner(Class<? extends IScriptRunner> runnerClass) {
+  public static IRunner getRunner(Class<? extends IRunner> runnerClass) {
     synchronized (runners) {
       initRunners();
-      for (IScriptRunner r : supportedRunners) {
+      for (IRunner r : supportedRunners) {
         if (r.getClass().equals(runnerClass)) {
           return r;
         }
@@ -121,7 +122,7 @@ public class Runner {
 
       Set<String> extensions = new HashSet<>();
 
-      for (IScriptRunner runner : runners) {
+      for (IRunner runner : runners) {
         for (String ex : runner.getExtensions()) {
           extensions.add(ex);
         }
@@ -136,7 +137,7 @@ public class Runner {
 
       Set<String> names = new HashSet<>();
 
-      for (IScriptRunner runner : runners) {
+      for (IRunner runner : runners) {
         names.add(runner.getName());
       }
 
@@ -150,7 +151,7 @@ public class Runner {
 
       Set<String> types = new HashSet<>();
 
-      for (IScriptRunner runner : runners) {
+      for (IRunner runner : runners) {
         types.add(runner.getType());
       }
 
@@ -162,10 +163,10 @@ public class Runner {
   public static final int FILE_NOT_FOUND = 256;
   public static final int NOT_SUPPORTED = 257;
 
-  public static int runScript(String script, String[] args, IScriptRunner.Options options) {
+  public static int runScript(String script, String[] args, IRunner.Options options) {
     if (script.contains("\n")) {
       String[] header = script.substring(0, Math.min(100, script.length())).trim().split("\n");
-      IScriptRunner runner = null;
+      IRunner runner = null;
       if (header.length > 0) {
         String selector = header[0];
         runner = getRunner(selector);
@@ -209,7 +210,7 @@ public class Runner {
     return runScripts(new String[]{script}, args, options);
   }
 
-  public static int runScripts(String[] runScripts, String[] args, IScriptRunner.Options options) {
+  public static int runScripts(String[] runScripts, String[] args, IRunner.Options options) {
     int exitCode = 0;
     if (runScripts != null && runScripts.length > 0) {
       if (runScripts.length == 1) {
@@ -230,7 +231,7 @@ public class Runner {
           exitCode = FILE_NOT_FOUND;
         } else {
           log(3, "runscript: running script: %s", scriptGiven);
-          IScriptRunner runner = getRunner(scriptGiven);
+          IRunner runner = getRunner(scriptGiven);
           RunTime.get().setLastScriptRunReturnCode(0);
           exitCode = runner.runScript(scriptGiven, args, options);
           RunTime.get().setLastScriptRunReturnCode(exitCode);
@@ -246,8 +247,8 @@ public class Runner {
     return exitCode;
   }
 
-  public static synchronized int run(String script, String[] args, IScriptRunner.Options options) {
-    IScriptRunner runner = getRunner(script);
+  public static synchronized int run(String script, String[] args, IRunner.Options options) {
+    IRunner runner = getRunner(script);
     int retVal;
     retVal = runner.runScript(script, args, options);
     return retVal;
@@ -258,7 +259,7 @@ public class Runner {
    * their abort() method.
    */
   public static void abortAll() {
-    for(IScriptRunner runner : supportedRunners) {
+    for(IRunner runner : supportedRunners) {
       runner.abort();
     }
   }
@@ -283,7 +284,7 @@ public class Runner {
         }
         if (FilenameUtils.getBaseName(aFile.getName()).toLowerCase()
             .equals(FilenameUtils.getBaseName(fScriptFolder.getName()).toLowerCase())) {
-          for (IScriptRunner runner : getRunners()) {
+          for (IRunner runner : getRunners()) {
             if (runner.canHandle(aFile.getName())) {
               return aFile;
             }

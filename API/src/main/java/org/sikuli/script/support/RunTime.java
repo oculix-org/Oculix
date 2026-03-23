@@ -11,7 +11,8 @@ import org.sikuli.natives.WinUtil;
 import org.sikuli.script.*;
 import org.sikuli.script.runnerSupport.JythonSupport;
 import org.sikuli.script.runners.ProcessRunner;
-import org.sikuli.script.support.IScriptRunner.EffectiveRunner;
+import org.sikuli.support.runner.IRunner;
+import org.sikuli.support.runner.IRunner.EffectiveRunner;
 import org.sikuli.util.CommandArgs;
 import org.sikuli.util.CommandArgsEnum;
 import org.sikuli.util.Highlight;
@@ -267,7 +268,7 @@ public class RunTime {
           }
         }
       });
-      int exitCode = Runner.runScripts(RunTime.getRunScripts(), userArgs, new IScriptRunner.Options());
+      int exitCode = Runner.runScripts(RunTime.getRunScripts(), userArgs, new IRunner.Options());
       if (exitCode > 255) {
         exitCode = 254;
       }
@@ -442,7 +443,7 @@ public class RunTime {
       } catch (IOException e) {
       }
       EffectiveRunner runnerAndFile = Runner.getEffectiveRunner(file);
-      IScriptRunner runner = runnerAndFile.getRunner();
+      IRunner runner = runnerAndFile.getRunner();
       String fileToRun = runnerAndFile.getScript();
       File possibleDir = null;
       if (null == fileToRun) {

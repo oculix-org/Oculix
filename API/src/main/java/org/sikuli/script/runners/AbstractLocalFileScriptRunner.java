@@ -4,19 +4,21 @@
 
 package org.sikuli.script.runners;
 
+import org.sikuli.support.runner.AbstractRunner;
+
 import java.io.File;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 import org.sikuli.script.ImagePath;
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 
-public abstract class AbstractLocalFileScriptRunner extends AbstractScriptRunner {
+public abstract class AbstractLocalFileScriptRunner extends AbstractRunner {
 
 	private static final Deque<String> PREVIOUS_BUNDLE_PATHS = new ConcurrentLinkedDeque<>();
 
 	@Override
-	protected void adjustBundlePath(String script, IScriptRunner.Options options) {
+	protected void adjustBundlePath(String script, IRunner.Options options) {
 		File file = new File(script);
 
 		if (file.exists()) {
@@ -29,7 +31,7 @@ public abstract class AbstractLocalFileScriptRunner extends AbstractScriptRunner
 	}
 
 	@Override
-	protected void resetBundlePath(String script, IScriptRunner.Options options) {
+	protected void resetBundlePath(String script, IRunner.Options options) {
 		if (new File(script).exists() && !PREVIOUS_BUNDLE_PATHS.isEmpty()) {
 		    ImagePath.setBundlePath(PREVIOUS_BUNDLE_PATHS.pop());
 		}

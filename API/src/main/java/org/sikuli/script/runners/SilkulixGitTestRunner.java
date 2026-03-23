@@ -4,7 +4,7 @@
 
 package org.sikuli.script.runners;
 
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 
 /**
  * Runs the Sikulix test scripts from
@@ -25,7 +25,7 @@ public class SilkulixGitTestRunner extends NetworkRunner {
   
   String GIT_SCRIPTS = "https://github.com/RaiMan/SikuliX-2014/tree/master/TestScripts/";
     
-  protected int doEvalScript(String scriptFile, IScriptRunner.Options options) {
+  protected int doEvalScript(String scriptFile, IRunner.Options options) {
     if (scriptFile.endsWith(GIT_SCRIPTS)) {
       scriptFile = scriptFile + "showcase";            
     }    

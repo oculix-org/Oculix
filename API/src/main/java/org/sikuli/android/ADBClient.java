@@ -6,8 +6,8 @@ package org.sikuli.android;
 
 
 import org.sikuli.basics.Debug;
-import org.sikuli.script.support.Commons;
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.Commons;
+import org.sikuli.support.RunTime;
 import se.vidstige.jadb.AdbServerLauncher;
 import se.vidstige.jadb.JadbConnection;
 import se.vidstige.jadb.JadbDevice;

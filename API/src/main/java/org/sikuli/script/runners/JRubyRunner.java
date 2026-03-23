@@ -6,7 +6,7 @@ package org.sikuli.script.runners;
 import org.apache.commons.io.FileUtils;
 import org.sikuli.basics.Debug;
 import org.sikuli.script.runnerSupport.JRubySupport;
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 import org.sikuli.script.support.Runner;
 
 import java.io.*;
@@ -85,7 +85,7 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
 
   //<editor-fold desc="10 run scripts">
   @Override
-  protected int doRunScript(String scriptFile, String[] scriptArgs, IScriptRunner.Options options) {
+  protected int doRunScript(String scriptFile, String[] scriptArgs, IRunner.Options options) {
     // Since we have a static interpreter, we have to synchronize class wide
     Integer exitCode = 0;
     Object exitValue = null;
@@ -130,7 +130,7 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
   }
 
   @Override
-  protected void doRunLines(String lines, IScriptRunner.Options options) {
+  protected void doRunLines(String lines, IRunner.Options options) {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JRubyRunner.class) {
       try {
@@ -142,7 +142,7 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
   }
 
   @Override
-  protected int doEvalScript(String script, IScriptRunner.Options options) {
+  protected int doEvalScript(String script, IRunner.Options options) {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JRubyRunner.class) {
       script = injectAbortWatcher(script);

@@ -4,7 +4,7 @@
 package org.sikuli.script.support;
 
 import org.sikuli.basics.Debug;
-import org.sikuli.basics.FileManager;
+import org.sikuli.support.FileManager;
 import org.sikuli.script.runners.ProcessRunner;
 
 import javax.swing.*;

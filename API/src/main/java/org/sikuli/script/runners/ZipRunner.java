@@ -4,8 +4,8 @@
 package org.sikuli.script.runners;
 
 import org.apache.commons.io.FilenameUtils;
-import org.sikuli.basics.FileManager;
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.FileManager;
+import org.sikuli.support.runner.IRunner;
 import org.sikuli.script.support.Runner;
 
 import java.io.File;
@@ -78,9 +78,9 @@ public class ZipRunner extends AbstractLocalFileScriptRunner {
   }
 
   @Override
-  protected int doRunScript(String zipFile, String[] scriptArgs, IScriptRunner.Options options) {
+  protected int doRunScript(String zipFile, String[] scriptArgs, IRunner.Options options) {
     EffectiveRunner runnerAndFile = getEffectiveRunner(zipFile);
-    IScriptRunner runner = runnerAndFile.getRunner();
+    IRunner runner = runnerAndFile.getRunner();
     String innerScriptFile = runnerAndFile.getScript();
     try {
       if(null != innerScriptFile) {
@@ -123,7 +123,7 @@ public class ZipRunner extends AbstractLocalFileScriptRunner {
       ZipEntry entry = entries.nextElement();
 
       if (FilenameUtils.getBaseName(entry.getName()).equals(getScriptEntryName(file))) {
-        for (IScriptRunner runner : Runner.getRunners()) {
+        for (IRunner runner : Runner.getRunners()) {
           if (runner.canHandle(entry.getName())) {
             return entry;
           }

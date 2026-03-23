@@ -18,8 +18,8 @@ import org.jruby.RubyInstanceConfig;
 import org.jruby.embed.LocalContextScope;
 import org.jruby.embed.ScriptingContainer;
 import org.sikuli.basics.Debug;
-import org.sikuli.basics.FileManager;
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.FileManager;
+import org.sikuli.support.RunTime;
 
 public class JRubySupport implements IRunnerSupport {
 

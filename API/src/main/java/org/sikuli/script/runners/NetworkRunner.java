@@ -3,6 +3,8 @@
  */
 package org.sikuli.script.runners;
 
+import org.sikuli.support.runner.AbstractRunner;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -11,17 +13,17 @@ import java.nio.file.Files;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.sikuli.basics.FileManager;
+import org.sikuli.support.FileManager;
 import org.sikuli.script.ImagePath;
-import org.sikuli.script.support.IScriptRunner;
+import org.sikuli.support.runner.IRunner;
 import org.sikuli.script.support.Runner;
 
-public class NetworkRunner extends AbstractScriptRunner {
+public class NetworkRunner extends AbstractRunner {
 
   private AbortableScriptRunnerWrapper wrapper = new AbortableScriptRunnerWrapper();
 
   @Override
-  protected int doRunScript(String scriptFile, String[] scriptArgs, IScriptRunner.Options options) {
+  protected int doRunScript(String scriptFile, String[] scriptArgs, IRunner.Options options) {
 
     String scriptUrl = getScriptURL(scriptFile);
 
@@ -32,7 +34,7 @@ public class NetworkRunner extends AbstractScriptRunner {
         dir = Files.createTempDirectory("sikulix").toFile();
         String localFile = FileManager.downloadURL(scriptUrl, dir.getAbsolutePath());
         if (localFile != null) {
-          IScriptRunner runner = Runner.getRunner(localFile);
+          IRunner runner = Runner.getRunner(localFile);
           wrapper.setRunner(runner);
           int retval = runner.runScript(localFile, scriptArgs, options);
 
@@ -111,7 +113,7 @@ public class NetworkRunner extends AbstractScriptRunner {
 
       String identifier = host + path;
 
-      for (IScriptRunner runner : Runner.getRunners()) {
+      for (IRunner runner : Runner.getRunners()) {
         for (String ending : runner.getFileEndings()) {
 
           String url;
@@ -156,13 +158,13 @@ public class NetworkRunner extends AbstractScriptRunner {
   }
 
   @Override
-	protected void adjustBundlePath(String script, IScriptRunner.Options options) {
+	protected void adjustBundlePath(String script, IRunner.Options options) {
 	   String identifierParent = script.substring(0, script.lastIndexOf("/"));
 	   ImagePath.addHTTP(identifierParent);
 	}
 
 	@Override
-	protected void resetBundlePath(String script, IScriptRunner.Options options) {
+	protected void resetBundlePath(String script, IRunner.Options options) {
 	   String identifierParent = script.substring(0, script.lastIndexOf("/"));
 	   ImagePath.removeHTTP(identifierParent);
 	}
