@@ -4,7 +4,7 @@
 
 package org.sikuli.idesupport;
 
-import org.sikuli.idesupport.IIndentationLogic;
+import org.sikuli.support.ide.IIndentationLogic;
 
 public interface IIDESupport {
 

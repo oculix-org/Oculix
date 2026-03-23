@@ -4,12 +4,12 @@
 package org.sikuli.idesupport;
 
 import org.sikuli.basics.Debug;
-import org.sikuli.basics.FileManager;
+import org.sikuli.support.FileManager;
 import org.sikuli.script.Sikulix;
 import org.sikuli.script.runners.*;
-import org.sikuli.script.support.IScriptRunner;
-import org.sikuli.script.support.RunTime;
-import org.sikuli.script.support.Runner;
+import org.sikuli.support.runner.IRunner;
+import org.sikuli.support.RunTime;
+import org.sikuli.support.ide.Runner;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,9 +46,9 @@ public class IDESupport {
 //			JavaScriptRunner.class,
 			TextRunner.class};
 
-	private static final List<IScriptRunner> IDE_RUNNERS = new ArrayList<>();
+	private static final List<IRunner> IDE_RUNNERS = new ArrayList<>();
 
-	public static boolean transferScript(String src, String dest, IScriptRunner runner) {
+	public static boolean transferScript(String src, String dest, IRunner runner) {
 		FileManager.FileFilter filter = new FileManager.FileFilter() {
 			@Override
 			public boolean accept(File entry) {
@@ -80,10 +80,10 @@ public class IDESupport {
 			if(IDE_RUNNERS.isEmpty()) {
 				log(lvl, "enter");
 
-				List<IScriptRunner> runners = Runner.getRunners();
+				List<IRunner> runners = Runner.getRunners();
 
 				for (Class<?> runnerClass : IDE_RUNNER_CLASSES) {
-					for (IScriptRunner runner : runners) {
+					for (IRunner runner : runners) {
 						if(runnerClass.equals(runner.getClass())) {
 							log(lvl, "added: %s", runner.getName());
 							IDE_RUNNERS.add(runner);
@@ -105,16 +105,16 @@ public class IDESupport {
 		}
 	}
 
-	public static IScriptRunner getDefaultRunner() {
+	public static IRunner getDefaultRunner() {
 		return defaultRunner;
 	}
 
-	private static IScriptRunner defaultRunner = null;
+	private static IRunner defaultRunner = null;
 
-	public static synchronized List<IScriptRunner> getRunners(){
+	public static synchronized List<IRunner> getRunners(){
 		synchronized(IDE_RUNNERS) {
 			init();
-			return new ArrayList<IScriptRunner>(IDE_RUNNERS);
+			return new ArrayList<IRunner>(IDE_RUNNERS);
 		}
 	}
 }

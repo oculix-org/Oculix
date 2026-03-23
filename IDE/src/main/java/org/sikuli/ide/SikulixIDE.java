@@ -1558,6 +1558,14 @@ public class SikulixIDE extends JFrame {
 //</editor-fold>
 
   //<editor-fold desc="07 menu helpers">
+  public void showAbout() {
+    new SXDialog("sxideabout", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP).run();
+  }
+
+  public boolean quit() {
+    return terminate();
+  }
+
   public void showPreferencesWindow() {
     PreferencesWin pwin = new PreferencesWin();
     pwin.setAlwaysOnTop(true);

@@ -4,6 +4,7 @@
 package org.sikuli.ide;
 
 import org.sikuli.basics.Debug;
+import org.sikuli.support.ide.SikuliIDEI18N;
 
 import javax.swing.*;
 import javax.swing.border.Border;

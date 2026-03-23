@@ -29,7 +29,7 @@ import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
 import org.sikuli.ide.SikulixIDE;
 import org.sikuli.script.Sikulix;
-import org.sikuli.script.support.RunTime;
+import org.sikuli.support.Commons;
 
 /**
  * Native desktop support.
@@ -91,7 +91,7 @@ public class IDEDesktopSupport implements InvocationHandler { //, AboutHandler, 
 //    }
 
     try {
-      if (RunTime.get().isJava9()) {
+      if (Commons.getJavaVersion() > 8) {
         Class<?> clDesktop = Class.forName("java.awt.Desktop");
 
         if (Boolean.TRUE.equals(clDesktop.getMethod("isDesktopSupported").invoke(clDesktop))) {
@@ -240,7 +240,7 @@ public class IDEDesktopSupport implements InvocationHandler { //, AboutHandler, 
     } else if ("handleQuitRequestWith".equals(mName)) {
       try {
         Class<?> comMacQuitResponse;
-        if (RunTime.get().isJava9()) {
+        if (Commons.getJavaVersion() > 8) {
           comMacQuitResponse = Class.forName("java.awt.desktop.QuitResponse");
         } else {
           comMacQuitResponse = Class.forName("com.apple.eawt.QuitResponse");
