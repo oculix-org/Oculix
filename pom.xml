@@ -10,7 +10,7 @@
 
   <groupId>com.sikulix</groupId>
   <artifactId>sikulix</artifactId>
-  <version>3.0.0</version>
+  <version>3.0.1</version>
 
   <name>oculix</name>
   <packaging>pom</packaging>

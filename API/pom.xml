@@ -10,7 +10,7 @@
 
   <groupId>com.sikulix</groupId>
   <artifactId>oculixapi</artifactId>
-  <version>3.0.0</version>
+  <version>3.0.1</version>
 
   <packaging>jar</packaging>
 
@@ -70,6 +70,11 @@
       <version>${sikulixjrubyversion}</version>
       <optional>true</optional>
     </dependency>
+<dependency>
+    <groupId>org.json</groupId>
+    <artifactId>json</artifactId>
+    <version>20251224</version>
+</dependency>
     <dependency>
       <groupId>javax.xml.bind</groupId>
       <artifactId>jaxb-api</artifactId>

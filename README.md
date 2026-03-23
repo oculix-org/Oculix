@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/RaiMan/SikuliX1/master/Support/sikulix-red.png" width="120" alt="OculiX"/>
+<img src="oculix_robot.png" width="300" alt="OculiX"/>
 
 # OculiX
 

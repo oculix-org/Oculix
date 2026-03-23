@@ -253,30 +253,36 @@ public class PaddleOCRClient {
      * @param searchText text to find
      * @return int[] {x, y, width, height} or null if not found
      */
-    public static int[] findTextCoordinates(String json, String searchText) {
-        if (json == null || searchText == null) return null;
-
-        try {
-            Map<String, Object> parsed = parseJson(json);
-            if (!Boolean.TRUE.equals(parsed.get("success"))) return null;
-
-            Object resultsObj = parsed.get("results");
-            if (!(resultsObj instanceof List)) return null;
-
-            for (Object item : (List<?>) resultsObj) {
-                if (!(item instanceof Map)) continue;
-                Map<?, ?> itemMap = (Map<?, ?>) item;
-                String text = String.valueOf(itemMap.get("text"));
-
-                if (text.toLowerCase().contains(searchText.toLowerCase())) {
-                    return extractBbox(itemMap);
+public static int[] findTextCoordinates(String json, String searchText) {
+    if (json == null || searchText == null) return null;
+    try {
+        org.json.JSONObject parsed = new org.json.JSONObject(json);
+        if (!parsed.optBoolean("success", false)) return null;
+        org.json.JSONArray results = parsed.getJSONArray("results");
+        for (int i = 0; i < results.length(); i++) {
+            org.json.JSONObject item = results.getJSONObject(i);
+            String text = item.getString("text");
+            if (text.toLowerCase().contains(searchText.toLowerCase())) {
+                org.json.JSONArray bbox = item.getJSONArray("bbox");
+                int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+                int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+                for (int j = 0; j < bbox.length(); j++) {
+                    org.json.JSONArray point = bbox.getJSONArray(j);
+                    int px = point.getInt(0);
+                    int py = point.getInt(1);
+                    minX = Math.min(minX, px);
+                    minY = Math.min(minY, py);
+                    maxX = Math.max(maxX, px);
+                    maxY = Math.max(maxY, py);
                 }
+                return new int[]{minX, minY, maxX - minX, maxY - minY};
             }
-        } catch (Exception e) {
-            System.err.println("[PaddleOCR] findTextCoordinates error: " + e.getMessage());
         }
-        return null;
+    } catch (Exception e) {
+        System.err.println("[PaddleOCR] findTextCoordinates error: " + e.getMessage());
     }
+    return null;
+}
 
     /**
      * Return ALL occurrences of a text with their coordinates.
@@ -432,21 +438,11 @@ public class PaddleOCRClient {
      * Parse JSON: uses org.json if available, otherwise minimal internal parser.
      */
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> parseJson(String json) {
-        // Try org.json if present on the classpath
-        try {
-            Class<?> jsonObjClass = Class.forName("org.json.JSONObject");
-            Object jsonObj = jsonObjClass.getConstructor(String.class).newInstance(json);
-            return (Map<String, Object>) jsonObjClass.getMethod("toMap").invoke(jsonObj);
-        } catch (ClassNotFoundException e) {
-            // org.json not available, fallback to minimal parser
-        } catch (Exception e) {
-            System.err.println("[PaddleOCR] org.json parse error, fallback: " + e.getMessage());
-        }
-
-        // Fallback: minimal parser for the known PaddleOCR format
-        return parseJsonMinimal(json);
-    }
+private static Map<String, Object> parseJson(String json) {
+    // on utilise toujours le parser minimal - org.json retourne des JSONArray
+    // imbriqués incompatibles avec extractBbox (attend des List<List<Integer>>)
+    return parseJsonMinimal(json);
+}
 
     /**
      * Minimal JSON parser covering strictly the PaddleOCR server format.
@@ -469,11 +465,11 @@ public class PaddleOCRClient {
                 for (int i = arrStart; i < json.length(); i++) {
                     char c = json.charAt(i);
                     if (c == '{') {
-                        if (depth == 1) objStart = i;
+                        if (depth == 0) objStart = i;
                         depth++;
                     } else if (c == '}') {
                         depth--;
-                        if (depth == 1 && objStart >= 0) {
+                        if (depth == 0 && objStart >= 0) {
                             String objStr = json.substring(objStart, i + 1);
                             results.add(parseResultItem(objStr));
                             objStart = -1;
