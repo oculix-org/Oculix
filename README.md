@@ -11,6 +11,7 @@
 [![Fork of](https://img.shields.io/badge/Fork%20of-SikuliX1%20%28archived%29-lightgrey?style=flat-square)](https://github.com/RaiMan/SikuliX1)
 [![Maintained](https://img.shields.io/badge/Maintained-Yes-brightgreen?style=flat-square)](https://github.com/julienmerconsulting/OculiX)
 [![Changes](https://img.shields.io/badge/Changes%20vs%20SikuliX-123%2C728%20insertions-blue?style=flat-square)]()
+[![Version](https://img.shields.io/badge/Version-3.0.1-blue?style=flat-square)]()
 
 <br/>
 
@@ -58,9 +59,22 @@ Open SSH tunnels from Java. No WSL. No shell wrapper. No sshpass.
 ### 📱 Android automation via ADB
 Full ADB integration: `ADBClient`, `ADBDevice`, `ADBRobot`, `ADBScreen`.  
 Control Android devices with the same API as desktop screens.  
-Powered by `jadb` — embedded, no external tools required.
+WiFi or USB. No Appium. No XPath. No accessibility required.  
+Powered by `jadb` — embedded, no external tools required.  
+**Validated on Android 12+ (Samsung, 1080x2400).**
 
 </td>
+<td width="50%">
+
+### 🧠 PaddleOCR integration
+Find and click on any text visible on screen — desktop or Android.  
+`PaddleOCREngine` + `PaddleOCRClient` — full JSON parsing, bbox extraction, confidence scoring.  
+Works on any app, any language, any resolution.  
+No DOM. No selectors. Just text.
+
+</td>
+</tr>
+<tr>
 <td width="50%">
 
 ### 🏃 Multi-language script runners
@@ -69,8 +83,6 @@ Network runner for distributed execution.
 Server runner for headless CI/CD integration.
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 ### 🔧 Native OS libraries — bundled
@@ -78,6 +90,17 @@ Server runner for headless CI/CD integration.
 **macOS:** `MacUtil.m` — native macOS support.  
 **Linux:** `LinuxSupport.java` — 421 lines of Linux-specific handling.  
 No manual native lib setup on any platform.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 👁️ Apertix — OpenCV 4.10.0 custom build
+OculiX depends on [Apertix](https://github.com/julienmerconsulting/Apertix), a custom fork of `openpnp/opencv`.  
+Full JNA migration — no `System.loadLibrary` conflicts.  
+OpenCV 4.10.0 compiled from scratch on Windows x86-64 MSVC.  
+Drop-in replacement for `org.openpnp:opencv`.
 
 </td>
 <td width="50%">
@@ -111,11 +134,23 @@ mvn clean install -DskipTests
 
 ```xml
 <dependency>
-  <groupId>com.oculix</groupId>
+  <groupId>com.sikulix</groupId>
   <artifactId>oculixapi</artifactId>
-  <version>2.1.0</version>
+  <version>3.0.1</version>
 </dependency>
 ```
+
+**Required dependency — Apertix (OpenCV 4.10.0):**
+
+```xml
+<dependency>
+  <groupId>io.github.julienmerconsulting.apertix</groupId>
+  <artifactId>opencv</artifactId>
+  <version>4.10.0-0</version>
+</dependency>
+```
+
+→ [Apertix releases](https://github.com/julienmerconsulting/Apertix/releases)
 
 ---
 
@@ -145,14 +180,48 @@ VNCScreen vnc = VNCScreen.start("localhost", 5900, "", 1920, 1080);
 
 ---
 
-## 📱 Android — same API, different device
+## 📱 Android — ADB WiFi, no Appium
 
 ```java
-// Contrôle d'un device Android via ADB
-ADBScreen android = ADBScreen.get();
-android.click("accept_button.png");
-android.type("hello");
-android.waitForImage("home_screen.png", 10);
+// Connexion ADB WiFi
+ADBScreen android = ADBScreen.start("/path/to/adb");
+System.out.println(android.getW() + "x" + android.getH()); // ex: 1080x2400
+
+// Capture écran
+ScreenImage img = android.capture();
+
+// Clic sur image
+android.click(new Pattern("accept_button.png").similar(0.7f));
+
+// Clic sur texte via OCR PaddleOCR
+PaddleOCREngine ocr = new PaddleOCREngine();
+String json = ocr.recognize("/tmp/screen.png");
+int[] coords = ocr.findTextCoordinates(json, "Validate");
+if (coords != null) {
+    int cx = coords[0] + coords[2] / 2;
+    int cy = coords[1] + coords[3] / 2;
+    android.getDevice().tap(cx, cy);
+}
+```
+
+> Works on any Android app — no accessibility API, no XPath, no DOM.  
+> Validated on Android 12+ via WiFi (ADB pairing).
+
+---
+
+## 🧠 PaddleOCR — find text anywhere
+
+```java
+PaddleOCREngine ocr = new PaddleOCREngine(); // localhost:5000 par défaut
+String json = ocr.recognize("/path/to/screenshot.png");
+
+// Trouver un texte et obtenir ses coordonnées
+int[] coords = ocr.findTextCoordinates(json, "Submit");
+// coords = {x, y, width, height}
+
+// Tous les textes détectés avec leur confiance
+Map<String, Double> results = ocr.parseTextWithConfidence(json);
+// {"Submit" -> 0.9997, "Cancel" -> 0.9981, ...}
 ```
 
 ---
@@ -180,21 +249,27 @@ Runner.run("test.robot", new String[]{});
 | VNCScreen + VNCRobot + VNCClient | ✅ Active | 1000+ lines reworked, production-tested |
 | VNCFrameBuffer + VNCClipboard + XKeySym | ✅ Active | Full remote control stack |
 | SSH tunnel — jcraft/jsch | ✅ Embedded | No external SSH dependency |
-| Android ADB — ADBScreen + jadb | ✅ Active | Full device control |
+| Android ADB — ADBScreen + jadb | ✅ Active | Validated Android 12+ WiFi |
+| PaddleOCR — text detection + click | ✅ Active | Full JSON parsing, bbox, confidence |
+| Apertix — OpenCV 4.10.0 JNA | ✅ Active | Custom build, no loadLibrary conflict |
 | Script runners — Jython, JRuby, Python, PS, Robot | ✅ Active | Multi-language automation |
 | Native libs — Windows DLL + macOS + Linux | ✅ Bundled | No manual setup |
 | TigerVNC Maven dependency | ✅ Active | Reproducible builds |
 | SikuliX IDE | 🔧 Maintained | No new features planned |
-| OculiX simplified API | 🔬 In design | Contributions welcome |
+| Operix — Python wrapper | 🔬 Coming soon | See roadmap |
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] **OculiX simplified API** — single entry point, zero internal knowledge required
-- [ ] **Fat JAR** — one file, no manual dependency setup
+- [ ] **Fat JAR** — one file, no manual classpath management
 - [ ] **Maven Central** publication
-- [ ] Python wrapper
+- [ ] **Operix** — Python wrapper for OculiX via py4j  
+  *Write your automation scripts in Python, powered by OculiX under the hood.*  
+  *Same API. No Java knowledge required.*
+- [ ] **Linux / macOS Apertix binaries** — cross-platform OpenCV builds
+- [ ] **OculiX simplified API** — single entry point, zero internal knowledge required
+- [ ] **Appium driver** — register OculiX as a Selenium Grid node
 
 ---
 
@@ -212,6 +287,24 @@ If you were using SikuliX and looking for a continuation — **you found it.**
 
 ---
 
+## 🌐 Ecosystem
+
+```
+Apertix      → OpenCV 4.10.0 custom build (fork openpnp/opencv)
+    ↓
+OculiX       → visual automation engine (fork SikuliX1) — v3.0.1
+    ↓
+Operix       → Python wrapper via py4j (coming soon)
+```
+
+| Project | Repo | Status |
+|---|---|---|
+| Apertix | [julienmerconsulting/Apertix](https://github.com/julienmerconsulting/Apertix) | ✅ v4.10.0-0 |
+| OculiX | [julienmerconsulting/OculiX](https://github.com/julienmerconsulting/OculiX) | ✅ v3.0.1 |
+| Operix | coming soon | 🔬 In design |
+
+---
+
 ## 👤 Maintainer
 
 <table>
@@ -223,7 +316,8 @@ If you were using SikuliX and looking for a continuation — **you found it.**
 
 **Julien MER** — QA Architect · 20+ years in defense, biotech, aerospace, retail  
 Katalon Top Partner Europe &nbsp;|&nbsp; JMer Consulting  
-Newsletter [Bonnes Pratiques QA](https://bonnespratiqueqa.fr) — 7000+ subscribers
+Newsletter [Bonnes Pratiques QA](https://www.linkedin.com/newsletters/bonnes-pratiques-qa) — 3574 abonnés  
+[Clean QA Academy](https://qa-julienmer-course.pages.dev/) — 100% free QA training
 
 </td>
 </tr>
