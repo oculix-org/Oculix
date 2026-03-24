@@ -112,7 +112,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
   }
 
   private void fireInsertTabAndLoad(int tabIndex) { //TODO
-    SikulixIDE.FileAction insertNewTab = SikulixIDE.get().getFileAction(tabIndex);
+    IDEMenuManager.FileAction insertNewTab = SikulixIDE.get().getFileAction(tabIndex);
 //    insertNewTab.doInsert(null);
   }
 
