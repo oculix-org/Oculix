@@ -140,7 +140,7 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
 //          filename = ;
 //        }
       }
-      SikulixIDE.PaneContext context = SikulixIDE.get().getActiveContext();
+      PaneContext context = SikulixIDE.get().getActiveContext();
       final File imgFile = new File(context.getImageFolder(), givenName + ".png");
       try {
         ImageIO.write(capturedImage, "png", imgFile);

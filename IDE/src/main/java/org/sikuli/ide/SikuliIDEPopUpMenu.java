@@ -231,7 +231,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
     public void doAbout(ActionEvent ae) {
       Debug.log(3, "doAbout: selected");
       EditorPane cp = SikulixIDE.get().getCurrentCodePane();
-      final SikulixIDE.PaneContext cx = cp.context;
+      final PaneContext cx = cp.context;
       if (cp.isTemp()) {
         (new Thread() {
           @Override
@@ -378,7 +378,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 
     public void doDuplicate(ActionEvent ae) throws NoSuchMethodException {
       log(lvl, "doDuplicate: entered");
-      final SikulixIDE.PaneContext cx = SikulixIDE.get().getActiveContext();
+      final PaneContext cx = SikulixIDE.get().getActiveContext();
       checkAndResetMoveTab();
       fireIDEFileMenu("SAVE");
       if (cx.isTemp()) {
