@@ -8,13 +8,10 @@ import org.apache.commons.io.FilenameUtils;
 import org.sikuli.basics.*;
 import org.sikuli.support.FileManager;
 import org.sikuli.support.ide.*;
-import org.sikuli.script.Image;
 import org.sikuli.script.Sikulix;
 import org.sikuli.script.*;
-import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.ide.Runner;
 import org.sikuli.support.runner.InvalidRunner;
-import org.sikuli.support.runner.JythonRunner;
 import org.sikuli.support.runner.TextRunner;
 import org.sikuli.support.Commons;
 import org.sikuli.support.devices.IScreen;
@@ -80,6 +77,7 @@ public class SikulixIDE extends JFrame {
   static PreferencesUser prefs;
 
   final IDEFileManager fileManager = new IDEFileManager(this);
+  final IDERunManager runManager = new IDERunManager(this);
 
   private SikulixIDE() {
     prefs = PreferencesUser.get();
@@ -244,7 +242,7 @@ public class SikulixIDE extends JFrame {
     setWindow();
 
     installCaptureHotkey();
-    installStopHotkey();
+    runManager.installStopHotkey();
 
     ideWindow.setSize(ideWindowRect.getSize());
     ideWindow.setLocation(ideWindowRect.getLocation());
@@ -1273,11 +1271,11 @@ public class SikulixIDE extends JFrame {
     }
 
     public void runNormal(ActionEvent ae) {
-      btnRun.runCurrentScript();
+      runManager.getBtnRun().runCurrentScript();
     }
 
     public void runShowActions(ActionEvent ae) {
-      btnRunSlow.runCurrentScript();
+      runManager.getBtnRunSlow().runCurrentScript();
     }
 
     public void runSelection(ActionEvent ae) {
@@ -1713,9 +1711,11 @@ public class SikulixIDE extends JFrame {
 
   //<editor-fold defaultstate="collapsed" desc="20 Init ToolBar Buttons">
   private ButtonCapture btnCapture;
-  private ButtonRun btnRun;
-  private ButtonRunViz btnRunSlow;
   private ButtonRecord btnRecord;
+
+  ButtonRecord getBtnRecord() {
+    return btnRecord;
+  }
 
   private JToolBar initToolbar() {
     var toolbar = new JToolBar();
@@ -1738,10 +1738,8 @@ public class SikulixIDE extends JFrame {
     toolbar.add(btnShowIn);
 */
     toolbar.add(Box.createHorizontalGlue());
-    btnRun = new ButtonRun();
-    toolbar.add(btnRun);
-    btnRunSlow = new ButtonRunViz();
-    toolbar.add(btnRunSlow);
+    toolbar.add(runManager.createBtnRun());
+    toolbar.add(runManager.createBtnRunSlow());
     toolbar.add(Box.createHorizontalGlue());
 
     toolbar.add(Box.createRigidArea(new Dimension(7, 0)));
@@ -2076,146 +2074,13 @@ public class SikulixIDE extends JFrame {
   }
 //</editor-fold>
 
-  //<editor-fold desc="21 Init Run Buttons">
-  class ButtonRun extends ButtonOnToolbar {
-
-    private Thread thread = null;
-
-    ButtonRun() {
-      super();
-
-      URL imageURL = SikulixIDE.class.getResource("/icons/run_big_green.png");
-      setIcon(new ImageIcon(imageURL));
-      initTooltip();
-      addActionListener(this);
-      setText(_I("btnRunLabel"));
-      //setMaximumSize(new Dimension(45,45));
-    }
-
-    private void initTooltip() {
-      PreferencesUser pref = PreferencesUser.get();
-      String strHotkey = Key.convertKeyToText(
-              pref.getStopHotkey(), pref.getStopHotkeyModifiers());
-      String stopHint = _I("btnRunStopHint", strHotkey);
-      setToolTipText(_I("btnRun", stopHint));
-    }
-
-    @Override
-    public void actionPerformed(ActionEvent ae) {
-      runCurrentScript();
-    }
-
-    void runCurrentScript() {
-      log("************** before RunScript"); //TODO
-      //doBeforeQuitOrRun();
-
-      SikulixIDE.getStatusbar().resetMessage();
-      SikulixIDE.doHide();
-
-      final PaneContext context = getActiveContext();
-      EditorPane editorPane = context.getPane();
-      if (editorPane.getDocument().getLength() == 0) {
-        log("Run script not possible: Script is empty");
-        return;
-      }
-      context.save();
-
-      new Thread(new Runnable() {
-        @Override
-        public void run() {
-          if (System.out.checkError()) {
-            boolean shouldContinue = Sikulix.popAsk("System.out is broken (console output)!"
-                    + "\nYou will not see any messages anymore!"
-                    + "\nSave your work and restart the IDE!"
-                    + "\nYou may ignore this on your own risk!" +
-                    "\nYes: continue  ---  No: back to IDE", "Fatal Error");
-            if (!shouldContinue) {
-              log("Run script aborted: System.out is broken (console output)");
-              SikulixIDE.showAgain();
-              return;
-            }
-            log("Run script continued, though System.out is broken (console output)");
-          }
-
-          RunTime.pause(0.1f);
-          clearMessageArea();
-          resetErrorMark();
-          doBeforeRun();
-
-          IRunner.Options runOptions = new IRunner.Options();
-          runOptions.setRunningInIDE();
-
-          int exitValue = -1;
-          try {
-            IRunner runner = context.getRunner();
-            //TODO make reloadImported specific for each editor tab
-            if (runner.getType().equals(JythonRunner.TYPE)) {
-              JythonSupport.get().reloadImported();
-            }
-            exitValue = runner.runScript(context.getFile().getAbsolutePath(), Commons.getUserArgs(), runOptions);
-          } catch (Exception e) {
-            log("Run Script: internal error:");
-            e.printStackTrace();
-          } finally {
-            Runner.setLastScriptRunReturnCode(exitValue);
-          }
-
-          log("************** after RunScript");
-          addErrorMark(runOptions.getErrorLine());
-          if (Image.getIDEshouldReload()) {
-            int line = context.getPane().getLineNumberAtCaret(context.getPane().getCaretPosition());
-            context.reparse();
-            context.getPane().jumpTo(line);
-          }
-
-          RunTime.cleanUpAfterScript();
-          SikulixIDE.showAgain();
-        }
-      }).start();
-    }
-
-    void doBeforeRun() {
-      Settings.ActionLogs = prefs.getPrefMoreLogActions();
-      Settings.DebugLogs = prefs.getPrefMoreLogDebug();
-      Settings.InfoLogs = prefs.getPrefMoreLogInfo();
-      Settings.Highlight = prefs.getPrefMoreHighlight();
-    }
-  }
-
-  class ButtonRunViz extends ButtonRun {
-
-    ButtonRunViz() {
-      super();
-      URL imageURL = SikulixIDE.class.getResource("/icons/run_big_yl.png");
-      setIcon(new ImageIcon(imageURL));
-      setToolTipText(_I("menuRunRunAndShowActions"));
-      setText(_I("btnRunSlowMotionLabel"));
-    }
-
-    @Override
-    protected void doBeforeRun() {
-      super.doBeforeRun();
-      Settings.setShowActions(true);
-    }
-
-  }
-
+  //<editor-fold desc="21 Init Run Buttons — delegated to IDERunManager">
   void addErrorMark(int line) {
-    if (line < 1) {
-      return;
-    }
-    JScrollPane scrPane = (JScrollPane) tabs.getSelectedComponent();
-    EditorLineNumberView lnview = (EditorLineNumberView) (scrPane.getRowHeader().getView());
-    lnview.addErrorMark(line);
-    EditorPane codePane = SikulixIDE.this.getCurrentCodePane();
-    codePane.jumpTo(line);
-    codePane.requestFocus();
+    runManager.addErrorMark(line);
   }
 
   void resetErrorMark() {
-    JScrollPane scrPane = (JScrollPane) tabs.getSelectedComponent();
-    EditorLineNumberView lnview = (EditorLineNumberView) (scrPane.getRowHeader().getView());
-    lnview.resetErrorMark();
+    runManager.resetErrorMark();
   }
   //</editor-fold>
 
@@ -2324,21 +2189,8 @@ public class SikulixIDE extends JFrame {
     });
   }
 
-  void installStopHotkey() {
-    HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
-      @Override
-      public void hotkeyPressed(HotkeyEvent e) {
-        onStopRunning();
-      }
-    });
-  }
-
   void onStopRunning() {
-    log("AbortKey was pressed: aborting all running scripts");
-    Runner.abortAll();
-    EventQueue.invokeLater(() -> {
-      btnRecord.stopRecord();
-    });
+    runManager.onStopRunning();
   }
   //</editor-fold>
 }
