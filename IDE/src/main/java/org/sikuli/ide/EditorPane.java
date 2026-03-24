@@ -60,7 +60,7 @@ public class EditorPane extends JTextPane {
 
   //for debugging watches
   EditorPane editorPane;
-  SikulixIDE.PaneContext context;
+  PaneContext context;
 
   long editorPaneID = 0; //TODO needed?
 
@@ -85,7 +85,7 @@ public class EditorPane extends JTextPane {
     log("created %d", editorPaneID);
   }
 
-  EditorPane(SikulixIDE.PaneContext context) {
+  EditorPane(PaneContext context) {
     this();
     this.context = context;
   }

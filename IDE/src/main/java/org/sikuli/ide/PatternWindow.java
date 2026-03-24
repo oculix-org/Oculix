@@ -47,7 +47,7 @@ public class PatternWindow extends JFrame {
 	}
 
 	SikulixIDE sikulixide = SikulixIDE.get();
-	SikulixIDE.PaneContext context;
+	PaneContext context;
 
 	EditorImageButton imgBtn;
 	String imgFile;
