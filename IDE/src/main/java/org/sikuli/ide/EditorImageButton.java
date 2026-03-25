@@ -4,13 +4,13 @@
 package org.sikuli.ide;
 
 import org.apache.commons.io.FilenameUtils;
+import org.sikuli.basics.PreferencesUser;
 import org.sikuli.support.ide.IButton;
 import org.sikuli.script.Location;
 import org.sikuli.script.Pattern;
 import org.sikuli.support.Commons;
 import org.sikuli.support.RunTime;
 import org.sikuli.support.gui.SXDialog;
-import org.sikuli.support.gui.SXDialogPaneImage;
 import org.sikuli.support.gui.SXDialogPaneImageMenu;
 
 import javax.imageio.ImageIO;
@@ -39,8 +39,6 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return ((File) options.get(IButton.FILE)).getAbsolutePath();
   }
 
-  int MAXHEIGHT = 20;
-
   BufferedImage thumbnail;
 
   public BufferedImage getThumbnail() {
@@ -52,34 +50,31 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   public EditorImageButton(Map<String, Object> options) {
     this.options = options;
-    thumbnail = createThumbnailImage((File) this.options.get(IButton.FILE), MAXHEIGHT);
-
+    thumbnail = createThumbnailImage((File) this.options.get(IButton.FILE),
+        PreferencesUser.get().getDefaultThumbHeight());
     init();
   }
 
   public EditorImageButton(File imgFile) {
-    thumbnail = createThumbnailImage(imgFile, MAXHEIGHT);
+    thumbnail = createThumbnailImage(imgFile, PreferencesUser.get().getDefaultThumbHeight());
     options = new HashMap<>();
     options.put(IButton.FILE, imgFile);
     options.put(IButton.TEXT, "\"" + info() + "\"");
-
     init();
   }
 
   public EditorImageButton(Pattern pattern) {
-    thumbnail = createThumbnailImage(pattern, MAXHEIGHT);
+    thumbnail = createThumbnailImage(pattern, PreferencesUser.get().getDefaultThumbHeight());
     options = new HashMap<>();
     options.put(IButton.FILE, pattern.getImage().file());
     options.put(IButton.TEXT, "\"" + info() + "\"");
     options.put(IButton.PATT, pattern);
-
     init();
   }
 
   private void init() {
     setIcon(new ImageIcon(thumbnail));
     setButtonText();
-
     setMargin(new Insets(0, 0, 0, 0));
     setBorderPainted(true);
     setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -103,29 +98,31 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   SXDialogPaneImageMenu popmenu = null;
 
+  // fenetre PatternWindow comme en 2.0.5
+  private PatternWindow popwin = null;
+
   private void handlePopup(MouseEvent me) {
     if (closeIfVisible(popmenu)) {
       return;
     }
-    closeIfVisible(popwin);
+    // ferme PatternWindow si visible
+    if (popwin != null && popwin.isVisible()) {
+      popwin.close();
+    }
     if (me == null) {
       handlePreview();
     } else {
       Point where = getLocationOnScreen();
-      where.y += MAXHEIGHT + 10;
-
+      where.y += PreferencesUser.get().getDefaultThumbHeight() + 10;
       popmenu = new SXDialogPaneImageMenu(where,
           new String[]{"image"}, options.get(IButton.FILE), this);
       popmenu.run();
     }
   }
 
-  private SXDialogPaneImage popwin = null;
-
   private void handlePreview() {
-    Point where = getLocationOnScreen();
-    popwin = new SXDialogPaneImage(where, new String[]{"image"}, options.get(IButton.FILE), this);
-    popwin.run();
+    // ouverture PatternWindow comme en 2.0.5
+    popwin = new PatternWindow(this);
   }
 
   @Override
@@ -160,7 +157,6 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   }
 
   private BufferedImage createThumbnailImage(Pattern pattern, int maxHeight) {
-    //TODO Pattern thumbnail
     return createThumbnailImage(pattern.getImage().file(), maxHeight);
   }
 
@@ -217,35 +213,23 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   public static void renameImage(String name, Map<String, Object> options) {
     Commons.error("N/A: EditorImageButton::renameImage (%s -> %s)", options.get("image"), name);
-    // rename image file
-    // replace image name usage in script
-    // thumbnails off/on
   }
 
-  //imgBtn.setImage(filename);
   public void setImage(String fname) {
-
   }
 
-  //imgBtn.setParameters(
-  //						_screenshot.isExact(), _screenshot.getSimilarity(),
-  //						_screenshot.getNumMatches()));
   public boolean setParameters(boolean exact, double sim, int numM) {
     return true;
   }
 
-  //imgBtn.setTargetOffset(_tarOffsetPane.getTargetOffset()))
   public boolean setTargetOffset(Location offset) {
     return true;
   }
 
-  //imgBtn.getWindow()
   public PatternWindow getWindow() {
-    return null;
+    return popwin;
   }
 
-  //imgBtn.resetParameters()
   public void resetParameters() {
-
   }
 }

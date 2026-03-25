@@ -33,7 +33,6 @@ public class SX {
 
   private static Log log = new Log();
 
-  private static final ScheduledExecutorService TIMEOUT_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
 
   //<editor-fold desc="01 input, popup, popAsk, popError">
   private enum PopType {
@@ -149,7 +148,7 @@ public class SX {
     return false;
   }
 
-  private static Object doPop(PopType popType, Object... args) {
+ private static Object doPop(PopType popType, Object... args) {
     class RunInput implements Runnable {
       PopType popType = PopType.POPUP;
       JFrame frame = null;
@@ -272,7 +271,7 @@ public class SX {
         } else if (PopType.POPFILE.equals(popType)) {
           File fileChoosen = new SikulixFileChooser(frame).open(title);
           returnValue = fileChoosen == null ? "" : fileChoosen.getAbsolutePath();
-        } else if (PopType.POPGENERIC.equals(popType)) { //TODO allow the other button options
+        } else if (PopType.POPGENERIC.equals(popType)) {
           returnValue = 0;
           if (options instanceof String[]) {
             String[] realOptions = (String[]) options;
@@ -284,7 +283,7 @@ public class SX {
         }
 
         synchronized (this) {
-          dispose(); // needs to be here, frame is not always closed properly otherwise
+          dispose();
           this.notify();
         }
       }
@@ -305,36 +304,42 @@ public class SX {
       }
     }
 
+    // executor local : cree a chaque appel, shutdown apres usage
+    // evite le RejectedExecutionException sur les appels successifs
+    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     RunInput popRun = new RunInput(popType, args);
-    ScheduledFuture<?> timeoutJob = TIMEOUT_EXECUTOR.schedule((() -> {
+    ScheduledFuture<?> timeoutJob = executor.schedule((() -> {
       popRun.dispose();
     }), popRun.getTimeout(), TimeUnit.MILLISECONDS);
 
-    if (EventQueue.isDispatchThread()) {
-      try {
-        popRun.run();
-      } finally {
-        timeoutJob.cancel(false);
-      }
-    } else {
-      synchronized (popRun) {
-        EventQueue.invokeLater(popRun);
+    try {
+      if (EventQueue.isDispatchThread()) {
         try {
-          popRun.wait();
-        } catch (InterruptedException e) {
-          Debug.error("Interrupted while waiting for popup close: %s", e.getMessage());
+          popRun.run();
         } finally {
           timeoutJob.cancel(false);
         }
+      } else {
+        synchronized (popRun) {
+          EventQueue.invokeLater(popRun);
+          try {
+            popRun.wait();
+          } catch (InterruptedException e) {
+            Debug.error("Interrupted while waiting for popup close: %s", e.getMessage());
+          } finally {
+            timeoutJob.cancel(false);
+          }
+        }
       }
+    } finally {
+      // shutdown propre : libere le thread apres chaque popup
+      executor.shutdown();
     }
+
     Object returnValue = popRun.getReturnValue();
     if (timeoutJob.isDone()) {
       returnValue = null;
-    } else {
-      timeoutJob.cancel(false);
     }
-    TIMEOUT_EXECUTOR.shutdown();
     return returnValue;
   }
 

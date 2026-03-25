@@ -1580,14 +1580,21 @@ public class RunTime {
   //<editor-fold defaultstate="collapsed" desc="06 init for API">
   private static RobotDesktop cleanupRobot = null;
 
-  private void initAPI() {
+private void initAPI() {
     log(4, "initAPI: entering");
     try {
-      cleanupRobot = new RobotDesktop();
+        cleanupRobot = new RobotDesktop();
     } catch (AWTException e) {
     }
+    try {
+        log(4, "initAPI: chargement OpenCV...");
+        nu.pattern.OpenCV.loadShared();
+        log(4, "initAPI: OpenCV OK");
+    } catch (Throwable e) {
+        log(-1, "initAPI: OpenCV echec: %s", e.getMessage());
+    }
     log(4, "initAPI: leaving");
-  }
+}
 
   private static boolean isLibExported = false;
 

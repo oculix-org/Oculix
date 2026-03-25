@@ -1104,8 +1104,14 @@ public class Commons {
   private static boolean libOpenCVloaded = false;
 
 public static void loadOpenCV() {
-    // opencv géré par Apertix/JNA
-    libOpenCVloaded = true;
+    if (!libOpenCVloaded) {
+        try {
+            nu.pattern.OpenCV.loadShared();
+            libOpenCVloaded = true;
+        } catch (Throwable e) {
+            Debug.error("Commons.loadOpenCV: echec: %s", e.getMessage());
+        }
+    }
 }
 
   private static final String jarLibsPath = "/sikulixlibs/";

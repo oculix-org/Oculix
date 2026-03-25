@@ -4,6 +4,7 @@
 
 package org.sikuli.ide;
 
+import nu.pattern.OpenCV;
 import org.sikuli.basics.*;
 import org.sikuli.support.FileManager;
 import org.sikuli.support.runner.SikulixServer;
@@ -14,7 +15,7 @@ import org.sikuli.support.Commons;
 import org.sikuli.support.RunTime;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.ide.SikuliIDEI18N;
-
+import javax.swing.UIManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.reflect.Method;
@@ -50,7 +51,11 @@ public class Sikulix {
       Commons.printHelp();
       System.exit(0);
     }
-
+	try {
+    UIManager.setLookAndFeel("com.formdev.flatlaf.FlatLightLaf");
+} catch (Exception e) {
+    // fallback sur le LAF par défaut
+}
     Commons.initOptions();
 
     Commons.globals().setOption("SX_LOCALE", SikuliIDEI18N.getLocaleShow());
@@ -78,8 +83,6 @@ public class Sikulix {
       Debug.setDebugLevel(3);
     }
 
-    //TODO autoCheckUpdate();
-
     if (Commons.hasOption(RUN)) {
       HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
         @Override
@@ -105,6 +108,13 @@ public class Sikulix {
 
     Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
     //endregion
+
+    // chargement OpenCV natif via nu.pattern — extrait la DLL du jar Apertix automatiquement
+    try {
+      OpenCV.loadShared();
+    } catch (Throwable e) {
+      System.err.println("[error] OpenCV chargement echec: " + e.getMessage());
+    }
 
     if (!Commons.hasOption(VERBOSE)) {
       ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
@@ -175,72 +185,7 @@ public class Sikulix {
       }
     }
 
+
     SikulixIDE.start();
-
-    //TODO start IDE in subprocess?
-    //region IDE subprocess
-    if (false) {
-      /*
-      if (false) {
-        RunTime.terminate(999, "//TODO start IDE in subprocess?");
-        List<String> cmd = new ArrayList<>();
-        System.getProperty("java.home");
-        if (Commons.runningWindows()) {
-          cmd.add(System.getProperty("java.home") + "\\bin\\java.exe");
-        } else {
-          cmd.add(System.getProperty("java.home") + "/bin/java");
-        }
-        if (!Commons.isJava8()) {
-      */
-//      Suppress Java 9+ warnings
-//      --add-opens
-//      java.desktop/javax.swing.plaf.basic=ALL-UNNAMED
-//      --add-opens
-//      java.base/sun.nio.ch=ALL-UNNAMED
-//      --add-opens
-//      java.base/java.io=ALL-UNNAMED
-/*
-
-//TODO IDE start: --add-opens supress warnings
-          cmd.add("--add-opens");
-          cmd.add("java.desktop/javax.swing.plaf.basic=ALL-UNNAMED");
-          cmd.add("--add-opens");
-          cmd.add("java.base/sun.nio.ch=ALL-UNNAMED");
-          cmd.add("--add-opens");
-          cmd.add("java.base/java.io=ALL-UNNAMED");
-        }
-
-        cmd.add("-Dfile.encoding=UTF-8");
-        cmd.add("-Dsikuli.IDE_should_run");
-
-        if (!classPath.isEmpty()) {
-          cmd.add("-cp");
-          cmd.add(classPath);
-        }
-
-        cmd.add("org.sikuli.ide.SikulixIDE");
-//      cmd.addAll(finalArgs);
-
-        RunTime.startLog(3, "*********************** leaving start");
-        //TODO detach IDE: for what does it make sense?
-*/
-/*
-    if (shouldDetach()) {
-      ProcessRunner.detach(cmd);
-      System.exit(0);
-    } else {
-      int exitCode = ProcessRunner.runBlocking(cmd);
-      System.exit(exitCode);
-    }
-*/
-/*
-
-        int exitCode = ProcessRunner.runBlocking(cmd);
-        System.exit(exitCode);
-      }
-      //endregion
-*/
-    }
-    //endregion
   }
 }
