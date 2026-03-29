@@ -6,20 +6,20 @@ on:
       - master
     paths:
       - 'IDE/pom*'
-  
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    
-    - name: Set up JDK 11
-      uses: actions/setup-java@v2
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
       with:
-        java-version: '11'
-        distribution: 'adopt'
+        java-version: '17'
+        distribution: 'temurin'
         server-id: ossrh
         server-username: MAVEN_USERNAME
         server-password: MAVEN_PASSWORD
@@ -43,10 +43,10 @@ jobs:
 # --------------------------------------- macOS
     - name: macOS Build with Maven
       run: mvn -B -pl IDE -P complete-mac-jar clean package | egrep -v "^\[INFO\].*?Download.*?http"
-      
+
     - name: Remove thin jar
       run: rm ${{ github.workspace }}/IDE/target/sikulixide-2.1.0-SNAPSHOT.jar
-      
+
     - name: Rename fat jar
       run: mv ${{ github.workspace }}/IDE/target/sikulixide-2.1.0-SNAPSHOT-complete-mac.jar ${{ github.workspace }}/IDE/target/sikulixmac-2.1.0-SNAPSHOT.jar
 
