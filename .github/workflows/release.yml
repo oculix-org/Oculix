@@ -83,18 +83,22 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
 
+    - name: List downloaded artifacts
+      run: find . -name "*.jar" -not -path "./.m2/*" | sort
+
     - name: Prepare release assets
       run: |
         VERSION="${{ steps.version.outputs.VERSION }}"
         mkdir -p release-assets
-        cp windows-jars/API/target/oculixapi-${VERSION}-complete-win.jar release-assets/oculixapi-${VERSION}-windows.jar
-        cp windows-jars/IDE/target/oculixide-${VERSION}-complete-win.jar release-assets/oculixide-${VERSION}-windows.jar
-        cp macos-jars/API/target/oculixapi-${VERSION}-complete-mac.jar release-assets/oculixapi-${VERSION}-macos.jar
-        cp macos-jars/IDE/target/oculixide-${VERSION}-complete-mac.jar release-assets/oculixide-${VERSION}-macos.jar
-        cp linux-jars/API/target/oculixapi-${VERSION}-complete-lux.jar release-assets/oculixapi-${VERSION}-linux.jar
-        cp linux-jars/IDE/target/oculixide-${VERSION}-complete-lux.jar release-assets/oculixide-${VERSION}-linux.jar
+        find windows-jars -name "*complete-win*" -exec cp {} release-assets/ \;
+        find macos-jars -name "*complete-mac*" -exec cp {} release-assets/ \;
+        find linux-jars -name "*complete-lux*" -exec cp {} release-assets/ \;
+        cd release-assets
+        for f in *-complete-win.jar; do mv "$f" "${f%-complete-win.jar}-windows.jar"; done
+        for f in *-complete-mac.jar; do mv "$f" "${f%-complete-mac.jar}-macos.jar"; done
+        for f in *-complete-lux.jar; do mv "$f" "${f%-complete-lux.jar}-linux.jar"; done
         echo "=== Release assets ==="
-        ls -lh release-assets/
+        ls -lh
 
     - name: Create release if it does not exist
       env:
