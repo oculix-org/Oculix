@@ -1,11 +1,7 @@
 name: API Snapshot
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'API/pom*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,15 +14,15 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          server-id: ossrh
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+          # server-id: ossrh
+          # server-username: MAVEN_USERNAME
+          # server-password: MAVEN_PASSWORD
 
       - name: Build with Maven
         run: mvn -B -pl API package | egrep -v "^\[INFO\].*?Download.*?http"
 
-      - name: Publish to OSSRH
-        run: mvn -B -pl API deploy | egrep -v "^\[INFO\].*?Download.*?http"
-        env:
-          MAVEN_USERNAME: ${{ secrets.OSSRH_USER }}
-          MAVEN_PASSWORD: ${{ secrets.OSSRH_PASS }}
+      # - name: Publish to OSSRH
+      #   run: mvn -B -pl API deploy | egrep -v "^\[INFO\].*?Download.*?http"
+      #   env:
+      #     MAVEN_USERNAME: ${{ secrets.OSSRH_USER }}
+      #     MAVEN_PASSWORD: ${{ secrets.OSSRH_PASS }}
