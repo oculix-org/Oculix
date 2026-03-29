@@ -774,10 +774,10 @@ public class CConn extends CConnection implements
     String os = System.getProperty("os.name");
     if (os.startsWith("Windows")) {
       try {
-        Class<?> wlaf = Class.forName("com.sun.java.swing.plaf.windows.WindowsLookAndFeel");
-        java.lang.reflect.Method m = wlaf.getMethod("setMnemonicHidden", boolean.class);
-        m.invoke(null, false);
-      } catch (Exception ignored) {
+        Class.forName("com.sun.java.swing.plaf.windows.WindowsLookAndFeel")
+            .getMethod("setMnemonicHidden", boolean.class)
+            .invoke(null, false);
+      } catch (ReflectiveOperationException ignored) {
       }
     }
     menu.show(desktop, x, y);
