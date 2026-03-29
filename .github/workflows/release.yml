@@ -18,12 +18,28 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Build API and IDE
-      run: mvn -B package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
+    - name: Build API fat JAR (Linux)
+      run: mvn -B -pl API -P complete-lux-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
+
+    - name: Build IDE fat JAR (Linux)
+      run: mvn -B -pl IDE -P complete-lux-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
 
     - name: Get version from POM
       id: version
       run: echo "VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_OUTPUT
+
+    - name: Prepare release assets
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        mkdir -p release-assets
+        # API: remove thin jar, keep fat jar
+        rm -f API/target/oculixapi-${VERSION}.jar
+        mv API/target/oculixapi-${VERSION}-complete-lux.jar release-assets/oculixapi-${VERSION}.jar
+        # IDE: remove thin jar, keep fat jar
+        rm -f IDE/target/oculixide-${VERSION}.jar
+        mv IDE/target/oculixide-${VERSION}-complete-lux.jar release-assets/oculixide-${VERSION}.jar
+        echo "=== Release assets ==="
+        ls -lh release-assets/
 
     - name: Create release if it does not exist
       env:
@@ -43,6 +59,6 @@ jobs:
       run: |
         TAG="v${{ steps.version.outputs.VERSION }}"
         gh release upload "$TAG" \
-          API/target/oculixapi-${{ steps.version.outputs.VERSION }}.jar \
-          IDE/target/oculixide-${{ steps.version.outputs.VERSION }}.jar \
+          release-assets/oculixapi-${{ steps.version.outputs.VERSION }}.jar \
+          release-assets/oculixide-${{ steps.version.outputs.VERSION }}.jar \
           --clobber
