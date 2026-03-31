@@ -135,6 +135,12 @@
       <groupId>org.rococoa</groupId>
       <artifactId>rococoa-core</artifactId>
       <version>0.5</version>
+      <exclusions>
+        <exclusion>
+          <groupId>asm</groupId>
+          <artifactId>asm</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
