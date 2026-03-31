@@ -54,6 +54,12 @@
       <groupId>org.python</groupId>
       <artifactId>jython-slim</artifactId>
       <version>${sikulixjythonversion}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.ow2.asm</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.jruby</groupId>
