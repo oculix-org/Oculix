@@ -64,8 +64,6 @@ public class Sikulix {
     }
 
     if (Commons.hasOption(VERBOSE)) {
-      Commons.show();
-      Commons.showOptions("ARG_");
       Debug.globalDebugOn();
     }
 
@@ -106,9 +104,12 @@ public class Sikulix {
     Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
     //endregion
 
-    if (!Commons.hasOption(VERBOSE)) {
-      ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
-      ideSplash.run();
+    ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
+    ideSplash.run();
+
+    if (Commons.hasOption(VERBOSE)) {
+      Commons.show();
+      Commons.showOptions("ARG_");
     }
 
     if (!Commons.hasOption(MULTI)) {
