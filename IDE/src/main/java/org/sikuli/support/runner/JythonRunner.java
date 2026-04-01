@@ -8,7 +8,7 @@ import org.sikuli.ide.SikulixIDE;
 import org.sikuli.support.ide.JythonSupport;
 import org.sikuli.script.Sikulix;
 import org.sikuli.support.Commons;
-
+import static org.sikuli.util.CommandArgsEnum.*;
 import java.io.File;
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -96,7 +96,9 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
         interpreterVersion = "could not be evaluated";
       }
       Commons.startLog(3, "Jython ready: version %s (%4.1f sec)", interpreterVersion, Commons.getSinceStart());
-      SikulixIDE.showAfterStart();
+      if (!Commons.hasOption(RUN)) {
+        SikulixIDE.showAfterStart();
+      }
     }
   }
 

@@ -1104,8 +1104,40 @@ public class Commons {
   private static boolean libOpenCVloaded = false;
 
 public static void loadOpenCV() {
-    // opencv géré par Apertix/JNA
-    libOpenCVloaded = true;
+    if (!libOpenCVloaded) {
+        try {
+            // Extraire et charger la DLL depuis le jar (win32-x86-64/)
+            String libName = Core.NATIVE_LIBRARY_NAME;
+            System.loadLibrary(libName);
+            Debug.log(3, "OpenCV: loaded via System.loadLibrary: %s", libName);
+        } catch (Throwable e) {
+            try {
+                // Fallback : extraction manuelle depuis le jar
+                String resource = "win32-x86-64/" + Core.NATIVE_LIBRARY_NAME + ".dll";
+                java.io.InputStream is = Commons.class.getClassLoader().getResourceAsStream(resource);
+                if (is != null) {
+                    File tempDir = getTempFolder();
+                    if (tempDir == null) {
+                        tempDir = new File(System.getProperty("java.io.tmpdir"));
+                    }
+                    File tempLib = new File(tempDir, Core.NATIVE_LIBRARY_NAME + ".dll");
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(tempLib);
+                    byte[] buf = new byte[8192];
+                    int len;
+                    while ((len = is.read(buf)) > 0) {
+                        fos.write(buf, 0, len);
+                    }
+                    fos.close();
+                    is.close();
+                    System.load(tempLib.getAbsolutePath());
+                    Debug.log(3, "OpenCV: loaded from jar resource: %s", tempLib);
+                }
+            } catch (Throwable e2) {
+                Debug.log(-1, "OpenCV: FAILED to load: %s", e2.getMessage());
+            }
+        }
+        libOpenCVloaded = true;
+    }
 }
 
   private static final String jarLibsPath = "/sikulixlibs/";
