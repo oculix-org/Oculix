@@ -79,6 +79,7 @@ public class Sikulix {
     //TODO autoCheckUpdate();
 
     if (Commons.hasOption(RUN)) {
+      Commons.loadOpenCV();
       HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
         @Override
         public void hotkeyPressed(HotkeyEvent e) {

@@ -378,7 +378,7 @@ public class JythonSupport implements IRunnerSupport {
           "# -*- coding: utf-8 -*- ",
           "import time; start = time.time()",
           "from sikuli import *",
-          "resetBeforeScriptStart()",
+          "try:\n  resetBeforeScriptStart()\nexcept:\n  pass",
           "Debug.log(3, 'Jython: BeforeScript: %s (%f)',  SCREEN, time.time()-start)",
   };
   //</editor-fold>
