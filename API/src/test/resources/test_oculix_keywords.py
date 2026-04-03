@@ -90,11 +90,22 @@ test("setRoi", test_setRoi)
 test("resetRoi", test_resetRoi)
 
 # === GROUPE 4 : clickText OCR ===
-kw.setRegion(window)
+# Focus on the text editing area (skip title bar ~60px, menu ~25px)
+textArea = Region(window.getX() + 5, window.getY() + 85, window.getW() - 30, window.getH() - 120)
+kw.setRegion(textArea)
+
+# Debug: show what OCR sees in the text area
+print("OCR debug - textArea: " + str(textArea))
+try:
+    ocrResult = textArea.text()
+    print("OCR sees: [" + str(ocrResult) + "]")
+except:
+    print("OCR text() failed - Tesseract may not be configured")
+
 test("clickText OCULIX", lambda: kw.clickText("OCULIX"))
 time.sleep(0.3)
 
-kw.setRegion(window)
+kw.setRegion(textArea)
 test("regionClickText ALPHA", lambda: kw.regionClickText("ALPHA"))
 time.sleep(0.3)
 
