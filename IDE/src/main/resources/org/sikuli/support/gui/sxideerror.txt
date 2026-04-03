@@ -1,0 +1,7 @@
+#globals; m 3; c; f 10; b 3; w 2; p 3
+
+{parm0}
+---
+{parm1}
+---
+#close; Press ESC or Click

@@ -1,0 +1,13 @@
+#globals; m 5; c; f 12; b 1; p 4
+
+[
+#backToIDE; (✖);
+---5
+#action; (⬆); fullscreen
+---5
+#action; (✔); apply
+]
+---5
+#image_paneshot; {shot}
+---3
+_statusline {sximagefile_image}

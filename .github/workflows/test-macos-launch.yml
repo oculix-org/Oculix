@@ -1,0 +1,61 @@
+name: Test OculiX macOS Launch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Download release JARs
+        run: |
+          curl -L -o oculix-api.jar \
+            "https://github.com/julienmerconsulting/Oculix/releases/download/v3.0.1/oculixapi-3.0.1-macos.jar"
+          curl -L -o oculix-ide.jar \
+            "https://github.com/julienmerconsulting/Oculix/releases/download/v3.0.1/oculixide-3.0.1-macos.jar"
+          echo "=== Taille des fichiers ==="
+          ls -lh oculix-api.jar oculix-ide.jar
+          echo "=== Type des fichiers ==="
+          file oculix-api.jar
+          file oculix-ide.jar
+
+      - name: Contenu natifs API JAR
+        run: |
+          echo "=== Natifs macOS dans API JAR ==="
+          jar tf oculix-api.jar | grep -i "dylib\|opencv\|osx" || echo "Aucun natif macOS trouvé dans API"
+
+      - name: Contenu natifs IDE JAR
+        run: |
+          echo "=== Natifs macOS dans IDE JAR ==="
+          jar tf oculix-ide.jar | grep -i "dylib\|opencv\|osx" || echo "Aucun natif macOS trouvé dans IDE"
+
+      - name: Test chargement OpenCV via API
+        run: |
+          echo "=== Test OpenCV load (API) ==="
+          java -cp oculix-api.jar org.opencv.core.Core 2>&1 || true
+
+      - name: Test lancement IDE
+        run: |
+          echo "=== Java version ==="
+          java -version
+          echo "=== Architecture ==="
+          uname -m
+          echo "=== Lancement OculiX IDE ==="
+          java -jar oculix-ide.jar -v &
+          PID=$!
+          sleep 30
+          kill $PID 2>/dev/null || true
+
+      - name: Verifier natifs extraits
+        run: |
+          echo "=== Natifs dans ~/.Sikulix ==="
+          find ~/.Sikulix -name "*.dylib" -o -name "*.so" 2>/dev/null || echo "Aucun natif trouve"
+          echo "=== Natifs dans /tmp ==="
+          find /tmp -name "*opencv*" -o -name "*sikulix*" 2>/dev/null || echo "Aucun natif dans /tmp"
