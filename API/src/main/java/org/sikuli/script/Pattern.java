@@ -394,6 +394,58 @@ public class Pattern {
     return waitAfter;
   }
 
+  /**
+   * Create a Pattern from a locator string.
+   * <p>Supported formats:</p>
+   * <ul>
+   *   <li>{@code "image.png"} — image with default MinSimilarity</li>
+   *   <li>{@code "image.png=0.9"} — image with explicit similarity</li>
+   *   <li>{@code "image.jpg=0.85"} — also works with .jpg/.jpeg</li>
+   *   <li>{@code "some text"} — treated as text pattern (no image extension)</li>
+   * </ul>
+   *
+   * @param locator the locator string to parse
+   * @return a configured Pattern
+   * @throws IllegalArgumentException if similarity is not between 0.0 and 1.0
+   */
+  public static Pattern fromLocator(String locator) {
+    if (locator == null || locator.isEmpty()) {
+      throw new IllegalArgumentException("Pattern locator must not be null or empty");
+    }
+    if (isImageLocator(locator)) {
+      if (locator.contains("=")) {
+        String clean = locator.replace(" ", "");
+        int eqIdx = clean.lastIndexOf("=");
+        String imagePath = clean.substring(0, eqIdx);
+        float similarity;
+        try {
+          similarity = Float.parseFloat(clean.substring(eqIdx + 1));
+        } catch (NumberFormatException e) {
+          throw new IllegalArgumentException(
+              "Invalid similarity value in locator: " + locator, e);
+        }
+        if (similarity < 0.0f || similarity > 1.0f) {
+          throw new IllegalArgumentException(
+              "Similarity must be between 0.0 and 1.0, got: " + similarity);
+        }
+        return new Pattern(imagePath).similar(similarity);
+      } else {
+        return new Pattern(locator).similar((float) Settings.MinSimilarity);
+      }
+    } else {
+      return new Pattern(locator);
+    }
+  }
+
+  private static boolean isImageLocator(String locator) {
+    String lower = locator.toLowerCase().replace(" ", "");
+    // Handle "image.png=0.9" — check the part before "="
+    if (lower.contains("=")) {
+      lower = lower.substring(0, lower.lastIndexOf("="));
+    }
+    return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg");
+  }
+
   @Override
   public String toString() {
     String ret = "P(" + image.getName()
