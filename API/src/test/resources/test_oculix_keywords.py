@@ -97,8 +97,16 @@ test("setRoi", test_setRoi)
 test("resetRoi", test_resetRoi)
 
 # === GROUPE 4 : clickText OCR ===
-# Try PaddleOCR first (more reliable), fallback to Tesseract
-textArea = Region(window.getX() + 5, window.getY() + 85, window.getW() - 30, window.getH() - 120)
+# Refocus Notepad and recalculate window position
+App.focus("Notepad")
+time.sleep(0.5)
+window = App.focusedWindow()
+print("Window after refocus: " + str(window))
+
+# Target just the top part of the editing area where the text is
+# Notepad title bar ~32px, menu bar ~20px, toolbar ~0px (no toolbar in Win notepad)
+# Text is at the very top of the editing area
+textArea = Region(window.getX(), window.getY() + 50, window.getW(), 80)
 print("OCR debug - textArea: " + str(textArea))
 
 ocrReady = False
