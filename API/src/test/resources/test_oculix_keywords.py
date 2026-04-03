@@ -44,24 +44,16 @@ print("Notepad window: " + str(window))
 window.type("OCULIX TEST ALPHA BETA GAMMA")
 time.sleep(1)
 
-# Recapture window position after typing (in case it moved)
-App.focus("Notepad")
-time.sleep(0.5)
-window = App.focusedWindow()
-print("Window after type+refocus: " + str(window))
-
 # Create OculixKeywords bound to the Notepad window
 kw = OculixKeywords(window)
 
-# Capture a reference image: top-left corner of the window (title bar area)
-# This is a stable visual element that should always match
+# Capture a reference image: top-left corner of the window (title bar)
 refRegion = Region(window.getX(), window.getY(), 80, 30)
 simg = s.capture(refRegion)
 smallPath = simg.getFile(tmpdir, "ref_small")
 print("Ref image: " + smallPath)
 
-# Capture a "not wanted" image: bottom-right of screen (taskbar area)
-# Use screen bounds to avoid going off-screen
+# Capture a "not wanted" image: bottom-right of screen (taskbar)
 sw = s.getW()
 sh = s.getH()
 nwRegion = Region(sw - 50, sh - 30, 40, 20)
@@ -71,7 +63,7 @@ print("Not-wanted image: " + nwPath)
 print("")
 
 # ============================================================
-# GROUPE 1 : Metriques (getMatchScore, imageCount)
+# GROUPE 1 : Metriques
 # ============================================================
 print("--- Metriques ---")
 kw.setRegion(window)
@@ -143,7 +135,7 @@ def test_resetRoi():
     kw.setRoi(10, 10, 100, 100)
     kw.resetRoi()
     r = kw.getRegion()
-    assert r.getW() > 100, "resetRoi should restore to full screen, got W=" + str(r.getW())
+    assert r.getW() > 100, "resetRoi: expected W>100, got " + str(r.getW())
     kw.setRegion(window)  # restore
 
 def test_timeout():
@@ -159,19 +151,13 @@ test("setTimeout", test_timeout)
 # GROUPE 4 : clickText OCR
 # ============================================================
 print("--- clickText OCR ---")
-
-# Refocus Notepad
-App.focus("Notepad")
-time.sleep(0.5)
-window = App.focusedWindow()
 kw.setRegion(window)
 
-# Probe PaddleOCR
+# Probe PaddleOCR on the actual window
 ocrReady = False
 try:
     paddle = PaddleOCREngine()
     if paddle.isAvailable():
-        # Test if PaddleOCR actually sees text in the window
         testImg = s.capture(window)
         testPath = testImg.getFile(tmpdir, "debug_paddle")
         testTexts = paddle.getClient().recognizeAndParseTexts(testPath)
@@ -215,9 +201,6 @@ else:
 # GROUPE 5 : Clicks par coordonnees
 # ============================================================
 print("--- Clicks coordonnees ---")
-App.focus("Notepad")
-time.sleep(0.3)
-window = App.focusedWindow()
 kw.setRegion(window)
 
 def test_clickRegion():
@@ -238,9 +221,6 @@ test("clickOnRegion", test_clickOnRegion)
 # GROUPE 6 : waitForImage
 # ============================================================
 print("--- waitForImage ---")
-App.focus("Notepad")
-time.sleep(0.3)
-window = App.focusedWindow()
 kw.setRegion(window)
 
 def test_waitForImage():
@@ -261,7 +241,7 @@ def test_highlightRoi():
     kw.setRegion(window)
 
 def test_highlightCount():
-    assert kw.getHighlightCount() == 0, "Should be 0 after no persistent highlights"
+    assert kw.getHighlightCount() == 0, "Should be 0"
 
 test("highlightRoi", test_highlightRoi)
 test("highlightCount", test_highlightCount)
