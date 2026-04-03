@@ -437,13 +437,53 @@ public class Pattern {
     }
   }
 
-  private static boolean isImageLocator(String locator) {
+  /**
+   * Check if a locator refers to an image file (.png, .jpg, .jpeg).
+   * Package-private for testing.
+   */
+  static boolean isImageLocator(String locator) {
     String lower = locator.toLowerCase().replace(" ", "");
     // Handle "image.png=0.9" — check the part before "="
     if (lower.contains("=")) {
       lower = lower.substring(0, lower.lastIndexOf("="));
     }
     return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg");
+  }
+
+  /**
+   * Parse an image locator and return [imagePath, similarity] without creating a Pattern.
+   * Returns null if the locator is not an image locator.
+   * Package-private for testing.
+   *
+   * @return String[2]: [imagePath, similarityString] or null for text locators
+   */
+  static String[] parseImageLocator(String locator) {
+    if (locator == null || locator.isEmpty()) {
+      throw new IllegalArgumentException("Pattern locator must not be null or empty");
+    }
+    if (!isImageLocator(locator)) {
+      return null; // text locator
+    }
+    if (locator.contains("=")) {
+      String clean = locator.replace(" ", "");
+      int eqIdx = clean.lastIndexOf("=");
+      String imagePath = clean.substring(0, eqIdx);
+      String simStr = clean.substring(eqIdx + 1);
+      float similarity;
+      try {
+        similarity = Float.parseFloat(simStr);
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException(
+            "Invalid similarity value in locator: " + locator, e);
+      }
+      if (similarity < 0.0f || similarity > 1.0f) {
+        throw new IllegalArgumentException(
+            "Similarity must be between 0.0 and 1.0, got: " + similarity);
+      }
+      return new String[]{imagePath, simStr};
+    } else {
+      return new String[]{locator, String.valueOf((float) Settings.MinSimilarity)};
+    }
   }
 
   @Override
