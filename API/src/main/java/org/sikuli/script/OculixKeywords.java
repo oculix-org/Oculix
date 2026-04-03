@@ -3,10 +3,10 @@
  */
 package org.sikuli.script;
 
+import com.sikulix.ocr.OCREngine;
 import org.sikuli.basics.Settings;
 import org.sikuli.support.devices.IScreen;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +23,7 @@ public class OculixKeywords {
   private Region region;
   private final IScreen screen;
   private double timeout = 3.0;
+  private OCREngine ocrEngine = null;
   private final Map<String, Match> highlightMap = new HashMap<>();
 
   /**
@@ -57,6 +58,24 @@ public class OculixKeywords {
 
   public void setTimeout(double timeout) {
     this.timeout = timeout;
+  }
+
+  /**
+   * Set an OCR engine for text operations (clickText, regionClickText).
+   * When set, uses this engine instead of SikuliX built-in Tesseract.
+   * Pass null to revert to Tesseract.
+   *
+   * @param engine an OCREngine (e.g. PaddleOCREngine, TesseractEngine)
+   */
+  public void setOcrEngine(OCREngine engine) {
+    this.ocrEngine = engine;
+  }
+
+  /**
+   * Get the current OCR engine (null = SikuliX built-in Tesseract).
+   */
+  public OCREngine getOcrEngine() {
+    return ocrEngine;
   }
 
   // ── Metrics ───────────────────────────────────────────────────────────
@@ -547,12 +566,37 @@ public class OculixKeywords {
     if (text == null || text.isEmpty()) {
       throw new IllegalArgumentException("Text must not be null or empty");
     }
+    if (ocrEngine != null) {
+      return performClickTextWithEngine(text, searchRegion);
+    }
+    // Fallback: SikuliX built-in Tesseract
     Match match = searchRegion.existsText(text, timeout);
     if (match == null) {
       throw new ScreenOperationException("Text '" + text + "' not found on screen");
     }
     match.click();
     return MatchUtils.regionFromMatch(match);
+  }
+
+  private int[] performClickTextWithEngine(String text, Region searchRegion) {
+    // Capture the search region to a temp image for the OCR engine
+    ScreenImage simg = searchRegion.getScreen().capture(searchRegion);
+    String imagePath = simg.save();
+    String json = ocrEngine.recognize(imagePath);
+    int[] coords = ocrEngine.findTextCoordinates(json, text);
+    if (coords == null) {
+      throw new ScreenOperationException(
+          "Text '" + text + "' not found by " + ocrEngine.getName());
+    }
+    // coords are relative to the captured image — offset to screen coordinates
+    int absX = searchRegion.getX() + coords[0];
+    int absY = searchRegion.getY() + coords[1];
+    int w = coords[2];
+    int h = coords[3];
+    // Click the center of the found text
+    Region textRegion = new Region(absX, absY, w, h);
+    textRegion.click();
+    return new int[]{absX, absY, w, h};
   }
 
   private int[] waitAndGetMatchCoords(String locator) {

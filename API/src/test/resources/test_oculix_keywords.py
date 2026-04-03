@@ -1,5 +1,6 @@
-from org.sikuli.script import OculixKeywords, Screen, Region, App, Pattern, OCR, TextRecognizer
+from org.sikuli.script import OculixKeywords, Screen, Region, App, Pattern
 from org.sikuli.basics import Settings
+from com.sikulix.ocr import PaddleOCREngine
 import jarray
 import os, time, subprocess
 
@@ -96,32 +97,39 @@ test("setRoi", test_setRoi)
 test("resetRoi", test_resetRoi)
 
 # === GROUPE 4 : clickText OCR ===
-# Probe OCR availability before running OCR tests
-Settings.OcrTextSearch = True
-Settings.OcrTextRead = True
-
+# Try PaddleOCR first (more reliable), fallback to Tesseract
 textArea = Region(window.getX() + 5, window.getY() + 85, window.getW() - 30, window.getH() - 120)
 print("OCR debug - textArea: " + str(textArea))
 
-ocrWorks = False
-try:
-    ocrResult = textArea.text()
-    print("OCR sees: [" + str(ocrResult).strip() + "]")
-    if ocrResult and len(ocrResult.strip()) > 0:
-        ocrWorks = True
-    else:
-        print("OCR returned empty - trying with larger region and wait...")
-        time.sleep(1)
-        # Try full screen OCR to check if Tesseract works at all
-        fullOcr = s.text()
-        print("Full screen OCR: [" + str(fullOcr)[:80] + "...]")
-        if fullOcr and len(fullOcr.strip()) > 0:
-            ocrWorks = True
-            textArea = window  # fallback to full window
-except Exception as e:
-    print("OCR probe failed: " + str(e))
+ocrReady = False
 
-if ocrWorks:
+# Try PaddleOCR (needs external server on localhost:5000)
+try:
+    paddle = PaddleOCREngine()
+    if paddle.isAvailable():
+        kw.setOcrEngine(paddle)
+        print("OCR engine: PaddleOCR (server alive)")
+        ocrReady = True
+    else:
+        print("PaddleOCR server not available, trying Tesseract...")
+except Exception as e:
+    print("PaddleOCR init failed: " + str(e))
+
+# Fallback: try Tesseract
+if not ocrReady:
+    Settings.OcrTextSearch = True
+    Settings.OcrTextRead = True
+    try:
+        ocrResult = textArea.text()
+        print("Tesseract sees: [" + str(ocrResult).strip() + "]")
+        if ocrResult and len(ocrResult.strip()) > 0:
+            ocrReady = True
+            kw.setOcrEngine(None)  # use built-in Tesseract
+            print("OCR engine: Tesseract")
+    except Exception as e:
+        print("Tesseract probe failed: " + str(e))
+
+if ocrReady:
     kw.setRegion(textArea)
     test("clickText OCULIX", lambda: kw.clickText("OCULIX"))
     time.sleep(0.3)
@@ -129,8 +137,8 @@ if ocrWorks:
     test("regionClickText ALPHA", lambda: kw.regionClickText("ALPHA"))
     time.sleep(0.3)
 else:
-    skip("clickText OCULIX", "Tesseract OCR not available or not detecting text")
-    skip("regionClickText ALPHA", "Tesseract OCR not available or not detecting text")
+    skip("clickText OCULIX", "No OCR engine available (PaddleOCR down + Tesseract empty)")
+    skip("regionClickText ALPHA", "No OCR engine available")
 
 # === GROUPE 5 : Clicks coordonnees ===
 kw.setRegion(window)
