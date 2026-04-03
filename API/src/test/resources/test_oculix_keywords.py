@@ -166,9 +166,9 @@ try:
         print("PaddleOCR: window region = " + str(window))
 
         rawJson = paddle.getClient().recognize(testPath)
-        print("PaddleOCR raw response: " + str(rawJson)[:500])
+        print("PaddleOCR raw response: " + rawJson[:500].encode('ascii', 'replace'))
         testTexts = paddle.getClient().recognizeAndParseTexts(testPath)
-        print("PaddleOCR parsed texts: " + str(testTexts))
+        print("PaddleOCR parsed: " + str(len(testTexts)) + " texts")
         if len(testTexts) > 0:
             kw.setOcrEngine(paddle)
             ocrReady = True
