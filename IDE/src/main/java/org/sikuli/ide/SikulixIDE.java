@@ -1073,8 +1073,9 @@ public class SikulixIDE extends JFrame {
         if (_ext.isEmpty() || _ext.equals("sikuli")) {
           _file.mkdirs();
           _folder = _file;
-          _file = new File(_folder, _name);
-          _ext = "";
+          String scriptExt = IDESupport.getDefaultRunner().getDefaultExtension();
+          _file = new File(_folder, _name + "." + scriptExt);
+          _ext = scriptExt;
         } else {
           _folder = _file.getParentFile();
           _folder.mkdirs();
