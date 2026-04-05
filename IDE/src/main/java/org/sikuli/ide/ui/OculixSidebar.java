@@ -85,22 +85,20 @@ public class OculixSidebar extends JPanel {
    */
   public void initNavItems() {
     // ── Logo Box ──
-    JPanel logoBox = new JPanel(new MigLayout("wrap 1, insets 10 6 10 6, gap 0", "[center, fill]"));
+    JPanel logoBox = new JPanel(new MigLayout("wrap 1, insets 12 6 10 6, gap 0", "[grow, center]"));
     logoBox.setOpaque(true);
     logoBox.setBackground(UIManager.getColor("Panel.background"));
     logoBox.setBorder(BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1));
 
-    JLabel logoLine1 = new JLabel("OculiX");
-    logoLine1.setFont(new Font("Serif", Font.BOLD | Font.ITALIC, 28));
-    logoLine1.setForeground(UIManager.getColor("Label.foreground"));
-    logoLine1.setHorizontalAlignment(SwingConstants.CENTER);
-    logoBox.add(logoLine1);
+    JLabel logoLine1 = new JLabel("OculiX", SwingConstants.CENTER);
+    logoLine1.setFont(new Font("Serif", Font.BOLD | Font.ITALIC, 30));
+    logoLine1.setForeground(new Color(0xE0, 0x60, 0x30)); // SikuliX-style orange/red
+    logoBox.add(logoLine1, "align center");
 
-    JLabel logoLine2 = new JLabel("I D E");
-    logoLine2.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    JLabel logoLine2 = new JLabel("I D E", SwingConstants.CENTER);
+    logoLine2.setFont(new Font("SansSerif", Font.BOLD, 13));
     logoLine2.setForeground(UIManager.getColor("Label.disabledForeground"));
-    logoLine2.setHorizontalAlignment(SwingConstants.CENTER);
-    logoBox.add(logoLine2);
+    logoBox.add(logoLine2, "align center");
 
     mainPanel.add(logoBox, "growx, gapbottom 6");
 
