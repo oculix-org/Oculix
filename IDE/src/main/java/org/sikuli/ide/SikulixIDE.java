@@ -159,7 +159,8 @@ public class SikulixIDE extends JFrame {
 
   static void showAgain() {
     ideWindow.setVisible(true);
-    sikulixIDE.getActiveContext().focus();
+    PaneContext ctx = sikulixIDE.getActiveContext();
+    if (ctx != null) ctx.focus();
   }
 
   //TODO showAfterStart to be revised
@@ -1772,7 +1773,10 @@ public class SikulixIDE extends JFrame {
       for (File file : filesToLoad) {
         createFileContext(file);
       }
-      getContextAt(0).closeSilent();
+      // Close the initial empty script if it was created before session restore
+      if (contexts.size() > filesToLoad.size()) {
+        getContextAt(0).closeSilent();
+      }
       tempIndex = 1;
     }
     return filesToLoad;
