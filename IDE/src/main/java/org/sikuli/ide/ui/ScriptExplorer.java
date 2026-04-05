@@ -85,13 +85,19 @@ public class ScriptExplorer extends JPanel {
   public void setScriptDirectory(File dir) {
     this.currentDir = dir;
 
-    if (dir == null || !dir.exists()) {
+    if (dir == null) {
       showEmpty();
       return;
     }
 
+    // Remove both to avoid stacking
     remove(emptyLabel);
     remove(scrollPane);
+
+    if (!dir.exists()) {
+      showEmpty();
+      return;
+    }
 
     rootNode.removeAllChildren();
     rootNode.setUserObject(dir.getName());

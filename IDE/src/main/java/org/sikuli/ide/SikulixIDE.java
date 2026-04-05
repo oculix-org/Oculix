@@ -711,6 +711,7 @@ public class SikulixIDE extends JFrame {
     if (explorer != null) {
       explorer.setScriptDirectory(context.getFolder());
     }
+    updateScriptDependentItems();
   }
 
   void createEmptyScriptContext() {
