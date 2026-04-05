@@ -3,7 +3,6 @@
  */
 package org.sikuli.ide.ui;
 
-import com.formdev.flatlaf.FlatClientProperties;
 import net.miginfocom.swing.MigLayout;
 import org.sikuli.support.Commons;
 
@@ -58,8 +57,9 @@ public class WelcomeTab extends JPanel {
     // Quick Start section
     JPanel quickStartPanel = new JPanel(new MigLayout("wrap 1, insets 20 40 20 40, gap 8", "[fill, 300]"));
     quickStartPanel.setOpaque(false);
-    quickStartPanel.putClientProperty(FlatClientProperties.STYLE,
-        "border: 1,1,1,1,$Separator.foreground,1,16");
+    quickStartPanel.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(UIManager.getColor("Separator.foreground"), 1),
+        BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
     JLabel quickStartLabel = new JLabel("Quick Start");
     quickStartLabel.setFont(UIManager.getFont("h3.font"));
@@ -73,8 +73,9 @@ public class WelcomeTab extends JPanel {
     // System Status section
     JPanel statusPanel = new JPanel(new MigLayout("wrap 2, insets 16 40 16 40, gap 8", "[][grow]"));
     statusPanel.setOpaque(false);
-    statusPanel.putClientProperty(FlatClientProperties.STYLE,
-        "border: 1,1,1,1,$Separator.foreground,1,16");
+    statusPanel.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(UIManager.getColor("Separator.foreground"), 1),
+        BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
     JLabel statusLabel = new JLabel("Status");
     statusLabel.setFont(UIManager.getFont("h3.font"));

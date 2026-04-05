@@ -46,7 +46,8 @@ public class OculixSidebar extends JPanel {
 
   public OculixSidebar() {
     setLayout(new BorderLayout());
-    setMinimumSize(new Dimension(collapsedWidth, 0));
+    setPreferredSize(new Dimension(180, 0));
+    setMinimumSize(new Dimension(180, 0));
     putClientProperty(FlatClientProperties.STYLE, "background: darken(@background, 3%)");
 
     mainPanel = new JPanel(new MigLayout("wrap 1, insets 8, gap 0", "[fill, grow]", ""));
