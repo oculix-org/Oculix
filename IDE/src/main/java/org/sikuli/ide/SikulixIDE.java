@@ -448,23 +448,56 @@ public class SikulixIDE extends JFrame {
     }
   }
 
-  // Phase 1b: wire sidebar action buttons to existing toolbar button logic
+  // Phase 1b: init sidebar navigation items
   private void initSidebarActions() {
-    sidebar.initActionButtons(
-        e -> btnRun.runCurrentScript(),
-        e -> btnRunSlow.runCurrentScript(),
-        e -> btnCapture.captureWithAutoDelay(),
-        e -> btnRecord.actionPerformed(e)
-    );
+    sidebar.initNavItems();
   }
 
   // Phase 1b: build sidebar submenus from existing menu actions
   private void initSidebarNavigation() {
     SidebarSubmenu fileSub = buildSubmenuFrom(_fileMenu);
     SidebarSubmenu editSub = buildSubmenuFrom(_editMenu);
-    SidebarSubmenu toolsSub = buildSubmenuFrom(_toolMenu);
+    SidebarSubmenu runSub = buildRunSubmenu();
+    SidebarSubmenu toolsSub = buildToolsSubmenu();
     SidebarSubmenu helpSub = buildSubmenuFrom(_helpMenu);
-    sidebar.initNavigation(fileSub, editSub, toolsSub, helpSub);
+    sidebar.initNavigation(fileSub, editSub, runSub, toolsSub, helpSub);
+  }
+
+  private SidebarSubmenu buildRunSubmenu() {
+    SidebarSubmenu sub = new SidebarSubmenu();
+    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+    sub.addItem("\u25B6  " + _I("menuRunRun"),
+        KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, scMask),
+        e -> btnRun.runCurrentScript());
+    sub.addItem("\u25B6  " + _I("menuRunRunAndShowActions"),
+        KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.ALT_DOWN_MASK | scMask),
+        e -> btnRunSlow.runCurrentScript());
+    sub.addSeparator();
+    sub.addItem("\u25B6  Run selection",
+        KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.SHIFT_DOWN_MASK | scMask),
+        e -> getCurrentCodePane().runSelection());
+    return sub;
+  }
+
+  private SidebarSubmenu buildToolsSubmenu() {
+    SidebarSubmenu sub = new SidebarSubmenu();
+    sub.addItem("\uD83D\uDCF7  Capture", null,
+        e -> btnCapture.captureWithAutoDelay());
+    sub.addItem("\uD83D\uDD34  Record", null,
+        e -> btnRecord.actionPerformed(e));
+    sub.addSeparator();
+    // Add items from the existing _toolMenu (Extensions, etc.)
+    if (_toolMenu != null) {
+      for (int i = 0; i < _toolMenu.getItemCount(); i++) {
+        JMenuItem item = _toolMenu.getItem(i);
+        if (item != null) {
+          ActionListener[] listeners = item.getActionListeners();
+          sub.addItem(item.getText(), item.getAccelerator(),
+              listeners.length > 0 ? listeners[0] : null);
+        }
+      }
+    }
+    return sub;
   }
 
   private SidebarSubmenu buildSubmenuFrom(JMenu sourceMenu) {

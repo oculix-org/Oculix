@@ -19,22 +19,17 @@ import static org.sikuli.support.ide.SikuliIDEI18N._I;
 
 /**
  * Vertical sidebar replacing the classic JMenuBar + JToolBar.
- * Organized in logical groups: Run, Scripts, Tools, Help.
+ * All actions are accessed via popup submenus for consistency.
  */
 public class OculixSidebar extends JPanel {
 
   private boolean collapsed = false;
   private int collapsedWidth = 50;
 
-  // Action buttons
-  private SidebarItem btnRun;
-  private SidebarItem btnRunSlow;
-  private SidebarItem btnCapture;
-  private SidebarItem btnRecord;
-
-  // Navigation items
+  // Navigation items (all with submenus)
   private SidebarItem navFile;
   private SidebarItem navEdit;
+  private SidebarItem navRun;
   private SidebarItem navTools;
   private SidebarItem navHelp;
 
@@ -66,20 +61,11 @@ public class OculixSidebar extends JPanel {
     addResizeHandle();
   }
 
-  private JLabel addSectionHeader(String text) {
-    JLabel header = new JLabel(text);
-    header.setFont(UIManager.getFont("small.font"));
-    header.setForeground(UIManager.getColor("Label.disabledForeground"));
-    header.setBorder(BorderFactory.createEmptyBorder(12, 8, 4, 0));
-    mainPanel.add(header);
-    return header;
-  }
-
   /**
-   * Initializes the action buttons section.
+   * Initializes the sidebar with logo and all navigation items.
+   * All items open popup submenus — no direct action buttons.
    */
-  public void initActionButtons(ActionListener runAction, ActionListener runSlowAction,
-                                 ActionListener captureAction, ActionListener recordAction) {
+  public void initNavItems() {
     // Logo
     JLabel logo = new JLabel("OculiX");
     logo.setFont(UIManager.getFont("h3.font"));
@@ -87,63 +73,48 @@ public class OculixSidebar extends JPanel {
     logo.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
     mainPanel.add(logo);
 
-    mainPanel.add(new JSeparator(), "growx, gaptop 4, gapbottom 4");
+    mainPanel.add(new JSeparator(), "growx, gaptop 4, gapbottom 8");
 
-    // Run group
-    btnRun = new SidebarItem("Run",
-        loadIcon("/icons/run_big_green.png", 18), runAction);
-    btnRun.setToolTipText(_I("btnRunLabel") + " (Ctrl+R)");
-    btnRun.setMnemonic(java.awt.event.KeyEvent.VK_R);
-    mainPanel.add(btnRun);
-
-    btnRunSlow = new SidebarItem("Run Slow",
-        loadIcon("/icons/runviz.png", 18), runSlowAction);
-    btnRunSlow.setToolTipText(_I("btnRunSlowMotionLabel"));
-    mainPanel.add(btnRunSlow);
-
-    // Scripts group
-    addSectionHeader("SCRIPTS");
-
-    navFile = new SidebarItem(_I("menuFile") + "  \u25B8", null);
+    // File
+    navFile = new SidebarItem(_I("menuFile") + "  \u25B8",
+        loadIcon("/icons/insert-image-icon.png", 16));
     navFile.setMnemonic(java.awt.event.KeyEvent.VK_F);
     mainPanel.add(navFile);
 
+    // Edit
     navEdit = new SidebarItem(_I("menuEdit") + "  \u25B8", null);
     navEdit.setMnemonic(java.awt.event.KeyEvent.VK_E);
     mainPanel.add(navEdit);
 
-    // Tools group
-    addSectionHeader("TOOLS");
+    // Run
+    navRun = new SidebarItem(_I("menuRun") + "  \u25B8",
+        loadIcon("/icons/run_big_green.png", 16));
+    navRun.setMnemonic(java.awt.event.KeyEvent.VK_R);
+    mainPanel.add(navRun);
 
-    btnCapture = new SidebarItem("Capture",
-        loadIcon("/icons/capture-small.png", 18), captureAction);
-    btnCapture.setToolTipText(_I("btnCaptureLabel"));
-    mainPanel.add(btnCapture);
+    mainPanel.add(new JSeparator(), "growx, gaptop 8, gapbottom 8");
 
-    btnRecord = new SidebarItem("Record",
-        loadIcon("/icons/record.png", 18), recordAction);
-    btnRecord.setToolTipText(_I("btnRecordLabel"));
-    mainPanel.add(btnRecord);
-
-    navTools = new SidebarItem(_I("menuTool") + "  \u25B8", null);
+    // Tools (Capture, Record, Extensions)
+    navTools = new SidebarItem(_I("menuTool") + "  \u25B8",
+        loadIcon("/icons/capture-small.png", 16));
     navTools.setMnemonic(java.awt.event.KeyEvent.VK_T);
     mainPanel.add(navTools);
 
-    // Help group
-    addSectionHeader("HELP");
-
+    // Help
     navHelp = new SidebarItem(_I("menuHelp") + "  \u25B8", null);
     navHelp.setMnemonic(java.awt.event.KeyEvent.VK_H);
     mainPanel.add(navHelp);
   }
 
   /**
-   * Wires navigation items to popup submenus built from existing JMenu actions.
+   * Wires navigation items to popup submenus.
    */
   public void initNavigation(SidebarSubmenu fileSub, SidebarSubmenu editSub,
-                              SidebarSubmenu toolsSub, SidebarSubmenu helpSub) {
+                              SidebarSubmenu runSub, SidebarSubmenu toolsSub,
+                              SidebarSubmenu helpSub) {
     navFile.addActionListener(e -> fileSub.showBelow(navFile));
     navEdit.addActionListener(e -> editSub.showBelow(navEdit));
+    navRun.addActionListener(e -> runSub.showBelow(navRun));
     navTools.addActionListener(e -> toolsSub.showBelow(navTools));
     navHelp.addActionListener(e -> helpSub.showBelow(navHelp));
   }
