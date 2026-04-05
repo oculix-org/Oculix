@@ -600,7 +600,7 @@ public class SikulixIDE extends JFrame {
       if (welcomeTab == null) {
         welcomeTab = new WelcomeTab(
             e -> { hideWelcomeTab(); createEmptyScriptContext(); },
-            e -> { hideWelcomeTab(); File f = selectFileToOpen(); if (f != null) createFileContext(f); }
+            e -> { File f = selectFileToOpen(); if (f != null) createFileContext(f); }
         );
         welcomeTab.putClientProperty("isClosable", false);
       }
