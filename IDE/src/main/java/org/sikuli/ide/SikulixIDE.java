@@ -1997,7 +1997,18 @@ public class SikulixIDE extends JFrame {
     File[] sikuliDirs = dir.listFiles(f -> f.isDirectory() && f.getName().endsWith(".sikuli"));
     if (sikuliDirs != null) {
       for (File script : sikuliDirs) {
-        createFileContext(script);
+        try {
+          // Check that the .sikuli bundle contains a script file
+          String baseName = script.getName().replace(".sikuli", "");
+          File pyFile = new File(script, baseName + ".py");
+          if (pyFile.exists()) {
+            createFileContext(script);
+          } else {
+            log("Workspace: skipping %s (no .py file found)", script.getName());
+          }
+        } catch (Exception e) {
+          log("Workspace: error loading %s: %s", script.getName(), e.getMessage());
+        }
       }
     }
 
