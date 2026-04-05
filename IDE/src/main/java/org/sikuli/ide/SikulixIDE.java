@@ -29,6 +29,8 @@ import org.sikuli.support.recorder.generators.ICodeGenerator;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.recorder.actions.IRecordedAction;
 import org.sikuli.util.*;
+import org.sikuli.ide.ui.OculixSidebar;
+import org.sikuli.ide.ui.SidebarSubmenu;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -287,9 +289,25 @@ public class SikulixIDE extends JFrame {
     ideContainer.add(editPane, BorderLayout.CENTER);
     Debug.log("IDE: Putting all together - after main pane");
 
+    // Phase 1a: init toolbar (actions are still needed) but don't add to layout
     JToolBar tb = initToolbar();
-    ideContainer.add(tb, BorderLayout.NORTH);
-    Debug.log("IDE: Putting all together - after toolbar");
+    // Phase 1b: JToolBar hidden, actions migrated to sidebar
+    tb.setVisible(false);
+
+    // Phase 1b: Create and configure sidebar
+    Debug.log("IDE: Putting all together - init sidebar");
+    sidebar = new OculixSidebar();
+    initSidebarActions();
+    initSidebarNavigation();
+    sidebar.initFooter(Commons.getSXVersionShort(), null);
+    ideContainer.add(sidebar, BorderLayout.WEST);
+    Debug.log("IDE: Putting all together - after sidebar");
+
+    // Phase 1a: migrate accelerators from JMenuBar to rootPane
+    migrateAcceleratorsToRootPane();
+
+    // Phase 1b: hide JMenuBar (kept as safety net, removed in Phase 3)
+    _menuBar.setVisible(false);
 
     _status = new SikuliIDEStatusBar();
     ideContainer.add(_status, BorderLayout.SOUTH);
@@ -388,17 +406,112 @@ public class SikulixIDE extends JFrame {
     }, AWTEvent.KEY_EVENT_MASK);
   }
 
+  // Phase 1a: Migrate all JMenuItem accelerators to rootPane InputMap/ActionMap
+  // This ensures keyboard shortcuts survive the JMenuBar being hidden.
+  private void migrateAcceleratorsToRootPane() {
+    JRootPane root = ideWindow.getRootPane();
+    InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+    ActionMap am = root.getActionMap();
+    migrateMenuAccelerators(_fileMenu, im, am);
+    migrateMenuAccelerators(_editMenu, im, am);
+    migrateMenuAccelerators(_runMenu, im, am);
+    migrateMenuAccelerators(_viewMenu, im, am);
+    migrateMenuAccelerators(_toolMenu, im, am);
+    migrateMenuAccelerators(_helpMenu, im, am);
+    Debug.log("IDE: Accelerators migrated to rootPane");
+  }
+
+  private void migrateMenuAccelerators(JMenu menu, InputMap im, ActionMap am) {
+    if (menu == null) return;
+    for (int i = 0; i < menu.getItemCount(); i++) {
+      JMenuItem item = menu.getItem(i);
+      if (item == null) continue; // separators
+      if (item instanceof JMenu) {
+        migrateMenuAccelerators((JMenu) item, im, am);
+      } else if (item.getAccelerator() != null) {
+        KeyStroke ks = item.getAccelerator();
+        String actionKey = "sidebar_" + menu.getText() + "_" + item.getText();
+        im.put(ks, actionKey);
+        final JMenuItem menuItem = item;
+        am.put(actionKey, new AbstractAction() {
+          @Override
+          public void actionPerformed(ActionEvent e) {
+            for (ActionListener al : menuItem.getActionListeners()) {
+              al.actionPerformed(new ActionEvent(menuItem, ActionEvent.ACTION_PERFORMED, menuItem.getActionCommand()));
+            }
+          }
+        });
+      }
+    }
+  }
+
+  // Phase 1b: wire sidebar action buttons to existing toolbar button logic
+  private void initSidebarActions() {
+    sidebar.initActionButtons(
+        e -> btnRun.runCurrentScript(),
+        e -> btnRunSlow.runCurrentScript(),
+        e -> btnCapture.captureWithAutoDelay(),
+        e -> btnRecord.actionPerformed(e)
+    );
+  }
+
+  // Phase 1b: build sidebar submenus from existing menu actions
+  private void initSidebarNavigation() {
+    SidebarSubmenu fileSub = buildSubmenuFrom(_fileMenu);
+    SidebarSubmenu editSub = buildSubmenuFrom(_editMenu);
+    SidebarSubmenu toolsSub = buildSubmenuFrom(_toolMenu);
+    SidebarSubmenu helpSub = buildSubmenuFrom(_helpMenu);
+    sidebar.initNavigation(fileSub, editSub, toolsSub, helpSub);
+  }
+
+  private SidebarSubmenu buildSubmenuFrom(JMenu sourceMenu) {
+    SidebarSubmenu sub = new SidebarSubmenu();
+    if (sourceMenu == null) return sub;
+    for (int i = 0; i < sourceMenu.getItemCount(); i++) {
+      JMenuItem item = sourceMenu.getItem(i);
+      if (item == null) {
+        sub.addSeparator();
+      } else if (item instanceof JMenu) {
+        // Nested menu (e.g., Find submenu) — flatten into submenu
+        JMenu nested = (JMenu) item;
+        sub.addSeparator();
+        for (int j = 0; j < nested.getItemCount(); j++) {
+          JMenuItem nestedItem = nested.getItem(j);
+          if (nestedItem == null) {
+            sub.addSeparator();
+          } else {
+            ActionListener[] listeners = nestedItem.getActionListeners();
+            sub.addItem(nestedItem.getText(), nestedItem.getAccelerator(),
+                listeners.length > 0 ? listeners[0] : null);
+          }
+        }
+        sub.addSeparator();
+      } else {
+        ActionListener[] listeners = item.getActionListeners();
+        sub.addItem(item.getText(), item.getAccelerator(),
+            listeners.length > 0 ? listeners[0] : null);
+      }
+    }
+    return sub;
+  }
+
   static SikuliIDEStatusBar getStatusbar() {
     return sikulixIDE._status;
   }
 
   private SikuliIDEStatusBar _status;
+  private OculixSidebar sidebar;
 
   private JSplitPane mainPane;
 
   private void initTabs() {
     tabs = new CloseableTabbedPane();
-    tabs.setUI(new AquaCloseableTabbedPaneUI());
+    // Phase 1c: Use FlatLaf native closeable tabs instead of custom MetalTabbedPaneUI
+    tabs.putClientProperty("JTabbedPane.tabClosable", true);
+    tabs.putClientProperty("JTabbedPane.tabCloseCallback",
+        (java.util.function.BiConsumer<JTabbedPane, Integer>) (tabbedPane, tabIndex) -> {
+          getContextAt(tabIndex).close();
+        });
     tabs.addCloseableTabbedPaneListener(tabIndexToClose -> {
       getContextAt(tabIndexToClose).close();
       return false;
