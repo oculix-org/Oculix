@@ -1707,7 +1707,12 @@ public class SikulixIDE extends JFrame {
   //<editor-fold defaultstate="collapsed" desc="04 save / restore session">
   private boolean saveSession(int saveAction) {
     StringBuilder sbuf = new StringBuilder();
-    for (PaneContext context : contexts.toArray(new PaneContext[]{new PaneContext()})) {
+    if (contexts.isEmpty()) {
+      PreferencesUser.get().setIdeSession("");
+      return true;
+    }
+    for (PaneContext context : contexts.toArray(new PaneContext[0])) {
+      if (context == null) continue;
       if (saveAction == DO_SAVE_ALL) {
         if (!context.close()) {
           return false;
