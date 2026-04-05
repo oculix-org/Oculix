@@ -4,6 +4,7 @@
 package org.sikuli.ide;
 
 import org.apache.commons.io.FilenameUtils;
+import org.sikuli.basics.PreferencesUser;
 import org.sikuli.support.ide.IButton;
 import org.sikuli.script.Location;
 import org.sikuli.script.Pattern;
@@ -39,7 +40,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return ((File) options.get(IButton.FILE)).getAbsolutePath();
   }
 
-  int MAXHEIGHT = 20;
+  int MAXHEIGHT = PreferencesUser.get().getDefaultThumbHeight();
 
   BufferedImage thumbnail;
 
