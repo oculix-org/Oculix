@@ -673,9 +673,11 @@ public class SikulixIDE extends JFrame {
         (java.util.function.BiConsumer<JTabbedPane, Integer>) (tabbedPane, tabIndex) -> {
           // Check if this is the welcome tab (not a script context)
           Component comp = tabbedPane.getComponentAt(tabIndex);
-          if (comp instanceof WelcomeTab) return; // welcome tab is not closable
-          if (tabIndex >= 0 && tabIndex < contexts.size()) {
-            getContextAt(tabIndex).close();
+          if (comp instanceof WelcomeTab) return;
+          // Account for welcome tab offset
+          int contextIndex = welcomeShowing ? tabIndex - 1 : tabIndex;
+          if (contextIndex >= 0 && contextIndex < contexts.size()) {
+            getContextAt(contextIndex).close();
           }
         });
     tabs.addChangeListener(e -> {
@@ -743,6 +745,9 @@ public class SikulixIDE extends JFrame {
   }
 
   PaneContext setActiveContext(int pos) {
+    if (pos < 0 || pos >= contexts.size()) {
+      return null;
+    }
     tabs.setSelectedIndex(pos);
     PaneContext context = contexts.get(pos);
     showContext(context);
@@ -750,6 +755,9 @@ public class SikulixIDE extends JFrame {
   }
 
   PaneContext getContextAt(int ix) {
+    if (ix < 0 || ix >= contexts.size()) {
+      return null;
+    }
     return contexts.get(ix);
   }
 
@@ -757,11 +765,12 @@ public class SikulixIDE extends JFrame {
     if (ix < 0 || contexts.isEmpty()) {
       return;
     }
-    if (ix >= contexts.size()) {
-      // Welcome tab or invalid index — ignore silently
+    // Account for welcome tab offset
+    int contextIx = welcomeShowing ? ix - 1 : ix;
+    if (contextIx < 0 || contextIx >= contexts.size()) {
       return;
     }
-    PaneContext context = contexts.get(ix);
+    PaneContext context = contexts.get(contextIx);
     PaneContext previous = lastContext;
     lastContext = context;
 
@@ -1600,7 +1609,8 @@ public class SikulixIDE extends JFrame {
   }
 
   EditorPane getPaneAtIndex(int index) {
-    return getContextAt(index).getPane();
+    PaneContext ctx = getContextAt(index);
+    return ctx != null ? ctx.getPane() : null;
   }
 
   private void convertSrcToHtml(String bundle) {
@@ -1922,7 +1932,10 @@ public class SikulixIDE extends JFrame {
       }
       // Close the initial empty script if it was created before session restore
       if (contexts.size() > filesToLoad.size()) {
-        getContextAt(0).closeSilent();
+        PaneContext firstCtx = getContextAt(0);
+        if (firstCtx != null) {
+          firstCtx.closeSilent();
+        }
       }
       tempIndex = 1;
     }
