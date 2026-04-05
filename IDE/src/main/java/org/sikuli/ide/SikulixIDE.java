@@ -470,29 +470,37 @@ public class SikulixIDE extends JFrame {
   private SidebarSubmenu buildSubmenuFrom(JMenu sourceMenu) {
     SidebarSubmenu sub = new SidebarSubmenu();
     if (sourceMenu == null) return sub;
+    boolean lastWasSeparator = true; // avoid leading separator
     for (int i = 0; i < sourceMenu.getItemCount(); i++) {
       JMenuItem item = sourceMenu.getItem(i);
       if (item == null) {
-        sub.addSeparator();
+        // separator — skip duplicates
+        if (!lastWasSeparator) {
+          sub.addSeparator();
+          lastWasSeparator = true;
+        }
       } else if (item instanceof JMenu) {
-        // Nested menu (e.g., Find submenu) — flatten into submenu
+        // Nested menu (e.g., Find submenu, Recent) — flatten into submenu
         JMenu nested = (JMenu) item;
-        sub.addSeparator();
+        if (nested.getItemCount() == 0) continue; // skip empty menus like Recent
+        if (!lastWasSeparator) {
+          sub.addSeparator();
+          lastWasSeparator = true;
+        }
         for (int j = 0; j < nested.getItemCount(); j++) {
           JMenuItem nestedItem = nested.getItem(j);
-          if (nestedItem == null) {
-            sub.addSeparator();
-          } else {
+          if (nestedItem != null) {
             ActionListener[] listeners = nestedItem.getActionListeners();
             sub.addItem(nestedItem.getText(), nestedItem.getAccelerator(),
                 listeners.length > 0 ? listeners[0] : null);
+            lastWasSeparator = false;
           }
         }
-        sub.addSeparator();
       } else {
         ActionListener[] listeners = item.getActionListeners();
         sub.addItem(item.getText(), item.getAccelerator(),
             listeners.length > 0 ? listeners[0] : null);
+        lastWasSeparator = false;
       }
     }
     return sub;
@@ -509,16 +517,18 @@ public class SikulixIDE extends JFrame {
 
   private void initTabs() {
     tabs = new CloseableTabbedPane();
-    // Phase 1c: Use FlatLaf native closeable tabs instead of custom MetalTabbedPaneUI
+    // Phase 1c: Use FlatLaf native closeable tabs
     tabs.putClientProperty("JTabbedPane.tabClosable", true);
+    tabs.putClientProperty("JTabbedPane.tabCloseToolTipText", "Close");
     tabs.putClientProperty("JTabbedPane.tabCloseCallback",
         (java.util.function.BiConsumer<JTabbedPane, Integer>) (tabbedPane, tabIndex) -> {
-          getContextAt(tabIndex).close();
+          // Check if this is the welcome tab (not a script context)
+          Component comp = tabbedPane.getComponentAt(tabIndex);
+          if (comp instanceof WelcomeTab) return; // welcome tab is not closable
+          if (tabIndex >= 0 && tabIndex < contexts.size()) {
+            getContextAt(tabIndex).close();
+          }
         });
-    tabs.addCloseableTabbedPaneListener(tabIndexToClose -> {
-      getContextAt(tabIndexToClose).close();
-      return false;
-    });
     tabs.addChangeListener(e -> {
       JTabbedPane tab = (JTabbedPane) e.getSource();
       int ix = tab.getSelectedIndex();
@@ -1027,7 +1037,7 @@ public class SikulixIDE extends JFrame {
         }
       } else {
         if (resetPos() == 0) {
-          createEmptyScriptContext();
+          showWelcomeTab();
         } else {
           setActiveContext(Math.min(closedPos, contexts.size() - 1));
         }

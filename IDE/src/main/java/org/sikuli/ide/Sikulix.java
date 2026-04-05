@@ -16,6 +16,7 @@ import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.ide.SikuliIDEI18N;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLaf;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -108,6 +109,9 @@ public class Sikulix {
     //endregion
 
     // FlatLaf must be initialized before any Swing component creation
+    // Use modern system fonts: Segoe UI (Win), SF Pro (Mac), Inter/Cantarell (Linux)
+    FlatLaf.setPreferredFontFamily("Segoe UI");
+    FlatLaf.setPreferredMonospacedFontFamily("Cascadia Code");
     FlatDarkLaf.setup();
 
     ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
