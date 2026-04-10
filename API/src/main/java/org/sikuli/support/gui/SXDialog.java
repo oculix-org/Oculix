@@ -342,7 +342,7 @@ public class SXDialog extends JFrame {
   //endregion
 
   //region 05 global features
-  public Color SXRED = new Color(0x9D, 0x42, 0x30, 208);
+  public Color SXRED = new Color(0x00, 0xA8, 0x9D, 208);
   public Color SXLBLBUTTON = new Color(241, 230, 206);
   public Color SXLBLSELECTED = new Color(167, 192, 220);
   public Color BACKGROUNDCOLOR = Color.WHITE;
