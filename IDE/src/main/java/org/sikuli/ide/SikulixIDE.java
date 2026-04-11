@@ -301,7 +301,7 @@ public class SikulixIDE extends JFrame {
     JSplitPane editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, explorer, codePane);
     editorSplit.setDividerLocation(180);
     editorSplit.setResizeWeight(0.0); // editor gets all extra space
-    editorSplit.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+    editorSplit.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, UIManager.getColor("Separator.foreground")));
     editorSplit.setOneTouchExpandable(true);
 
     Debug.log("IDE: Putting all together");
