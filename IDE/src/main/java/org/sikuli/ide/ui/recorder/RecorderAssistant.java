@@ -512,6 +512,23 @@ public class RecorderAssistant extends JDialog {
     java.awt.EventQueue.invokeLater(() -> {
       SikulixIDE.PaneContext ctx = ide.getActiveContext();
       if (ctx != null && ctx.getPane() != null) {
+        // Copy captured images to the script's image folder
+        File imageFolder = ctx.getImageFolder();
+        if (imageFolder != null && screenshotDir != null) {
+          File[] captures = screenshotDir.listFiles((dir, name) -> name.endsWith(".png"));
+          if (captures != null) {
+            for (File img : captures) {
+              try {
+                java.nio.file.Files.copy(img.toPath(),
+                    new File(imageFolder, img.getName()).toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+              } catch (IOException ex) {
+                System.err.println("[Recorder] Failed to copy image: " + ex.getMessage());
+              }
+            }
+          }
+        }
+
         ctx.getPane().insertString(codeStr);
         RecorderNotifications.success(model.size() + " line(s) inserted.");
       }
