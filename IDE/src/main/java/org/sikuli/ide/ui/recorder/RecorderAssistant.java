@@ -284,7 +284,19 @@ public class RecorderAssistant extends JDialog {
         }
 
         try {
-          String imagePath = capture.save(screenshotDir.getAbsolutePath());
+          // Ask for image name
+          String defaultName = actionType + "_" + System.currentTimeMillis();
+          String imageName = JOptionPane.showInputDialog(
+              RecorderAssistant.this, "Name this image:", defaultName);
+          if (imageName == null || imageName.trim().isEmpty()) {
+            imageName = defaultName;
+          }
+          imageName = imageName.trim().replaceAll("[^a-zA-Z0-9_\\-]", "_");
+          if (!imageName.endsWith(".png")) {
+            imageName += ".png";
+          }
+
+          String imagePath = capture.save(screenshotDir.getAbsolutePath(), imageName);
           if (imagePath == null) {
             workflow.reset();
             RecorderNotifications.error("Failed to save screenshot");
