@@ -472,6 +472,7 @@ public abstract class Element {
    * @deprecated use findLines() instead
    * @see #findLines()
    */
+  @Deprecated
   public List<Match> collectLines() {
     return findLines();
   }

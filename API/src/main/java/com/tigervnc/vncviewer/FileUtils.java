@@ -35,7 +35,7 @@ public class FileUtils {
           if (Integer.parseInt(System.getProperty("java.version").split("\\.")[1]) < 5) {
             try {
               homeDir = System.getProperty("user.home");
-            } catch(java.security.AccessControlException e) {
+            } catch(SecurityException e) {
               vlog.error("Cannot access user.home system property:"+e.getMessage());
             }
           } else {
@@ -45,21 +45,21 @@ public class FileUtils {
           try {
           homeDir = FileSystemView.getFileSystemView().
             getDefaultDirectory().getCanonicalPath();
-          } catch(java.security.AccessControlException e) {
+          } catch(SecurityException e) {
             vlog.error("Cannot access system property:"+e.getMessage());
           }
         }
       } catch (java.lang.Exception e) {
         e.printStackTrace();
       }
-    } catch(java.security.AccessControlException e) {
+    } catch(SecurityException e) {
       vlog.error("Cannot access os.name system property:"+e.getMessage());
     }
 
     String separator = null;
     try {
       separator = Character.toString(java.io.File.separatorChar);
-    } catch(java.security.AccessControlException e) {
+    } catch(SecurityException e) {
       vlog.error("Cannot access file.separator system property:"+e.getMessage());
     }
 
@@ -74,7 +74,7 @@ public class FileUtils {
     String separator = null;
     try {
       separator = Character.toString(java.io.File.separatorChar);
-    } catch(java.security.AccessControlException e) {
+    } catch(SecurityException e) {
       vlog.error("Cannot access file.separator system property:"+e.getMessage());
     }
     return separator;

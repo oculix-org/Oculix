@@ -422,7 +422,7 @@ class DesktopWindow extends JPanel implements Runnable, MouseListener,
     mouseWheelCB(e);
   }
 
-  private static final Integer keyEventLock = 0; 
+  private static final Object keyEventLock = new Object();
 
   // Handle the key-typed event.
   public void keyTyped(KeyEvent e) { }

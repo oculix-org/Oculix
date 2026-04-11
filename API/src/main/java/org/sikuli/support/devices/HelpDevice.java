@@ -68,14 +68,14 @@ public class HelpDevice extends Devices {
     Object result = null;
     if (null != clazz) {
       try {
-        method = clazz.getMethod(methodName, null);
+        method = clazz.getMethod(methodName, (Class<?>[]) null);
       } catch (NoSuchMethodException e) {
       }
     }
     if (null != method) {
       String error = "";
       try {
-        result = method.invoke(null, null);
+        result = method.invoke(null, (Object[]) null);
       } catch (IllegalAccessException e) {
         error = e.getMessage();
       } catch (InvocationTargetException e) {
@@ -113,14 +113,14 @@ public class HelpDevice extends Devices {
     }
     if (null != cADB) {
       try {
-        cADBstop = cADB.getMethod("stopAll", null);
+        cADBstop = cADB.getMethod("stopAll", (Class<?>[]) null);
       } catch (NoSuchMethodException e) {
       }
     }
     if (null != cADBstop) {
       String error = "";
       try {
-        cADBstop.invoke(null, null);
+        cADBstop.invoke(null, (Object[]) null);
       } catch (IllegalAccessException e) {
         error = e.getMessage();
       } catch (InvocationTargetException e) {

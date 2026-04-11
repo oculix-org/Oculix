@@ -277,7 +277,7 @@ public class Configuration {
     Properties props = new Properties();
     try {
       props.load(new FileInputStream(filename));
-    } catch(java.security.AccessControlException e)	{
+    } catch(SecurityException e)	{
       vlog.error("Cannot access system properties:"+e.getMessage());
       return;
     } catch (java.lang.Exception e)	{

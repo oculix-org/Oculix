@@ -1924,8 +1924,8 @@ public class SXDialog extends JFrame {
           Exception exception = null;
           Method method;
           try {
-            method = clazz.getMethod(command, null);
-            method.invoke(SXDialog.this, new Class[0]);
+            method = clazz.getMethod(command, (Class<?>[]) null);
+            method.invoke(SXDialog.this, (Object[]) null);
           } catch (NoSuchMethodException noSuchMethodException) {
             error = "not implemented";
             exception = noSuchMethodException;
