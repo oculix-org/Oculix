@@ -2631,7 +2631,7 @@ break;
     }
     public void connect(SocketFactory socket_factory, String host, int port, int timeout) throws Exception {
       String _command = command.replace("%h", host);
-      _command = _command.replace("%p", new Integer(port).toString());
+      _command = _command.replace("%p", Integer.toString(port));
       p = Runtime.getRuntime().exec(_command);
       in = p.getInputStream();
       out = p.getOutputStream();

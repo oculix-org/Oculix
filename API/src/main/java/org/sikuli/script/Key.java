@@ -897,10 +897,10 @@ public class Key {
       String k2 = "...";
       try {
         if (toJavaKeyCode((ckey)).length > 1) {
-                  k1 = namesVK.get(new Integer(toJavaKeyCode(ckey)[0]).toString());
-                  k2 = namesVK.get(new Integer(toJavaKeyCode(ckey)[1]).toString());
+                  k1 = namesVK.get(Integer.toString(toJavaKeyCode(ckey)[0]));
+                  k2 = namesVK.get(Integer.toString(toJavaKeyCode(ckey)[1]));
         } else if (key > 32) {
-          k2 = namesVK.get(new Integer(toJavaKeyCode(ckey)[0]).toString());
+          k2 = namesVK.get(Integer.toString(toJavaKeyCode(ckey)[0]));
         }
       } catch (Exception e) {      }
       keyText = KeyEvent.getKeyText(key);
@@ -920,7 +920,7 @@ public class Key {
         continue;
       }
       keyText = keyText.replaceAll(" ", "_");
-      String vkey = namesVK.get(new Integer(key).toString());
+      String vkey = namesVK.get(Integer.toString(key));
       if (vkey == null || vkey.equals(keyText.toUpperCase())) {
         vkey = "...";
       }
