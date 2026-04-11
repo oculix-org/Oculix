@@ -57,6 +57,9 @@ public class RecorderAssistant extends JDialog {
       screenshotDir = new File(System.getProperty("java.io.tmpdir"));
     }
 
+    // Load OpenCV native lib once (like legacy Recorder.start())
+    org.sikuli.support.Commons.loadOpenCV();
+
     buildUI();
     wireWorkflow();
     checkOcrStatus();
@@ -254,7 +257,6 @@ public class RecorderAssistant extends JDialog {
           // Validate pattern (requires OpenCV loaded)
           PatternValidator.ValidationResult result = null;
           try {
-            org.sikuli.support.Commons.loadOpenCV();
             result = PatternValidator.validate(
                 new Screen().capture().getImage(), capture.getImage());
           } catch (Exception | UnsatisfiedLinkError ignored) {
