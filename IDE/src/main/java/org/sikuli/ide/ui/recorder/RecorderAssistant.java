@@ -497,11 +497,11 @@ public class RecorderAssistant extends JDialog {
   private void handleKeyCombo() {
     if (!workflow.startKeyComboCApture()) return;
 
-    String combo = JOptionPane.showInputDialog(this,
-        "Key combination (e.g. Key.ENTER, Key.CTRL + 'c'):",
-        "Key Combo", JOptionPane.PLAIN_MESSAGE);
+    RecorderKeyComboDialog dialog = new RecorderKeyComboDialog(this);
+    dialog.setVisible(true);
+    String combo = dialog.getResult();
     if (combo != null && !combo.isEmpty()) {
-      codePreview.addLine("type(" + combo + ")");
+      codePreview.addLine(combo);
     }
     workflow.onActionComplete();
   }
