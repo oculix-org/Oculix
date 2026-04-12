@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Update project Status field from label
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
           ORG: oculix-org
           PROJECT_NUMBER: 3
           ISSUE_NUMBER: ${{ github.event.issue.number }}
