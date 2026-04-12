@@ -1,0 +1,112 @@
+name: Sync issue labels to project Status
+
+on:
+  issues:
+    types: [labeled, unlabeled, closed, reopened]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update project Status field from label
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ORG: oculix-org
+          PROJECT_NUMBER: 1
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          set -e
+
+          # Determine the target status from the event
+          if [ "$EVENT_ACTION" = "closed" ]; then
+            TARGET_STATUS="Done"
+          elif [ "$EVENT_ACTION" = "reopened" ]; then
+            TARGET_STATUS="Backlog"
+          else
+            case "$LABEL_NAME" in
+              "status:backlog")     TARGET_STATUS="Backlog" ;;
+              "status:up-next")     TARGET_STATUS="Up Next" ;;
+              "status:in-progress") TARGET_STATUS="In Progress" ;;
+              "status:in-review")   TARGET_STATUS="In Review" ;;
+              "help wanted")        TARGET_STATUS="Help wanted" ;;
+              *)                    echo "Label '$LABEL_NAME' is not a status label — skipping"; exit 0 ;;
+            esac
+          fi
+          echo "Target status: $TARGET_STATUS"
+
+          # Fetch the project ID, Status field ID, and option IDs
+          gh api graphql -f query='
+            query($org: String!, $num: Int!) {
+              organization(login: $org) {
+                projectV2(number: $num) {
+                  id
+                  field(name: "Status") {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      options { id name }
+                    }
+                  }
+                }
+              }
+            }' -f org="$ORG" -F num="$PROJECT_NUMBER" > project.json
+
+          PROJECT_ID=$(jq -r '.data.organization.projectV2.id' project.json)
+          FIELD_ID=$(jq -r '.data.organization.projectV2.field.id' project.json)
+          OPTION_ID=$(jq -r --arg name "$TARGET_STATUS" \
+            '.data.organization.projectV2.field.options[] | select(.name==$name) | .id' project.json)
+
+          if [ -z "$OPTION_ID" ] || [ "$OPTION_ID" = "null" ]; then
+            echo "ERROR: option '$TARGET_STATUS' not found in project Status field"
+            jq '.data.organization.projectV2.field.options' project.json
+            exit 1
+          fi
+
+          # Find the project item for this issue (add it if missing)
+          ISSUE_NODE_ID=$(gh api "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER" --jq .node_id)
+
+          ITEM_ID=$(gh api graphql -f query='
+            query($org: String!, $num: Int!, $first: Int = 100, $after: String) {
+              organization(login: $org) {
+                projectV2(number: $num) {
+                  items(first: $first, after: $after) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes {
+                      id
+                      content {
+                        ... on Issue { id }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f org="$ORG" -F num="$PROJECT_NUMBER" \
+            --jq ".data.organization.projectV2.items.nodes[] | select(.content.id==\"$ISSUE_NODE_ID\") | .id")
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "Issue not yet in project — adding it"
+            ITEM_ID=$(gh api graphql -f query='
+              mutation($project: ID!, $content: ID!) {
+                addProjectV2ItemById(input: {projectId: $project, contentId: $content}) {
+                  item { id }
+                }
+              }' -f project="$PROJECT_ID" -f content="$ISSUE_NODE_ID" \
+              --jq .data.addProjectV2ItemById.item.id)
+          fi
+
+          # Update the Status field
+          gh api graphql -f query='
+            mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $project
+                itemId: $item
+                fieldId: $field
+                value: { singleSelectOptionId: $option }
+              }) {
+                projectV2Item { id }
+              }
+            }' -f project="$PROJECT_ID" -f item="$ITEM_ID" \
+               -f field="$FIELD_ID" -f option="$OPTION_ID"
+
+          echo "✓ Issue #$ISSUE_NUMBER moved to '$TARGET_STATUS'"
