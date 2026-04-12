@@ -364,44 +364,32 @@ public class RecorderAssistant extends JDialog {
   private void handleDragDrop() {
     if (!workflow.startDragDrop()) return;
 
-    hideForCapture();
+    // Step 1: pick source
+    String sourcePath = pickImage("Drag SOURCE");
+    if (sourcePath == null) {
+      workflow.reset();
+      return;
+    }
+    workflow.advanceDragDrop();
 
-    new Thread(() -> {
-      // Step 1: capture source
-      ScreenImage sourceCapture = new Screen().userCapture("Select DRAG SOURCE");
-      if (sourceCapture == null) {
-        SwingUtilities.invokeLater(() -> { showAfterCapture(); workflow.reset(); });
-        return;
-      }
-      workflow.advanceDragDrop(); // SOURCE -> DESTINATION
+    // Step 2: pick destination
+    String destPath = pickImage("Drop DESTINATION");
+    if (destPath == null) {
+      workflow.reset();
+      return;
+    }
 
-      // Step 2: capture destination
-      ScreenImage destCapture = new Screen().userCapture("Select DROP DESTINATION");
-
-      SwingUtilities.invokeLater(() -> {
-        showAfterCapture();
-
-        if (destCapture == null) {
-          workflow.reset();
-          return;
-        }
-
-        try {
-          String sourcePath = sourceCapture.save(screenshotDir.getAbsolutePath());
-          String destPath = destCapture.save(screenshotDir.getAbsolutePath());
-
-          Pattern sourcePattern = new Pattern(sourcePath);
-          Pattern destPattern = new Pattern(destPath);
-          String code = codeGenerator.dragDrop(sourcePattern, destPattern);
-          codePreview.addLine(code);
-          workflow.onActionComplete();
-          RecorderNotifications.success("Drag & Drop recorded");
-        } catch (Exception ex) {
-          workflow.reset();
-          RecorderNotifications.error("Drag & Drop failed: " + ex.getMessage());
-        }
-      });
-    }, "RecorderDragDrop").start();
+    try {
+      Pattern sourcePattern = new Pattern(sourcePath);
+      Pattern destPattern = new Pattern(destPath);
+      String code = codeGenerator.dragDrop(sourcePattern, destPattern);
+      codePreview.addLine(code);
+      workflow.onActionComplete();
+      RecorderNotifications.success("Drag & Drop recorded");
+    } catch (Exception ex) {
+      workflow.reset();
+      RecorderNotifications.error("Drag & Drop failed: " + ex.getMessage());
+    }
   }
 
   private void handleWheelCapture() {
@@ -646,6 +634,105 @@ public class RecorderAssistant extends JDialog {
     btnTextClick.setEnabled(enabled);
     btnTextWait.setEnabled(enabled);
     btnTextExists.setEnabled(enabled);
+  }
+
+  /**
+   * Unified image picker — gives the user three options:
+   * capture a new region, reuse an existing session image, or browse a file.
+   * Returns the absolute path of the chosen image, or null if cancelled.
+   */
+  private String pickImage(String purpose) {
+    java.util.List<String> options = new java.util.ArrayList<>();
+    options.add("Capture screen");
+    options.add("Browse file...");
+    if (!capturedImages.isEmpty()) {
+      options.add("Use existing image");
+    }
+
+    int choice = JOptionPane.showOptionDialog(this,
+        "Choose image source for: " + purpose,
+        purpose,
+        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+        null, options.toArray(), options.get(0));
+
+    if (choice < 0) return null;
+    String selected = (String) options.get(choice);
+
+    if ("Capture screen".equals(selected)) {
+      return captureImage(purpose);
+    }
+    if ("Browse file...".equals(selected)) {
+      return browseImage();
+    }
+    if ("Use existing image".equals(selected)) {
+      return pickFromLibrary();
+    }
+    return null;
+  }
+
+  private String captureImage(String purpose) {
+    setVisible(false);
+    getOwner().setVisible(false);
+    final ScreenImage[] captured = new ScreenImage[1];
+    try {
+      captured[0] = new Screen().userCapture("Select region for " + purpose);
+    } finally {
+      getOwner().setVisible(true);
+      setVisible(true);
+    }
+    if (captured[0] == null) return null;
+
+    try {
+      String defaultName = purpose.replaceAll("\\s+", "_").toLowerCase() + "_" + System.currentTimeMillis();
+      String imageName = JOptionPane.showInputDialog(this, "Name this image:", defaultName);
+      if (imageName == null || imageName.trim().isEmpty()) imageName = defaultName;
+      imageName = imageName.trim().replaceAll("[^a-zA-Z0-9_\\-]", "_");
+      if (!imageName.endsWith(".png")) imageName += ".png";
+
+      String path = captured[0].save(screenshotDir.getAbsolutePath(), imageName);
+      if (path != null) capturedImages.add(path);
+      return path;
+    } catch (Exception ex) {
+      RecorderNotifications.error("Failed to save: " + ex.getMessage());
+      return null;
+    }
+  }
+
+  private String browseImage() {
+    JFileChooser chooser = new JFileChooser();
+    chooser.setDialogTitle("Select image file");
+    chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+        "Image files (*.png, *.jpg, *.jpeg, *.gif)", "png", "jpg", "jpeg", "gif"));
+    if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+      File f = chooser.getSelectedFile();
+      // Copy into the session dir so the path is local to the bundle later
+      try {
+        File dest = new File(screenshotDir, f.getName());
+        java.nio.file.Files.copy(f.toPath(), dest.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        String path = dest.getAbsolutePath();
+        capturedImages.add(path);
+        return path;
+      } catch (Exception ex) {
+        RecorderNotifications.error("Failed to import: " + ex.getMessage());
+        return null;
+      }
+    }
+    return null;
+  }
+
+  private String pickFromLibrary() {
+    if (capturedImages.isEmpty()) return null;
+    String[] names = capturedImages.stream()
+        .map(p -> new File(p).getName())
+        .toArray(String[]::new);
+    String chosen = (String) JOptionPane.showInputDialog(this,
+        "Choose image:", "Image Library",
+        JOptionPane.PLAIN_MESSAGE, null, names, names[names.length - 1]);
+    if (chosen == null) return null;
+    return capturedImages.stream()
+        .filter(p -> new File(p).getName().equals(chosen))
+        .findFirst().orElse(null);
   }
 
   private void cleanupTempDir() {
