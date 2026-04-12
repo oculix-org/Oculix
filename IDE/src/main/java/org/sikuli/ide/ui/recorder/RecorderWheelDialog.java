@@ -64,8 +64,8 @@ public class RecorderWheelDialog extends JDialog {
     int imgW = capture.getWidth();
     int imgH = capture.getHeight();
     double fit = Math.min(1.0, Math.min((double) maxW / imgW, (double) maxH / imgH));
-    int previewW = (int) Math.max(320, imgW * fit);
-    int previewH = (int) Math.max(200, imgH * fit);
+    int previewW = (int) (imgW * fit);
+    int previewH = (int) (imgH * fit);
     imagePanel.setPreferredSize(new Dimension(previewW, previewH));
     imagePanel.setBorder(BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1));
     content.add(imagePanel, "align center");
