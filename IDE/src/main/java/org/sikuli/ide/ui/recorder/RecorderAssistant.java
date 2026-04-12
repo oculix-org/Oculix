@@ -422,21 +422,17 @@ public class RecorderAssistant extends JDialog {
 
         try {
           String imagePath = capture.save(screenshotDir.getAbsolutePath());
-          Pattern pattern = new Pattern(imagePath);
+          capturedImages.add(imagePath);
 
-          // Ask direction and steps
-          String[] options = {"Down", "Up"};
-          int dir = JOptionPane.showOptionDialog(this, "Wheel direction?",
-              "Wheel", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
-              null, options, options[0]);
-          if (dir < 0) { workflow.reset(); return; }
+          // Open interactive Wheel dialog with captured image + crosshair offset
+          RecorderWheelDialog dialog = new RecorderWheelDialog(
+              RecorderAssistant.this, capture.getImage(), imagePath);
+          dialog.setVisible(true);
+          String code = dialog.getResult();
 
-          String stepsStr = JOptionPane.showInputDialog(this, "Number of steps:", "3");
-          if (stepsStr == null) { workflow.reset(); return; }
-          int steps = Integer.parseInt(stepsStr.trim());
-
-          String code = codeGenerator.wheel(pattern, dir == 0 ? 1 : -1, steps, new String[0], 0);
-          codePreview.addLine(code);
+          if (code != null) {
+            codePreview.addLine(code);
+          }
           workflow.onActionComplete();
         } catch (Exception ex) {
           workflow.reset();
