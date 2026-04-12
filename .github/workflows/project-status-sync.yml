@@ -16,7 +16,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ORG: oculix-org
-          PROJECT_NUMBER: 1
+          PROJECT_NUMBER: 3
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           EVENT_ACTION: ${{ github.event.action }}
           LABEL_NAME: ${{ github.event.label.name }}
