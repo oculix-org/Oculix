@@ -58,14 +58,26 @@ public class RecorderWheelDialog extends JDialog {
     content.add(lblImg);
 
     imagePanel = new ImagePanel();
-    // Size the preview to match the captured image at 1:1 (capped to a sensible max)
+    // Size the preview to match the captured image, with a minimum of 380x240
+    // and a maximum of 1200x800. Small images are scaled up, large images are scaled down.
+    int minW = 380;
+    int minH = 240;
     int maxW = 1200;
     int maxH = 800;
     int imgW = capture.getWidth();
     int imgH = capture.getHeight();
-    double fit = Math.min(1.0, Math.min((double) maxW / imgW, (double) maxH / imgH));
-    int previewW = (int) (imgW * fit);
-    int previewH = (int) (imgH * fit);
+    double scaleUp = Math.max((double) minW / imgW, (double) minH / imgH);
+    double scaleDown = Math.min((double) maxW / imgW, (double) maxH / imgH);
+    double scale;
+    if (imgW < minW || imgH < minH) {
+      scale = scaleUp; // Image too small, scale up
+    } else if (imgW > maxW || imgH > maxH) {
+      scale = scaleDown; // Image too big, scale down
+    } else {
+      scale = 1.0; // Image fits naturally
+    }
+    int previewW = (int) (imgW * scale);
+    int previewH = (int) (imgH * scale);
     imagePanel.setPreferredSize(new Dimension(previewW, previewH));
     imagePanel.setBorder(BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1));
     content.add(imagePanel, "align center");
