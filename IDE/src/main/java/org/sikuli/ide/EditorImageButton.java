@@ -212,6 +212,9 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   @Override
   public String toString() {
+    if (options == null || options.get(IButton.TEXT) == null) {
+      return "";
+    }
     return (String) options.get(IButton.TEXT);
   }
 
