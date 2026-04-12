@@ -101,8 +101,9 @@ public class RecorderKeyComboDialog extends JDialog {
     charRow.add(charField, "growx");
     content.add(charRow);
 
-    rbSpecial.addActionListener(e -> updatePreview());
-    rbChar.addActionListener(e -> updatePreview());
+    rbSpecial.addActionListener(e -> { updateEnabledState(); updatePreview(); });
+    rbChar.addActionListener(e -> { updateEnabledState(); updatePreview(); });
+    updateEnabledState();
 
     content.add(new JSeparator(), "growx, gaptop 4");
 
@@ -161,6 +162,12 @@ public class RecorderKeyComboDialog extends JDialog {
 
   private void updatePreview() {
     previewLabel.setText(buildCode());
+  }
+
+  private void updateEnabledState() {
+    boolean special = rbSpecial.isSelected();
+    keyCombo.setEnabled(special);
+    charField.setEnabled(!special);
   }
 
   public String getResult() {
