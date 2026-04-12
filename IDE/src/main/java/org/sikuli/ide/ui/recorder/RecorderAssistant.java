@@ -653,14 +653,19 @@ public class RecorderAssistant extends JDialog {
   }
 
   private void cleanupTempDir() {
-    if (screenshotDir != null && screenshotDir.exists()) {
-      File[] files = screenshotDir.listFiles();
-      if (files != null) {
-        for (File f : files) {
-          f.delete();
+    // Clean all oculix_recorder_* dirs in temp (including orphans from crashes)
+    File tempDir = new File(System.getProperty("java.io.tmpdir"));
+    File[] recorderDirs = tempDir.listFiles((dir, name) -> name.startsWith("oculix_recorder_"));
+    if (recorderDirs != null) {
+      for (File dir : recorderDirs) {
+        File[] files = dir.listFiles();
+        if (files != null) {
+          for (File f : files) {
+            f.delete();
+          }
         }
+        dir.delete();
       }
-      screenshotDir.delete();
     }
   }
 
