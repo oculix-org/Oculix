@@ -40,7 +40,7 @@ public class RecorderWheelDialog extends JDialog {
     super(parent, "Wheel Configuration", true);
     this.capture = capture;
     this.imageName = new File(imagePath).getName();
-    setSize(480, 620);
+    setSize(720, 780);
     setLocationRelativeTo(parent);
     setResizable(false);
     buildUI();
@@ -58,7 +58,7 @@ public class RecorderWheelDialog extends JDialog {
     content.add(lblImg);
 
     imagePanel = new ImagePanel();
-    imagePanel.setPreferredSize(new Dimension(440, 200));
+    imagePanel.setPreferredSize(new Dimension(680, 440));
     imagePanel.setBorder(BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1));
     content.add(imagePanel, "align center");
 
