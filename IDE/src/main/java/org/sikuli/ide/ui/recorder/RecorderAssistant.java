@@ -71,6 +71,7 @@ public class RecorderAssistant extends JDialog {
       @Override
       public void windowClosing(WindowEvent e) {
         workflow.dispose();
+        cleanupTempDir();
         getOwner().setVisible(true); // Restore IDE on close
       }
     });
@@ -557,6 +558,7 @@ public class RecorderAssistant extends JDialog {
     workflow.dispose();
     SikulixIDE ide = (SikulixIDE) getOwner();
     ide.setVisible(true); // Restore IDE
+    cleanupTempDir();
 
     if (choice == 1) {
       ide.createEmptyScriptContext();
@@ -648,6 +650,18 @@ public class RecorderAssistant extends JDialog {
     btnTextClick.setEnabled(enabled);
     btnTextWait.setEnabled(enabled);
     btnTextExists.setEnabled(enabled);
+  }
+
+  private void cleanupTempDir() {
+    if (screenshotDir != null && screenshotDir.exists()) {
+      File[] files = screenshotDir.listFiles();
+      if (files != null) {
+        for (File f : files) {
+          f.delete();
+        }
+      }
+      screenshotDir.delete();
+    }
   }
 
   private void setOpacitySafe(float opacity) {
