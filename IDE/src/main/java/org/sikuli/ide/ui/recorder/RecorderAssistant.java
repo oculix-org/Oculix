@@ -238,114 +238,52 @@ public class RecorderAssistant extends JDialog {
   private void handleImageCapture(String actionType) {
     if (!workflow.startCapture(actionType)) return;
 
-    // If we have existing images, ask the user first
-    if (!capturedImages.isEmpty()) {
-      String[] options = {"Use existing image", "New capture"};
-      int choice = JOptionPane.showOptionDialog(this,
-          "Use an existing captured image or capture a new one?",
-          actionType,
-          JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
-          null, options, options[1]);
-
-      if (choice == 0) {
-        // Show list of existing images
-        String[] imageNames = capturedImages.stream()
-            .map(p -> new File(p).getName())
-            .toArray(String[]::new);
-        String chosen = (String) JOptionPane.showInputDialog(this,
-            "Choose image:", "Image Library",
-            JOptionPane.PLAIN_MESSAGE, null, imageNames, imageNames[imageNames.length - 1]);
-
-        if (chosen != null) {
-          // Find full path from name
-          String fullPath = capturedImages.stream()
-              .filter(p -> new File(p).getName().equals(chosen))
-              .findFirst().orElse(null);
-          if (fullPath != null) {
-            Pattern pattern = new Pattern(fullPath);
-            codePreview.addLine(generateImageCode(actionType, pattern));
-            workflow.onActionComplete();
-            return;
-          }
-        }
-        workflow.reset();
-        return;
-      }
-      // choice == 1 → fall through to new capture
+    String imagePath = pickImage(actionType);
+    if (imagePath == null) {
+      workflow.reset();
+      return;
     }
 
-    hideForCapture();
+    workflow.onCaptureComplete(); // -> WAITING_PATTERN_VALIDATION
 
-    new Thread(() -> {
-      ScreenImage capture = new Screen().userCapture("Select region to " + actionType);
+    try {
+      Pattern pattern = new Pattern(imagePath);
 
-      SwingUtilities.invokeLater(() -> {
-        showAfterCapture();
-
-        if (capture == null) {
-          workflow.reset();
-          return;
+      // Best-effort validation against current screen
+      PatternValidator.ValidationResult result = null;
+      try {
+        java.awt.image.BufferedImage candidate =
+            javax.imageio.ImageIO.read(new File(imagePath));
+        if (candidate != null) {
+          result = PatternValidator.validate(
+              new Screen().capture().getImage(), candidate);
         }
+      } catch (Exception | UnsatisfiedLinkError ignored) {
+        // OpenCV missing or IO error — skip validation
+      }
 
-        try {
-          // Ask for image name
-          String defaultName = actionType + "_" + System.currentTimeMillis();
-          String imageName = JOptionPane.showInputDialog(
-              RecorderAssistant.this, "Name this image:", defaultName);
-          if (imageName == null || imageName.trim().isEmpty()) {
-            imageName = defaultName;
-          }
-          imageName = imageName.trim().replaceAll("[^a-zA-Z0-9_\\-]", "_");
-          if (!imageName.endsWith(".png")) {
-            imageName += ".png";
-          }
-
-          String imagePath = capture.save(screenshotDir.getAbsolutePath(), imageName);
-          if (imagePath == null) {
-            workflow.reset();
-            RecorderNotifications.error("Failed to save screenshot");
-            return;
-          }
-
-          // Add to image library
-          capturedImages.add(imagePath);
-
-          workflow.onCaptureComplete(); // -> WAITING_PATTERN_VALIDATION
-
-          // Validate pattern (requires OpenCV loaded)
-          PatternValidator.ValidationResult result = null;
-          try {
-            result = PatternValidator.validate(
-                new Screen().capture().getImage(), capture.getImage());
-          } catch (Exception | UnsatisfiedLinkError ignored) {
-            // OpenCV not available, skip validation
-          }
-
-          Pattern pattern = new Pattern(imagePath);
-          if (result != null) {
-            if (result.warning == PatternValidator.Warning.AMBIGUOUS) {
-              pattern = pattern.similar((float) result.suggestedSimilarity);
-              RecorderNotifications.warning(
-                  "Pattern matches " + result.matchCount + " locations. Similarity raised to " + result.suggestedSimilarity);
-            } else if (result.warning == PatternValidator.Warning.COLOR_DEPENDENT) {
-              RecorderNotifications.warning("Pattern depends on colors. May break with theme changes.");
-            } else if (result.warning == PatternValidator.Warning.TOO_SMALL) {
-              RecorderNotifications.warning("Pattern too small. Consider capturing a larger area.");
-            } else if (result.matchCount > 0) {
-              RecorderNotifications.success("Pattern validated (score: " + String.format("%.2f", result.bestScore) + ")");
-            }
-          }
-
-          String code = generateImageCode(actionType, pattern);
-          codePreview.addLine(code);
-          workflow.onActionComplete(); // -> IDLE
-
-        } catch (Exception ex) {
-          workflow.reset();
-          RecorderNotifications.error("Capture failed: " + ex.getMessage());
+      if (result != null) {
+        if (result.warning == PatternValidator.Warning.AMBIGUOUS) {
+          pattern = pattern.similar((float) result.suggestedSimilarity);
+          RecorderNotifications.warning(
+              "Pattern matches " + result.matchCount + " locations. Similarity raised to " + result.suggestedSimilarity);
+        } else if (result.warning == PatternValidator.Warning.COLOR_DEPENDENT) {
+          RecorderNotifications.warning("Pattern depends on colors. May break with theme changes.");
+        } else if (result.warning == PatternValidator.Warning.TOO_SMALL) {
+          RecorderNotifications.warning("Pattern too small. Consider capturing a larger area.");
+        } else if (result.matchCount > 0) {
+          RecorderNotifications.success("Pattern validated (score: " + String.format("%.2f", result.bestScore) + ")");
         }
-      });
-    }, "RecorderCapture").start();
+      }
+
+      String code = generateImageCode(actionType, pattern);
+      codePreview.addLine(code);
+      workflow.onActionComplete(); // -> IDLE
+
+    } catch (Exception ex) {
+      workflow.reset();
+      RecorderNotifications.error("Action failed: " + ex.getMessage());
+    }
   }
 
   private String generateImageCode(String actionType, Pattern pattern) {
