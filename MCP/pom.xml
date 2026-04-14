@@ -140,6 +140,9 @@
                         <exclude>META-INF/*.SF</exclude>
                         <exclude>META-INF/*.DSA</exclude>
                         <exclude>META-INF/*.RSA</exclude>
+                        <!-- Strip module descriptors: shading merges modular jars, so JPMS encapsulation doesn't apply to the fat jar anyway. -->
+                        <exclude>module-info.class</exclude>
+                        <exclude>META-INF/versions/*/module-info.class</exclude>
                       </excludes>
                     </filter>
                   </filters>
