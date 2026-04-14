@@ -4,6 +4,7 @@
 package org.sikuli.mcp.audit;
 
 import org.json.JSONObject;
+import org.sikuli.mcp.crypto.CanonicalJson;
 import org.sikuli.mcp.crypto.Hashing;
 import org.sikuli.mcp.crypto.KeyManager;
 
@@ -33,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class JournalWriter implements AutoCloseable {
 
   private static final DateTimeFormatter FILE_TS =
-      DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
+      DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").withZone(ZoneOffset.UTC);
 
   private final Path journalDir;
   private final KeyManager keys;
@@ -142,7 +143,7 @@ public final class JournalWriter implements AutoCloseable {
         .prevHash(prevHash);
 
     AuditEntry partial = b.build();
-    String canonical = partial.toCanonicalJson().toString();
+    String canonical = CanonicalJson.serialize(partial.toCanonicalJson());
     String entryHash = Hashing.sha256Hex(canonical);
     byte[] sig = keys.sign(entryHash.getBytes(StandardCharsets.UTF_8));
     String sigHex = Hashing.toHex(sig);
@@ -178,8 +179,14 @@ public final class JournalWriter implements AutoCloseable {
   }
 
   private void openNewFile() throws IOException {
-    String name = "audit-" + FILE_TS.format(Instant.now()) + ".jsonl";
-    this.currentFile = journalDir.resolve(name);
+    String stamp = FILE_TS.format(Instant.now());
+    Path candidate = journalDir.resolve("audit-" + stamp + ".jsonl");
+    int suffix = 1;
+    while (Files.exists(candidate)) {
+      candidate = journalDir.resolve("audit-" + stamp + "-" + suffix + ".jsonl");
+      suffix++;
+    }
+    this.currentFile = candidate;
     this.out = Files.newBufferedWriter(currentFile,
         StandardCharsets.UTF_8,
         StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);

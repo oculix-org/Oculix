@@ -4,6 +4,7 @@
 package org.sikuli.mcp.audit;
 
 import org.json.JSONObject;
+import org.sikuli.mcp.crypto.CanonicalJson;
 import org.sikuli.mcp.crypto.Hashing;
 import org.sikuli.mcp.crypto.KeyManager;
 
@@ -74,7 +75,7 @@ public final class JournalVerifier {
         JSONObject canonical = new JSONObject(line);
         canonical.remove("entry_hash");
         canonical.remove("signature");
-        String recomputed = Hashing.sha256Hex(canonical.toString());
+        String recomputed = Hashing.sha256Hex(CanonicalJson.serialize(canonical));
         if (!recomputed.equals(entryHash)) {
           issues.add("line " + lineNo + ": entry_hash mismatch (recomputed " + recomputed + ")");
         }
