@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.oculix-org</groupId>
+  <artifactId>oculixmcp</artifactId>
+  <version>3.0.1</version>
+
+  <packaging>jar</packaging>
+
+  <name>OculiX MCP Server</name>
+  <description>Auditable visual-control MCP server for regulated environments</description>
+
+  <url>https://github.com/oculix-org/Oculix</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://github.com/oculix-org/Oculix/blob/master/LICENSE</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>julienmerconsulting</id>
+      <name>Julien Mer</name>
+      <email>julien.mer38@gmail.com</email>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git@github.com:oculix-org/Oculix.git</connection>
+    <developerConnection>scm:git:git@github.com:oculix-org/Oculix.git</developerConnection>
+    <url>https://github.com/oculix-org/Oculix</url>
+  </scm>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+  </properties>
+
+  <dependencies>
+    <!-- OculiX API: visual automation engine (OpenCV, OCR, Robot) -->
+    <dependency>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>oculixapi</artifactId>
+      <version>3.0.1</version>
+    </dependency>
+
+    <!-- JSON (already used by API, keep consistent) -->
+    <dependency>
+      <groupId>org.json</groupId>
+      <artifactId>json</artifactId>
+      <version>20251224</version>
+    </dependency>
+
+    <!-- CLI parsing (already used by API) -->
+    <dependency>
+      <groupId>commons-cli</groupId>
+      <artifactId>commons-cli</artifactId>
+      <version>1.4</version>
+    </dependency>
+
+    <!-- Ed25519 signatures: native in JDK 15+ via java.security, no Bouncy Castle needed -->
+
+    <!-- Tests -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.2</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.0</version>
+        <configuration>
+          <source>17</source>
+          <target>17</target>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>org.sikuli.mcp.cli.Main</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- Fat jar: shade all runtime deps into oculix-mcp-server.jar, lançable via java -jar -->
+    <profile>
+      <id>complete-jar</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>3.6.0</version>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals>
+                  <goal>shade</goal>
+                </goals>
+                <configuration>
+                  <finalName>oculix-mcp-server</finalName>
+                  <shadedArtifactAttached>false</shadedArtifactAttached>
+                  <createDependencyReducedPom>false</createDependencyReducedPom>
+                  <transformers>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                      <mainClass>org.sikuli.mcp.cli.Main</mainClass>
+                    </transformer>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                  </transformers>
+                  <filters>
+                    <filter>
+                      <artifact>*:*</artifact>
+                      <excludes>
+                        <exclude>META-INF/*.SF</exclude>
+                        <exclude>META-INF/*.DSA</exclude>
+                        <exclude>META-INF/*.RSA</exclude>
+                      </excludes>
+                    </filter>
+                  </filters>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
