@@ -110,7 +110,7 @@
   <profiles>
     <!-- Fat jar: shade all runtime deps into oculix-mcp-server.jar, lançable via java -jar -->
     <profile>
-      <id>complete-jar</id>
+      <id>mcp-fatjar</id>
       <build>
         <plugins>
           <plugin>

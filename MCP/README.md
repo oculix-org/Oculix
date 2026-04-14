@@ -51,7 +51,7 @@ Rotation markers are signed by the outgoing key before a new key takes over, so 
 ### 1. Build
 
 ```bash
-mvn -pl MCP -am -DskipTests -Pcomplete-jar clean package
+mvn -pl MCP -am -DskipTests -Pmcp-fatjar clean package
 # produces MCP/target/oculix-mcp-server.jar
 ```
 
