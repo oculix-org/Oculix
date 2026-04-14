@@ -37,6 +37,7 @@
   <modules>
     <module>API</module>
     <module>IDE</module>
+    <module>MCP</module>
   </modules>
 
   <profiles>
