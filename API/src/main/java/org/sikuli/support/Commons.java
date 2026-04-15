@@ -1155,46 +1155,67 @@ public static void loadOpenCV() {
     }
     String libName = Core.NATIVE_LIBRARY_NAME;
 
-    // 1. Apertix (nu.pattern.OpenCV) — preferred method
+    // 1. Apertix / nu.pattern.OpenCV: try loadLocally() (extracts native from
+    //    jar) then loadShared() (relies on system loader). openpnp/opencv
+    //    historically exposes both; Apertix may only expose one — we try
+    //    whichever is present.
     try {
       Class<?> opencvClass = Class.forName(libOpenCVclassref);
-      java.lang.reflect.Method loadLocally = opencvClass.getMethod("loadLocally");
-      loadLocally.invoke(null);
-      libOpenCVloaded = true;
-      Debug.log(3, "OpenCV: loaded via Apertix (%s)", libOpenCVclassref);
-      return;
+      String[] tryMethods = { "loadLocally", "loadShared" };
+      for (String m : tryMethods) {
+        try {
+          opencvClass.getMethod(m).invoke(null);
+          libOpenCVloaded = true;
+          System.err.println("[OculiX] OpenCV loaded via " + libOpenCVclassref + "." + m + "()");
+          return;
+        } catch (NoSuchMethodException nsme) {
+          System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() not found, trying next");
+        } catch (Throwable e) {
+          System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() threw: "
+              + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+      }
+    } catch (ClassNotFoundException cnfe) {
+      System.err.println("[OculiX] " + libOpenCVclassref + " not on classpath (Apertix jar missing?)");
     } catch (Throwable e) {
-      Debug.log(3, "OpenCV: Apertix load failed: %s", e.getMessage());
+      System.err.println("[OculiX] Apertix stage failed: "
+          + e.getClass().getSimpleName() + ": " + e.getMessage());
     }
 
     // 2. System.loadLibrary (lib already on java.library.path)
     try {
       System.loadLibrary(libName);
       libOpenCVloaded = true;
-      Debug.log(3, "OpenCV: loaded via System.loadLibrary: %s", libName);
+      System.err.println("[OculiX] OpenCV loaded via System.loadLibrary(" + libName + ")");
       return;
     } catch (Throwable e) {
-      Debug.log(3, "OpenCV: System.loadLibrary failed: %s", e.getMessage());
+      System.err.println("[OculiX] System.loadLibrary(" + libName + ") failed: " + e.getMessage());
     }
 
-    // 3. Fallback: extract native lib from jar and load manually
-    try {
-      String resource = null;
-      String fileName = null;
-      String nativeDir = getNativeLibDir();
-      if (runningWindows()) {
-        resource = nativeDir + "/" + libName + ".dll";
-        fileName = libName + ".dll";
-      } else if (runningMac()) {
-        resource = nativeDir + "/lib" + libName + ".dylib";
-        fileName = "lib" + libName + ".dylib";
-      } else if (runningLinux()) {
-        resource = nativeDir + "/lib" + libName + ".so";
-        fileName = "lib" + libName + ".so";
-      }
-      if (resource != null) {
+    // 3. Fallback: extract native lib from jar resource and load manually.
+    String resource = null;
+    String fileName = null;
+    String nativeDir = getNativeLibDir();
+    if (runningWindows()) {
+      resource = nativeDir + "/" + libName + ".dll";
+      fileName = libName + ".dll";
+    } else if (runningMac()) {
+      resource = nativeDir + "/lib" + libName + ".dylib";
+      fileName = "lib" + libName + ".dylib";
+    } else if (runningLinux()) {
+      resource = nativeDir + "/lib" + libName + ".so";
+      fileName = "lib" + libName + ".so";
+    }
+    if (resource != null) {
+      try {
         java.io.InputStream is = Commons.class.getClassLoader().getResourceAsStream(resource);
-        if (is != null) {
+        if (is == null) {
+          // Some classloaders want a leading slash when going through Class, not ClassLoader.
+          is = Commons.class.getResourceAsStream("/" + resource);
+        }
+        if (is == null) {
+          System.err.println("[OculiX] jar resource not found on classpath: " + resource);
+        } else {
           File tempDir = getTempFolder();
           if (tempDir == null) {
             tempDir = new File(System.getProperty("java.io.tmpdir"));
@@ -1211,15 +1232,17 @@ public static void loadOpenCV() {
           }
           System.load(tempLib.getAbsolutePath());
           libOpenCVloaded = true;
-          Debug.log(3, "OpenCV: loaded from jar resource: %s", tempLib);
+          System.err.println("[OculiX] OpenCV loaded from jar resource: " + tempLib);
           return;
         }
+      } catch (Throwable e) {
+        System.err.println("[OculiX] jar extraction of " + resource + " failed: "
+            + e.getClass().getSimpleName() + ": " + e.getMessage());
       }
-    } catch (Throwable e) {
-      Debug.log(3, "OpenCV: jar extraction failed: %s", e.getMessage());
     }
 
-    Debug.log(-1, "OpenCV: FAILED to load native library '%s'", libName);
+    System.err.println("[OculiX] FATAL: OpenCV native library '" + libName + "' could NOT be loaded. "
+        + "Next new Mat() call will throw UnsatisfiedLinkError.");
   }
 
   private static final String jarLibsPath = "/sikulixlibs/";
