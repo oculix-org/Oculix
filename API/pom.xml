@@ -74,9 +74,15 @@
       <version>20251224</version>
     </dependency>
     <dependency>
-      <groupId>javax.xml.bind</groupId>
-      <artifactId>jaxb-api</artifactId>
-      <version>2.3.1</version>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>tigervnc-java-oculix</artifactId>
+      <version>2.0.0</version>
+      <!--License GPLv2-->
+      <!-- TigerVNC Java viewer as a separate GPL artifact.
+           Provides com.tigervnc.* (RFB protocol) and com.sikulix.vnc.*
+           (VNCClient wrappers used by org.sikuli.vnc.VNCScreen).
+           Transitively pulls jsch, jzlib, and jaxb-api.
+           https://github.com/oculix-org/tigervnc-java-oculix -->
     </dependency>
     <dependency>
       <groupId>io.github.julienmerconsulting.apertix</groupId>
