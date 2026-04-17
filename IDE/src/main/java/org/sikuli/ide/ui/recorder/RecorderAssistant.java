@@ -334,7 +334,12 @@ public class RecorderAssistant extends JDialog {
           if (!imageName.endsWith(".png")) imageName += ".png";
 
           String imagePath = capture.save(screenshotDir.getAbsolutePath(), imageName);
-          if (imagePath != null) capturedImages.add(imagePath);
+          if (imagePath == null) {
+            workflow.reset();
+            RecorderNotifications.error("Failed to save captured image");
+            return;
+          }
+          capturedImages.add(imagePath);
 
           finishImageCapture(actionType, imagePath);
 
