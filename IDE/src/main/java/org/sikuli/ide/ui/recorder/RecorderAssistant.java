@@ -321,7 +321,11 @@ public class RecorderAssistant extends JDialog {
   }
 
   private void addActionCode(String code) {
-    codePreview.addLine(code);
+    if (isAppScoped()) {
+      codePreview.addLine("region." + code);
+    } else {
+      codePreview.addLine(code);
+    }
   }
 
   private String generateImageCode(String actionType, Pattern pattern) {
@@ -788,6 +792,7 @@ public class RecorderAssistant extends JDialog {
       codePreview.addLine("app = App.open(\"" + appPath + "\")");
       if (chkScopeToApp.isSelected()) {
         codePreview.addLine("app.focus()");
+        codePreview.addLine("region = app.window()");
       }
       RecorderNotifications.success("Launched: " + appPath);
     } catch (Exception ex) {
