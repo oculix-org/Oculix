@@ -243,7 +243,12 @@ public class SikulixIDE extends JFrame {
   public boolean terminate() {
     log("Quit requested");
     if (closeIDE()) {
-      RunTime.terminate(0, "");
+      try {
+        RunTime.terminate(0, "");
+      } catch (Exception ex) {
+        log("Quit: RunTime.terminate failed — forcing exit");
+        System.exit(1);
+      }
     }
     log("Quit: cancelled or did not work");
     return false;
@@ -597,6 +602,10 @@ public class SikulixIDE extends JFrame {
             ).setVisible(true);
           }
         }));
+    scriptDependentItems.add(sub.addItem("\uD83D\uDFE2  Modern Recorder (no config)", null,
+        e -> new org.sikuli.ide.ui.recorder.RecorderAssistant(
+            SikulixIDE.this, new org.sikuli.support.recorder.generators.JythonCodeGenerator()
+        ).setVisible(true)));
     sub.addSeparator();
     // Add items from the existing _toolMenu (Extensions, etc.)
     if (_toolMenu != null) {
