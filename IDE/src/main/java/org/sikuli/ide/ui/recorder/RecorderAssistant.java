@@ -8,6 +8,8 @@ import org.sikuli.ide.SikulixIDE;
 import org.sikuli.script.*;
 import org.sikuli.support.recorder.PatternValidator;
 import org.sikuli.support.recorder.generators.ICodeGenerator;
+import org.sikuli.support.recorder.generators.JavaCodeGenerator;
+import org.sikuli.support.recorder.generators.RobotFrameworkCodeGenerator;
 
 import javax.swing.*;
 import java.awt.*;
@@ -56,6 +58,15 @@ public class RecorderAssistant extends JDialog {
     this.workflow = new RecorderWorkflow();
     this.codePreview = new RecorderCodePreview();
     this.codeGenerator = generator;
+
+    if (codeGenerator instanceof RobotFrameworkCodeGenerator) {
+      codePreview.addLine("*** Settings ***");
+      codePreview.addLine("Library    SikuliLibrary");
+      codePreview.addLine("Documentation    Recorded by OculiX Modern Recorder");
+      codePreview.addLine("");
+      codePreview.addLine("*** Test Cases ***");
+      codePreview.addLine("Recorded Test");
+    }
 
     // Create temp dir for screenshots
     try {
@@ -322,7 +333,7 @@ public class RecorderAssistant extends JDialog {
   }
 
   private void addActionCode(String code) {
-    if (isAppScoped()) {
+    if (isAppScoped() && !(codeGenerator instanceof RobotFrameworkCodeGenerator)) {
       codePreview.addLine(appVarName + "." + code);
     } else {
       codePreview.addLine(code);
@@ -796,10 +807,20 @@ public class RecorderAssistant extends JDialog {
           .toLowerCase();
       if (appVarName.isEmpty()) appVarName = "app";
 
-      codePreview.addLine(appVarName + " = App.open(\"" + appPath + "\")");
-      if (chkScopeToApp.isSelected()) {
-        codePreview.addLine(appVarName + ".focus()");
-        codePreview.addLine(appVarName + " = " + appVarName + ".window()");
+      if (codeGenerator instanceof JavaCodeGenerator) {
+        codePreview.addLine("App " + appVarName + " = App.open(\"" + appPath + "\");");
+        if (chkScopeToApp.isSelected()) {
+          codePreview.addLine(appVarName + ".focus();");
+          codePreview.addLine("Region " + appVarName + "Region = " + appVarName + ".window();");
+        }
+      } else if (codeGenerator instanceof RobotFrameworkCodeGenerator) {
+        codePreview.addLine("    Open Application    " + appPath);
+      } else {
+        codePreview.addLine(appVarName + " = App.open(\"" + appPath + "\")");
+        if (chkScopeToApp.isSelected()) {
+          codePreview.addLine(appVarName + ".focus()");
+          codePreview.addLine(appVarName + " = " + appVarName + ".window()");
+        }
       }
       RecorderNotifications.success("Launched: " + appPath);
     } catch (Exception ex) {
@@ -811,7 +832,13 @@ public class RecorderAssistant extends JDialog {
     if (currentApp != null) {
       try {
         currentApp.close();
-        codePreview.addLine(appVarName + ".close()");
+        if (codeGenerator instanceof JavaCodeGenerator) {
+          codePreview.addLine(appVarName + ".close();");
+        } else if (codeGenerator instanceof RobotFrameworkCodeGenerator) {
+          codePreview.addLine("    Close Application    " + appVarName);
+        } else {
+          codePreview.addLine(appVarName + ".close()");
+        }
         RecorderNotifications.success("App closed");
       } catch (Exception ex) {
         RecorderNotifications.error("Close failed: " + ex.getMessage());
