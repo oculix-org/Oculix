@@ -280,7 +280,7 @@ public class RecorderAssistant extends JDialog {
   private void handleImageCapture(String actionType) {
     if (!workflow.startCapture(actionType)) return;
 
-    String imagePath = pickImage(actionType);
+    String imagePath = captureImage(actionType);
     if (imagePath == null) {
       workflow.reset();
       return;
