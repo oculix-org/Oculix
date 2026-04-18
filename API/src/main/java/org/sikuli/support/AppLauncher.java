@@ -194,14 +194,11 @@ public class AppLauncher {
       String ssh = String.format("sshpass -p '%s' ssh %s %s@%s '%s'",
           sshPassword, sshOptions, sshUser, targetIp, vnc);
 
-      String display = displayIp.isEmpty() ? ":0" : displayIp + ":0.0";
-
       if (Commons.runningWindows()) {
         return String.format(
-            "cmd /k start /min C:\\Windows\\System32\\wsl.exe bash -c \"export DISPLAY=%s && %s\"",
-            display, ssh);
+            "cmd /k start /min C:\\Windows\\System32\\wsl.exe bash -c \"%s\"", ssh);
       } else {
-        return String.format("DISPLAY=%s %s", display, ssh);
+        return ssh;
       }
     }
   }
