@@ -273,7 +273,6 @@ public class RecorderAssistant extends JDialog {
     workflow.dispose();
     SikulixIDE ide = (SikulixIDE) getOwner();
     ide.setVisible(true);
-    cleanupTempDir();
 
     if (choice == 1) {
       ide.createEmptyScriptContext();
@@ -301,6 +300,7 @@ public class RecorderAssistant extends JDialog {
         ctx.reparse();
         RecorderNotifications.success(model.size() + " line(s) inserted.");
       }
+      cleanupTempDir();
     });
 
     dispose();
