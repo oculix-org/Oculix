@@ -67,18 +67,7 @@ public class TextRecognizer {
    */
   protected static TextRecognizer get(OCR.Options options) {
     if (!isValid) {
-      //TODO Tess4J: macOS: tesseract library load problem
-      if (false) {
-        if (Commons.runningMac()) {
-          String libPath = "/usr/local/lib";
-          File libTess = new File(libPath, "libtesseract.dylib");
-          if (libTess.exists()) {
-            Commons.jnaPathAdd(libPath);
-          } else {
-            throw new SikuliXception(String.format("OCR: validate: libtesseract.dylib not in /usr/local/lib"));
-          }
-        }
-      }
+      //TODO check if Tesseract is available (issue #110)
       versionTesseract = LoadLibs.LIB_NAME.replace("libtesseract", "");
       Commons.loadOpenCV();
       isValid = true;
