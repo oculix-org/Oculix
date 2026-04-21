@@ -710,12 +710,11 @@ public class EditorPane extends JTextPane implements ThemeAware {
   }
 
   private int parseRange(int start, int end) {
-    // Baseline: every language pane receives the Recorder output as plain
-    // text - same clean flow RF has always had. The image-thumbnail
-    // replacement for Python will be re-introduced later as an async
-    // pass with a modal, on top of this known-good text baseline. For
-    // now: no in-line regex->component transformation, so the
-    // select/insertComponent path can't corrupt the document anymore.
+    // Inline parsing disabled: doShowThumbs() runs on every reparse() which
+    // is always called after Insert&Close and after file load, so scanning
+    // the full document there is enough to populate thumbnails. Running
+    // both meant double conversion attempts on the same matches - a recipe
+    // for the offset-drift corruption we just escaped. Keep one codepath.
     return end;
   }
 

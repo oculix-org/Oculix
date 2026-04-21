@@ -1558,38 +1558,43 @@ public class SikulixIDE extends JFrame {
     }
 
     private void doShowThumbs() {
-      // Baseline plain text - no in-place filename -> thumbnail replacement.
-      // The original implementation below rescans the pane text after each
-      // reparse(), regexes quoted filenames, and calls select + insertComponent
-      // per match. That path corrupts the document on multiple matches (offsets
-      // drift with every replacement) and the resulting embedded buttons also
-      // vanish after a LaF toggle (issue #165). Images will be re-introduced
-      // later as an explicit async pass (modal + SwingWorker + CompoundEdit)
-      // on top of this known-good plain-text baseline.
-      if (true) {
+      if (!getShowThumbs()) return;
+      String[] text = pane.getText().split("\n");
+      List<Map<String, Object>> images = collectImages(text);
+      List<Map<String, Object>> patterns = patternMatcher(images, text);
+      if (images.size() == 0 && patterns.size() == 0) {
+        log("ImageButtons: images(0) patterns(0)");
         return;
       }
-      if (getShowThumbs()) {
-        String[] text = pane.getText().split("\n");
-        List<Map<String, Object>> images = collectImages(text);
-        List<Map<String, Object>> patterns = patternMatcher(images, text);
-        if (images.size() > 0 || patterns.size() > 0) {
-          for (Map<String, Object> item : images) {
-            final File imgFile = (File) item.get(IButton.FILE);
-            //TODO make it optional? _image as thumb
-            if (imgFile.getName().startsWith("_")) {
-              continue;
-            }
-            final EditorImageButton button = new EditorImageButton(item);
-            int itemStart = getLineStart((Integer) item.get(IButton.LINE)) + (Integer) item.get(IButton.LOFF);
-            int itemEnd = itemStart + ((String) item.get(IButton.TEXT)).length();
-            pane.select(itemStart, itemEnd);
-            pane.insertComponent(button);
-          }
-          pane.setCaretPosition(0);
+      // Process matches in REVERSE document order so each remove+insert on
+      // a later offset cannot shift earlier ones out of sync. This is the
+      // fix to the offset-drift corruption that the old
+      // select + insertComponent sequence produced on multi-match inserts.
+      List<Map<String, Object>> ordered = new ArrayList<>(images);
+      ordered.sort((a, b) -> {
+        int lineCmp = Integer.compare((Integer) b.get(IButton.LINE), (Integer) a.get(IButton.LINE));
+        if (lineCmp != 0) return lineCmp;
+        return Integer.compare((Integer) b.get(IButton.LOFF), (Integer) a.get(IButton.LOFF));
+      });
+      javax.swing.text.Document doc = pane.getDocument();
+      int kept = pane.getCaretPosition();
+      for (Map<String, Object> item : ordered) {
+        final File imgFile = (File) item.get(IButton.FILE);
+        if (imgFile.getName().startsWith("_")) continue;
+        try {
+          int itemStart = getLineStart((Integer) item.get(IButton.LINE)) + (Integer) item.get(IButton.LOFF);
+          int itemLen = ((String) item.get(IButton.TEXT)).length();
+          EditorImageButton button = new EditorImageButton(item);
+          javax.swing.text.SimpleAttributeSet attr = new javax.swing.text.SimpleAttributeSet();
+          javax.swing.text.StyleConstants.setComponent(attr, button);
+          doc.remove(itemStart, itemLen);
+          doc.insertString(itemStart, "￼", attr);
+        } catch (javax.swing.text.BadLocationException e) {
+          error("doShowThumbs: cannot swap match: %s", e.getMessage());
         }
-        log("ImageButtons: images(%d) patterns(%d)", images.size(), patterns.size());
       }
+      pane.setCaretPosition(Math.min(kept, doc.getLength()));
+      log("ImageButtons: images(%d) patterns(%d)", images.size(), patterns.size());
     }
 
     private List<Map<String, Object>> collectImages(String[] text) {
