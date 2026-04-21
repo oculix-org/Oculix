@@ -173,6 +173,47 @@ public class EditorPane extends JTextPane {
     }
   }
 
+  // After a theme toggle, the JTextPane's ComponentView still points at the
+  // embedded buttons that were built under the previous LaF. Their new
+  // ButtonUI paints an opaque background over the icon and leaves the
+  // thumbnails blank (issue #165).
+  //
+  // Swap each embedded EditorImageButton for a fresh instance carrying the
+  // same state, by replacing the ComponentAttribute on the 1-character
+  // element that holds it. This never touches the text content, so the
+  // write path is unaffected; it only forces the ComponentView to rebuild
+  // with a button whose UI was installed under the current LaF.
+  public int refreshEmbeddedImages() {
+    if (!(getDocument() instanceof DefaultStyledDocument)) {
+      return 0;
+    }
+    DefaultStyledDocument doc = (DefaultStyledDocument) getDocument();
+    int refreshed = 0;
+    int len = doc.getLength();
+    int i = 0;
+    while (i < len) {
+      Element el = doc.getCharacterElement(i);
+      int next = el.getEndOffset();
+      if (next <= i) break;
+      if (StyleConstants.ComponentElementName.equals(el.getName())) {
+        java.awt.Component c = StyleConstants.getComponent(el.getAttributes());
+        if (c instanceof EditorImageButton) {
+          EditorImageButton fresh = ((EditorImageButton) c).cloneForRefresh(this);
+          if (fresh != null) {
+            SimpleAttributeSet attr = new SimpleAttributeSet(el.getAttributes());
+            StyleConstants.setComponent(attr, fresh);
+            doc.setCharacterAttributes(el.getStartOffset(), 1, attr, true);
+            refreshed++;
+          }
+        }
+      }
+      i = next;
+    }
+    revalidate();
+    repaint();
+    return refreshed;
+  }
+
   public void loadContent(InputStreamReader isr) throws IOException {
     read(new BufferedReader(isr), null);
     getDocument().addDocumentListener(new DirtyHandler());

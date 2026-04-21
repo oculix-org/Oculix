@@ -116,6 +116,26 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     setFocusPainted(false);
   }
 
+  // Build a fresh button carrying the same state under the active LaF.
+  // EditorPane.refreshEmbeddedImages() calls this on every embedded button
+  // after a theme toggle and swaps the document's ComponentAttribute to the
+  // returned instance (issue #165). Returning null means "leave this button
+  // in place" — safe fallback for edge cases.
+  public EditorImageButton cloneForRefresh(EditorPane pane) {
+    if (options == null) {
+      return null;
+    }
+    Object patt = options.get(IButton.PATT);
+    if (patt instanceof Pattern) {
+      return new EditorImageButton((Pattern) patt);
+    }
+    Object file = options.get(IButton.FILE);
+    if (file instanceof File) {
+      return new EditorImageButton((File) file);
+    }
+    return null;
+  }
+
   @Override
   public void actionPerformed(ActionEvent e) {
     final EditorImageButton source = (EditorImageButton) e.getSource();

@@ -628,9 +628,17 @@ public class SikulixIDE extends JFrame {
   }
 
   // Invoked after the sidebar theme toggle has already called FlatLaf.updateUI().
-  // Forces every open editor tab to re-lay out so embedded image buttons are
-  // re-painted with the new LaF (issue #165: image icons vanishing on toggle).
+  // Walk every open editor pane and rebuild its embedded image buttons under
+  // the new LaF, then revalidate the tab container so the swapped components
+  // lay out correctly (issue #165: image icons vanishing on toggle).
   private void refreshAfterThemeChange() {
+    if (contexts != null) {
+      for (PaneContext ctx : contexts) {
+        if (ctx != null && ctx.pane != null) {
+          ctx.pane.refreshEmbeddedImages();
+        }
+      }
+    }
     if (tabs != null) {
       for (int i = 0; i < tabs.getTabCount(); i++) {
         Component tab = tabs.getComponentAt(i);
