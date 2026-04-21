@@ -647,6 +647,13 @@ public class EditorPane extends JTextPane {
       // do not show any thumbnails
       return end;
     }
+    // Image thumbnail replacement is only meaningful for Python scripts.
+    // Java and Robot Framework sources get written as plain text, which
+    // matches the clean flow RF has always had and avoids the select/
+    // insertComponent path causing corruption in multi-match sequences.
+    if (!isPython()) {
+      return end;
+    }
     try {
       end = parseLine(start, end, patCaptureBtn);
       end = parseLine(start, end, patPatternStr);
