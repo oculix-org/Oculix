@@ -202,30 +202,6 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
     pwin = null;
   }
 
-  // Rebuild a fresh button instance carrying the same state under the active
-  // LaF. Called by EditorPane.refreshEmbeddedImages() on theme toggle so the
-  // ComponentView in the JTextPane is forced to rebuild with a button whose
-  // ButtonUI was installed under the current LaF (issue #165).
-  @Override
-  public EditorImageButton cloneForRefresh(EditorPane pane) {
-    if (_imgFilename == null) {
-      return null;
-    }
-    EditorPatternButton fresh = new EditorPatternButton(pane, _imgFilename);
-    fresh.setExact(_exact);
-    fresh.setSimilarity(_similarity);
-    fresh.setResizeFactor(_resizeFactor);
-    if (_offset != null) {
-      fresh.setTargetOffset(_offset);
-    }
-    fresh._numMatches = _numMatches;
-    if (_mask != null) {
-      fresh.setMask(_mask);
-    }
-    fresh.setButtonText();
-    return fresh;
-  }
-
 /*
   public String getFilename() {
     File img = new File(_imgFilename);
