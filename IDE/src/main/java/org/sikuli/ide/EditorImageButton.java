@@ -90,23 +90,30 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     setButtonText();
 
     setMargin(new Insets(0, 0, 0, 0));
-    setBorderPainted(true);
+    setBorderPainted(false);
+    setContentAreaFilled(false);
+    setOpaque(false);
+    setFocusPainted(false);
     setCursor(new Cursor(Cursor.HAND_CURSOR));
     addActionListener(this);
     addMouseListener(this);
   }
 
-  // When the LaF changes (theme toggle), the new ButtonUI may reset the icon
-  // state. Re-apply the cached thumbnail so embedded image buttons keep
-  // rendering after switching between dark and light (issue #165).
+  // When the LaF changes (theme toggle), the new ButtonUI resets contentAreaFilled
+  // and opaque back to defaults, which makes FlatLightLaf paint an opaque white
+  // background over the icon. Keep the button fully transparent so only the cached
+  // thumbnail + custom paint() overlay are rendered (issue #165).
   @Override
   public void updateUI() {
     super.updateUI();
     if (thumbnail != null) {
       setIcon(new ImageIcon(thumbnail));
-      setMargin(new Insets(0, 0, 0, 0));
-      setBorderPainted(true);
     }
+    setMargin(new Insets(0, 0, 0, 0));
+    setBorderPainted(false);
+    setContentAreaFilled(false);
+    setOpaque(false);
+    setFocusPainted(false);
   }
 
   @Override
