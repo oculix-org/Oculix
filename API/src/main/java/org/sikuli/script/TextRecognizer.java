@@ -81,8 +81,7 @@ public class TextRecognizer {
 
   private static void checkLib() {
     if (!isValid) {
-      String versionTess4J = net.sourceforge.tess4j.Tesseract1.class.getPackage().getImplementationVersion();
-      if (versionTess4J == null) versionTess4J = "5.18.0"; //TODO get when running from fat jar outside dev
+      String versionTess4J = Commons.getSXVersionTess4j();
       String versionTesseractExpected = LoadLibs.LIB_NAME.replace("libtesseract", "");
       String versionTesseract = "" + versionTesseractExpected;
       if (!Commons.runningWindows()) {
@@ -92,6 +91,9 @@ public class TextRecognizer {
         if (result.length > 1) {
           if (result[0].contains("tesseract")) {
             versionTesseract = result[1];
+          }
+          if (!versionTesseractExpected.equals(versionTesseract.replace(".", ""))) {
+            Debug.log(lvl, "OCR: start: Tesseract version mismatch: found %s != expected %s (but might work)", versionTesseract, versionTesseractExpected);
           }
         }
       }
