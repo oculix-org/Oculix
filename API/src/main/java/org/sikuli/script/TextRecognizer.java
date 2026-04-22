@@ -101,14 +101,27 @@ public class TextRecognizer {
       if (isValid) {
         Debug.log(lvl, "OCR: start: Tess4J %s using Tesseract %s", versionTess4J, versionTesseract);
       } else {
-        //TODO add the respective Oculix wiki page when ready
-        String helpURL = String.format("""
-          ************************************ ERROR
-          The Tesseract lib (%s) is not available. Save your work, correct it and try again.
-          https://github.com/oculix-org/SikuliX1/wiki/macOS-Linux:-Tess4J-OCR:-Tesseract-libs
-          ********************************************""", versionTesseractExpected);
-        Debug.error(helpURL);
-        throw new SikuliXception("The Tesseract lib is not available");
+        String installCmd;
+        if (Commons.runningMac()) {
+          installCmd = "brew install tesseract";
+        } else if (Commons.runningLinux()) {
+          installCmd = "sudo apt-get install tesseract-ocr   (Debian/Ubuntu)\n"
+              + "  sudo dnf install tesseract            (Fedora/RHEL)\n"
+              + "  sudo zypper install tesseract         (SUSE)";
+        } else {
+          installCmd = "Reinstall OculiX — Windows binaries should be bundled with tess4j.";
+          //TODO add the respective Oculix wiki page when ready
+          String msg = "\n\n"
+              + "══════════════════════════════════════════════════════════════\n"
+              + " Tesseract OCR engine not found on your system.\n"
+              + "══════════════════════════════════════════════════════════════\n\n"
+              + " Install it with:\n  " + installCmd + "\n\n"
+              + " Then restart OculiX.\n\n"
+              + " More info: https://github.com/oculix-org/Oculix/wiki/OCR-Setup\n\n"
+              + "══════════════════════════════════════════════════════════════";
+          Debug.error(msg);
+          throw new SikuliXception(msg);
+        }
       }
     }
   }
@@ -128,56 +141,6 @@ public class TextRecognizer {
       tesseract.setConfigs(new ArrayList<>(options.configs()));
     }
     return tesseract;
-    checkLib();
-
-    ITesseract tesseract = new Tesseract1();
-    tesseract.setOcrEngineMode(options.oem());
-    tesseract.setPageSegMode(options.psm());
-    tesseract.setLanguage(options.language());
-    tesseract.setDatapath(options.dataPath());
-    for (Map.Entry<String, String> entry : options.variables().entrySet()) {
-      tesseract.setVariable(entry.getKey(), entry.getValue());
-    }
-    if (!options.configs().isEmpty()) {
-      tesseract.setConfigs(new ArrayList<>(options.configs()));
-    }
-    return tesseract;
-    try {
-      ITesseract tesseract = new Tesseract1();
-      tesseract.setOcrEngineMode(options.oem());
-      tesseract.setPageSegMode(options.psm());
-      tesseract.setLanguage(options.language());
-      tesseract.setDatapath(options.dataPath());
-      for (Map.Entry<String, String> entry : options.variables().entrySet()) {
-        tesseract.setVariable(entry.getKey(), entry.getValue());
-      }
-      if (!options.configs().isEmpty()) {
-        tesseract.setConfigs(new ArrayList<>(options.configs()));
-      }
-      return tesseract;
-    } catch (UnsatisfiedLinkError e) {
-      String installCmd;
-      if (Commons.runningMac()) {
-        installCmd = "brew install tesseract";
-      } else if (Commons.runningLinux()) {
-        installCmd = "sudo apt-get install tesseract-ocr   (Debian/Ubuntu)\n"
-                   + "  sudo dnf install tesseract            (Fedora/RHEL)\n"
-                   + "  sudo zypper install tesseract         (SUSE)";
-      } else {
-        installCmd = "Reinstall OculiX — Windows binaries should be bundled with tess4j.";
-      }
-      String msg = "\n\n"
-          + "══════════════════════════════════════════════════════════════\n"
-          + " Tesseract OCR engine not found on your system.\n"
-          + "══════════════════════════════════════════════════════════════\n\n"
-          + " Install it with:\n  " + installCmd + "\n\n"
-          + " Then restart OculiX.\n\n"
-          + " More info: https://github.com/oculix-org/Oculix/wiki/OCR-Setup\n\n"
-          + " Original error: " + e.getMessage() + "\n"
-          + "══════════════════════════════════════════════════════════════";
-      Debug.error(msg);
-      throw new SikuliXception(msg);
-    }
   }
 
   /**
