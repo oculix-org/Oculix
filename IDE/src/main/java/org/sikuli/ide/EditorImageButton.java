@@ -1,0 +1,323 @@
+/*
+ * Copyright (c) 2010-2020, sikuli.org, sikulix.com - MIT license
+ */
+package org.sikuli.ide;
+
+import org.apache.commons.io.FilenameUtils;
+import org.sikuli.basics.PreferencesUser;
+import org.sikuli.support.ide.IButton;
+import org.sikuli.script.Location;
+import org.sikuli.script.Pattern;
+import org.sikuli.support.Commons;
+import org.sikuli.support.RunTime;
+import org.sikuli.support.gui.SXDialog;
+import org.sikuli.support.gui.SXDialogPaneImage;
+import org.sikuli.support.gui.SXDialogPaneImageMenu;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+
+public class EditorImageButton extends JButton implements ActionListener, Serializable, MouseListener {
+
+  Map<String, Object> options;
+
+  public Map<String, Object> getOptions() {
+    return options;
+  }
+
+  public String getFilename() {
+    return ((File) options.get(IButton.FILE)).getAbsolutePath();
+  }
+
+  int MAXHEIGHT = getThumbHeight();
+
+  private static int getThumbHeight() {
+    try {
+      return PreferencesUser.get().getDefaultThumbHeight();
+    } catch (Exception e) {
+      return 50; // fallback
+    }
+  }
+
+  BufferedImage thumbnail;
+
+  public BufferedImage getThumbnail() {
+    return thumbnail;
+  }
+
+  public EditorImageButton() {
+  }
+
+  public EditorImageButton(Map<String, Object> options) {
+    this.options = options;
+    thumbnail = createThumbnailImage((File) this.options.get(IButton.FILE), MAXHEIGHT);
+
+    init();
+  }
+
+  public EditorImageButton(File imgFile) {
+    thumbnail = createThumbnailImage(imgFile, MAXHEIGHT);
+    options = new HashMap<>();
+    options.put(IButton.FILE, imgFile);
+    options.put(IButton.TEXT, "\"" + info() + "\"");
+
+    init();
+  }
+
+  public EditorImageButton(Pattern pattern) {
+    thumbnail = createThumbnailImage(pattern, MAXHEIGHT);
+    options = new HashMap<>();
+    options.put(IButton.FILE, pattern.getImage().file());
+    options.put(IButton.TEXT, "\"" + info() + "\"");
+    options.put(IButton.PATT, pattern);
+
+    init();
+  }
+
+  private void init() {
+    setIcon(new ImageIcon(thumbnail));
+    setButtonText();
+
+    setMargin(new Insets(0, 0, 0, 0));
+    setBorderPainted(false);
+    setContentAreaFilled(false);
+    setOpaque(false);
+    setFocusPainted(false);
+    setCursor(new Cursor(Cursor.HAND_CURSOR));
+    addActionListener(this);
+    addMouseListener(this);
+  }
+
+  // When the LaF changes (theme toggle), the new ButtonUI resets contentAreaFilled
+  // and opaque back to defaults, which makes FlatLightLaf paint an opaque white
+  // background over the icon. Keep the button fully transparent so only the cached
+  // thumbnail + custom paint() overlay are rendered (issue #165).
+  @Override
+  public void updateUI() {
+    super.updateUI();
+    if (thumbnail != null) {
+      setIcon(new ImageIcon(thumbnail));
+    }
+    setMargin(new Insets(0, 0, 0, 0));
+    setBorderPainted(false);
+    setContentAreaFilled(false);
+    setOpaque(false);
+    setFocusPainted(false);
+  }
+
+  // Build a fresh clone of this button carrying the same visible state but
+  // with a fresh ButtonUI installed under the active LaF. Called by
+  // EditorPane.afterThemeChange() to replace every embedded image button
+  // after a theme toggle so the Flat ButtonUI defaults don't leave the
+  // thumbnails invisible or un-clickable.
+  public EditorImageButton cloneForRefresh(EditorPane pane) {
+    if (options == null) return null;
+    Object patt = options.get(IButton.PATT);
+    if (patt instanceof Pattern) return new EditorImageButton((Pattern) patt);
+    Object file = options.get(IButton.FILE);
+    if (file instanceof File) return new EditorImageButton((File) file);
+    return null;
+  }
+
+  @Override
+  public void actionPerformed(ActionEvent e) {
+    final EditorImageButton source = (EditorImageButton) e.getSource();
+    handlePopup(null);
+  }
+
+  private boolean closeIfVisible(SXDialog popup) {
+    if (popup != null && popup.isVisible()) {
+      popup.closeCancel();
+      return true;
+    }
+    return false;
+  }
+
+  SXDialogPaneImageMenu popmenu = null;
+
+  private void handlePopup(MouseEvent me) {
+    if (closeIfVisible(popmenu)) {
+      return;
+    }
+    closeIfVisible(popwin);
+    if (me == null) {
+      handlePreview();
+    } else {
+      Point where = getLocationOnScreen();
+      where.y += MAXHEIGHT + 10;
+
+      popmenu = new SXDialogPaneImageMenu(where,
+          new String[]{"image"}, options.get(IButton.FILE), this);
+      popmenu.run();
+    }
+  }
+
+  private SXDialogPaneImage popwin = null;
+
+  private void handlePreview() {
+    Point where = getLocationOnScreen();
+    popwin = new SXDialogPaneImage(where, new String[]{"image"}, options.get(IButton.FILE), this);
+    popwin.run();
+  }
+
+  @Override
+  public Point getLocationOnScreen() {
+    return super.getLocationOnScreen();
+  }
+
+  @Override
+  public void mouseEntered(MouseEvent me) {
+  }
+
+  @Override
+  public void mouseExited(MouseEvent me) {
+  }
+
+  @Override
+  public void mousePressed(MouseEvent me) {
+    if (me.isPopupTrigger()) {
+      handlePopup(me);
+    }
+  }
+
+  @Override
+  public void mouseReleased(MouseEvent me) {
+    if (me.isPopupTrigger()) {
+      handlePopup(me);
+    }
+  }
+
+  @Override
+  public void mouseClicked(MouseEvent me) {
+  }
+
+  private BufferedImage createThumbnailImage(Pattern pattern, int maxHeight) {
+    //TODO Pattern thumbnail
+    return createThumbnailImage(pattern.getImage().file(), maxHeight);
+  }
+
+  private BufferedImage createThumbnailImage(File imgFile, int maxHeight) {
+    BufferedImage img = null;
+    try {
+      img = ImageIO.read(imgFile);
+    } catch (IOException e) {
+    }
+    if (img == null) {
+      try {
+        img = ImageIO.read(SikulixIDE.class.getResource("/icons/sxcapture.png"));
+      } catch (Exception e) {
+        RunTime.terminate(999, "EditorImageButton: createThumbnailImage: possible? %s", e.getMessage());
+      }
+    }
+    int w = img.getWidth();
+    int h = img.getHeight();
+    if (maxHeight == 0 || maxHeight >= h) {
+      return img;
+    }
+    float _scale = (float) maxHeight / h;
+    w *= _scale;
+    h *= _scale;
+    h = (int) h;
+    // Use ARGB so the thumbnail has an alpha channel and survives LaF changes
+    // (opaque TYPE_INT_RGB caused icons to vanish visually after a theme toggle - issue #165).
+    BufferedImage thumb = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+    Graphics2D g2d = thumb.createGraphics();
+    g2d.drawImage(img, 0, 0, w, h, null);
+    g2d.dispose();
+    return thumb;
+  }
+
+  @Override
+  public void paint(Graphics g) {
+    super.paint(g);
+    Graphics2D g2d = (Graphics2D) g;
+    g2d.setColor(new Color(0, 128, 128, 128));
+    g2d.drawRoundRect(3, 3, getWidth() - 7, getHeight() - 7, 5, 5);
+  }
+
+  @Override
+  public String toString() {
+    if (options == null || options.get(IButton.TEXT) == null) {
+      return "";
+    }
+    return (String) options.get(IButton.TEXT);
+  }
+
+  public String info() {
+    if (options == null || options.get(IButton.FILE) == null) {
+      return "";
+    }
+    final String name = FilenameUtils.getBaseName(((File) options.get(IButton.FILE)).getAbsolutePath());
+    return String.format("%s", name);
+  }
+
+  void setButtonText() {
+    setToolTipText(info());
+  }
+
+  public static void renameImage(String name, Map<String, Object> options) {
+    if (name == null || name.trim().isEmpty()) return;
+    File oldFile = (File) options.get("image");
+    if (oldFile == null) {
+      Commons.error("renameImage: no source file in options");
+      return;
+    }
+    String newBaseName = name.trim();
+    if (!newBaseName.toLowerCase().endsWith(".png")
+        && !newBaseName.toLowerCase().endsWith(".jpg")
+        && !newBaseName.toLowerCase().endsWith(".jpeg")) {
+      newBaseName += "." + FilenameUtils.getExtension(oldFile.getName()).toLowerCase();
+    }
+    File newFile = new File(oldFile.getParentFile(), newBaseName);
+    boolean overwritten = newFile.exists() && !newFile.equals(oldFile);
+    try {
+      java.nio.file.Files.move(oldFile.toPath(), newFile.toPath(),
+          java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    } catch (IOException e) {
+      Commons.error("renameImage: cannot move %s -> %s: %s",
+          oldFile, newFile, e.getMessage());
+      return;
+    }
+    options.put("image", newFile);
+    SikulixIDE.get().reparseOnRenameImage(oldFile.getAbsolutePath(),
+        newFile.getAbsolutePath(), overwritten);
+  }
+
+  //imgBtn.setImage(filename);
+  public void setImage(String fname) {
+
+  }
+
+  //imgBtn.setParameters(
+  //						_screenshot.isExact(), _screenshot.getSimilarity(),
+  //						_screenshot.getNumMatches()));
+  public boolean setParameters(boolean exact, double sim, int numM) {
+    return true;
+  }
+
+  //imgBtn.setTargetOffset(_tarOffsetPane.getTargetOffset()))
+  public boolean setTargetOffset(Location offset) {
+    return true;
+  }
+
+  //imgBtn.getWindow()
+  public PatternWindow getWindow() {
+    return null;
+  }
+
+  //imgBtn.resetParameters()
+  public void resetParameters() {
+
+  }
+}
