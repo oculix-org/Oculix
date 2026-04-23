@@ -1,0 +1,17 @@
+#globals; s 350 500; m 20; c; f 16
+
+#image; /icons/sikulix-red-x.png; r 200
+---
+OculiX IDE; fontsize 22; bold
+Powered by SikuliX; fontsize 13
+---
+{sxversion}; bold
+Java {javaversion}; bold
+---
+#link; github.com/oculix-org | https://github.com/oculix-org/Oculix
+---
+Copyright (c) 2010-2026; fontsize 14
+sikuli.org --- sikulix.com --- oculix-org; fontsize 12
+#link; MIT License | https://github.com/oculix-org/Oculix/blob/master/LICENSE; fontsize 14
+---
+#close; Press ESC or Click; f 12
