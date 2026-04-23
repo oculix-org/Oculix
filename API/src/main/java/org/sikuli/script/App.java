@@ -125,6 +125,32 @@ public class App {
     setName(name);
   }
 
+  /**
+   * Creates an App from an executable path and an optional arguments string,
+   * kept as separate parameters so the executable path is never run through
+   * {@link CommandLine#parse(String)} — which strips surrounding quotes and
+   * re-tokenises on whitespace. Use this overload for executables whose path
+   * contains spaces (e.g. {@code C:\Program Files\...}, {@code /Applications/
+   * Some App.app/...}).
+   *
+   * @param executable absolute or resolvable path of the binary; whitespace-safe
+   * @param arguments  space-separated arguments string, or {@code null} / empty
+   *                   for none. Standard shell quoting is tokenised inside
+   *                   {@code arguments}; the executable is not parsed.
+   * @since 3.0.3 — see #191
+   */
+  public App(String executable, String arguments) {
+    this();
+    if (StringUtils.isBlank(executable)) {
+      return;
+    }
+    cmd = new CommandLine(executable);
+    if (StringUtils.isNotBlank(arguments)) {
+      cmd.addArguments(arguments);
+    }
+    process = osUtil.findProcesses(cmd.getExecutable()).stream().findFirst().orElse(new NullProcess());
+  }
+
   private App(OsProcess process) {
     this.process = process;
   }
