@@ -4,7 +4,23 @@
 
 **You spotted something. That's already a contribution.**
 
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-2ea44f?style=flat-square&logo=github)](../../pulls)
+[![Issues](https://img.shields.io/badge/Issues-bug%20reports%20matter-d73a49?style=flat-square&logo=github)](../../issues)
+[![Docs](https://img.shields.io/badge/Docs-clarity%20wins-0969da?style=flat-square&logo=readme)](README.md)
+[![Security](https://img.shields.io/badge/Security-48h%20acknowledgement-8250df?style=flat-square&logo=shield)](SECURITY.md)
+[![License](https://img.shields.io/badge/License-MIT-1f883d?style=flat-square)](LICENSE)
+
+*Bug reports, focused PRs, docs fixes, wrappers, RC testing.*
+
 </div>
+
+> [!TIP]
+> Jump straight to what you need:
+> [Report a bug](#reporting-a-bug--what-earns-a-same-day-fix) ·
+> [Request a feature](#requesting-a-feature) ·
+> [Submit a PR](#submitting-a-pull-request) ·
+> [Development setup](#development-setup) ·
+> [Good first contributions](#good-first-contributions)
 
 OculiX is the active continuation of SikuliX1, which was archived in March 2026 after two decades of community work. A lot of that community is still out there running scripts in production — and a lot of them are discovering OculiX one stack trace at a time.
 
@@ -22,7 +38,7 @@ Not every contribution is code. Ranked roughly from "takes five minutes" to "tak
 | Share a script that breaks in OculiX but worked in SikuliX | 10 min | Direct regression reproducer, top-priority |
 | Test a release candidate on Linux / macOS / Apple Silicon | 15 min | We only have one maintainer's machine; RCs need eyes |
 | Correct something in the README or a module README | 30 min | Docs debt is real — every typo fix is appreciated |
-| Triage an old issue (repro on your side, add labels, ask for missing info) | 30 min | Huge leverage on signal-to-noise |
+| Triage an old issue (repro on your side, suggest labels, ask for missing info) | 30 min | Huge leverage on signal-to-noise |
 | Submit a PR for an issue tagged `good first issue` | 1-3 h | See [#good-first-contributions](#good-first-contributions) below |
 | Port a feature from SikuliX1 that didn't make it into OculiX | few hours | Direct lineage continuity |
 | Build a wrapper (Python, JS, .NET — see #177/#178/#179) | a week+ | Opens OculiX to a new ecosystem |
