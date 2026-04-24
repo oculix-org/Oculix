@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!--
+  ~ Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.oculix-org</groupId>
+  <artifactId>oculixreporter</artifactId>
+  <version>3.0.3-rc1</version>
+
+  <packaging>jar</packaging>
+
+  <name>OculiX Reporter</name>
+  <description>Self-contained HTML test reporter for OculiX — single-file output with base64 screenshots, offline diagnosis, history tracking. Opt-in via the ReportedScreen wrapper — zero impact on existing code.</description>
+
+  <url>https://github.com/oculix-org/Oculix</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://github.com/oculix-org/Oculix/blob/master/LICENSE</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>julienmerconsulting</id>
+      <name>Julien Mer</name>
+      <email>julien.mer38@gmail.com</email>
+    </developer>
+    <developer>
+      <id>RaiMan</id>
+      <name>Raimund Hocke</name>
+      <email>rmhdevelop@me.com</email>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git@github.com:oculix-org/Oculix.git</connection>
+    <developerConnection>scm:git:git@github.com:oculix-org/Oculix.git</developerConnection>
+    <url>https://github.com/oculix-org/Oculix</url>
+  </scm>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>oculixapi</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <configuration>
+          <mainClass>org.oculix.report.mock.MockReportDemo</mainClass>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>
