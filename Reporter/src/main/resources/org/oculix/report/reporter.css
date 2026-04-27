@@ -630,11 +630,72 @@ code, pre, .mono { font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo,
   font-size: 0.82rem;
   font-weight: 600;
   border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.1s, box-shadow 0.15s;
 }
+.trend-pill:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.trend-pill.active { box-shadow: 0 0 0 2px currentColor inset; }
 .trend-arrow { font-size: 0.95rem; line-height: 1; }
 .trend-regression  { color: var(--c-failed);  background: var(--c-failed-soft);  border-color: var(--c-failed); }
 .trend-improvement { color: var(--c-passed);  background: var(--c-passed-soft);  border-color: var(--c-passed); }
 .trend-flaky       { color: #b45309;          background: rgba(245, 158, 11, 0.18); border-color: var(--c-skipped); }
+
+/* Trend detail panels */
+.trends-details {
+  margin: 0.65rem 0 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.trends-details[hidden] { display: none; }
+.trends-details-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+}
+.trend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.trend-list-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-soft);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.trend-list-row:hover, .trend-list-row:focus {
+  background: var(--card-hover);
+  border-color: var(--accent);
+  outline: none;
+}
+.trend-list-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--fg);
+  font-family: ui-monospace, 'SF Mono', monospace;
+}
+.trend-list-reason {
+  flex: 1 1 auto;
+  font-size: 0.85rem;
+  color: var(--fg-soft);
+  line-height: 1.4;
+}
 
 /* ========== Overview (donut + timeline) ========== */
 .overview {

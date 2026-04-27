@@ -170,28 +170,28 @@
     });
   });
 
-  // --- Test detail modal (triggered from Slowest tests rows) ---
+  // --- Test detail modal (triggered from Slowest tests + trend rows) ---
   var modal = document.querySelector('.test-modal-overlay');
+  function openTestModal(idx) {
+    if (!modal) return;
+    var article = document.querySelector('article.test[data-test-index="' + idx + '"]');
+    if (!article) return;
+    var clone = article.cloneNode(true);
+    clone.classList.add('open');
+    var body = modal.querySelector('.test-modal-body');
+    body.innerHTML = '';
+    body.appendChild(clone);
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeTestModal() {
+    if (!modal) return;
+    modal.hidden = true;
+    modal.querySelector('.test-modal-body').innerHTML = '';
+    document.body.style.overflow = '';
+  }
   if (modal) {
-    var modalBody = modal.querySelector('.test-modal-body');
     var modalClose = modal.querySelector('.test-modal-close');
-
-    function openTestModal(idx) {
-      var article = document.querySelector('article.test[data-test-index="' + idx + '"]');
-      if (!article) return;
-      var clone = article.cloneNode(true);
-      clone.classList.add('open');
-      modalBody.innerHTML = '';
-      modalBody.appendChild(clone);
-      modal.hidden = false;
-      document.body.style.overflow = 'hidden';
-    }
-    function closeTestModal() {
-      modal.hidden = true;
-      modalBody.innerHTML = '';
-      document.body.style.overflow = '';
-    }
-
     document.querySelectorAll('.slowest-row').forEach(function (row) {
       row.addEventListener('click', function () {
         openTestModal(row.getAttribute('data-test-index'));
@@ -211,4 +211,68 @@
       if (e.key === 'Escape' && !modal.hidden) closeTestModal();
     });
   }
+
+  // --- Trend pills: toggle detail panels + filter test list to impacted tests ---
+  var trendActive = null; // 'regressions' | 'new-passes' | 'flaky' | null
+  function applyTrendFilter() {
+    if (!trendActive) {
+      // remove trend filter, restore baseline filtering
+      allTests.forEach(function (c) { delete c.dataset.trendHide; });
+      applyFilters();
+      return;
+    }
+    var panel = document.querySelector('.trends-details[data-trend="' + trendActive + '"]');
+    if (!panel) return;
+    var allowed = {};
+    panel.querySelectorAll('.trend-list-row').forEach(function (r) {
+      allowed[r.getAttribute('data-test-index')] = true;
+    });
+    allTests.forEach(function (c) {
+      if (allowed[c.getAttribute('data-test-index')]) {
+        delete c.dataset.trendHide;
+      } else {
+        c.dataset.trendHide = '1';
+      }
+    });
+    // Apply combined visibility (search + outcome + trend)
+    var q = (search ? search.value : '').toLowerCase();
+    allTests.forEach(function (c) {
+      var matchOutcome = activeOutcome === 'all' || c.getAttribute('data-outcome') === activeOutcome;
+      var matchSearch = !q || c.getAttribute('data-name').toLowerCase().indexOf(q) !== -1;
+      var hiddenByTrend = c.dataset.trendHide === '1';
+      c.style.display = (matchOutcome && matchSearch && !hiddenByTrend) ? '' : 'none';
+    });
+  }
+
+  document.querySelectorAll('.trend-pill').forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var key = pill.getAttribute('data-trend');
+      var panel = document.querySelector('.trends-details[data-trend="' + key + '"]');
+      var willOpen = pill.classList.contains('active') ? false : true;
+      // close all other pills + panels first
+      document.querySelectorAll('.trend-pill').forEach(function (p) { p.classList.remove('active'); });
+      document.querySelectorAll('.trends-details').forEach(function (p) { p.hidden = true; });
+      if (willOpen) {
+        pill.classList.add('active');
+        if (panel) panel.hidden = false;
+        trendActive = key;
+      } else {
+        trendActive = null;
+      }
+      applyTrendFilter();
+    });
+  });
+
+  // Trend list rows open the test in the modal
+  document.querySelectorAll('.trend-list-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      openTestModal(row.getAttribute('data-test-index'));
+    });
+    row.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openTestModal(row.getAttribute('data-test-index'));
+      }
+    });
+  });
 })();

@@ -21,6 +21,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -174,38 +176,102 @@ public final class HtmlRenderer {
     private void renderTrends(StringBuilder sb, TestRun run) {
         if (history == null || history.isEmpty()) return;
         HistoryEntry prev = history.entries().get(history.entries().size() - 1);
-        int regressions = 0, newPasses = 0, flakyCount = 0;
-        for (Test t : run.tests()) {
+
+        List<int[]> regressions = new ArrayList<>();   // [testIndex] of regressed tests
+        List<int[]> newPasses = new ArrayList<>();
+        List<int[]> flakyTests = new ArrayList<>();
+        List<Test> tests = run.tests();
+        for (int i = 0; i < tests.size(); i++) {
+            Test t = tests.get(i);
             Outcome cur = t.outcome();
             Outcome prevOut = prev.outcomes().get(t.name());
             if (prevOut != null) {
                 boolean prevPassed = prevOut == Outcome.PASSED || prevOut == Outcome.XPASSED;
                 boolean curPassed = cur == Outcome.PASSED || cur == Outcome.XPASSED;
-                if (prevPassed && !curPassed) regressions++;
-                else if (!prevPassed && curPassed) newPasses++;
+                if (prevPassed && !curPassed) regressions.add(new int[]{i});
+                else if (!prevPassed && curPassed) newPasses.add(new int[]{i});
             }
             if (FlakyDetector.isFlaky(FlakyDetector.flakyScore(t.name(), history.entries()))) {
-                flakyCount++;
+                flakyTests.add(new int[]{i});
             }
         }
-        if (regressions == 0 && newPasses == 0 && flakyCount == 0) return;
+        if (regressions.isEmpty() && newPasses.isEmpty() && flakyTests.isEmpty()) return;
+
         sb.append("<div class=\"trends\">\n")
           .append("<span class=\"trends-label\">vs previous run</span>");
-        if (regressions > 0) {
-            sb.append("<span class=\"trend-pill trend-regression\">")
+        if (!regressions.isEmpty()) {
+            sb.append("<button type=\"button\" class=\"trend-pill trend-regression\" data-trend=\"regressions\">")
               .append("<span class=\"trend-arrow\">▾</span>")
-              .append(regressions).append(" regression").append(regressions > 1 ? "s" : "").append("</span>");
+              .append(regressions.size()).append(" regression").append(regressions.size() > 1 ? "s" : "").append("</button>");
         }
-        if (newPasses > 0) {
-            sb.append("<span class=\"trend-pill trend-improvement\">")
+        if (!newPasses.isEmpty()) {
+            sb.append("<button type=\"button\" class=\"trend-pill trend-improvement\" data-trend=\"new-passes\">")
               .append("<span class=\"trend-arrow\">▴</span>")
-              .append(newPasses).append(" new pass").append(newPasses > 1 ? "es" : "").append("</span>");
+              .append(newPasses.size()).append(" new pass").append(newPasses.size() > 1 ? "es" : "").append("</button>");
         }
-        if (flakyCount > 0) {
-            sb.append("<span class=\"trend-pill trend-flaky\">")
-              .append(flakyCount).append(" flaky").append("</span>");
+        if (!flakyTests.isEmpty()) {
+            sb.append("<button type=\"button\" class=\"trend-pill trend-flaky\" data-trend=\"flaky\">")
+              .append(flakyTests.size()).append(" flaky").append("</button>");
         }
         sb.append("\n</div>\n");
+
+        // Detail panels — initially hidden, toggled by JS. Each row links to a test
+        // via data-test-index (re-uses the modal opener) and shows the WHY.
+        if (!regressions.isEmpty()) {
+            renderTrendPanel(sb, "regressions", "Regressed since the previous run", regressions, run, true, false);
+        }
+        if (!newPasses.isEmpty()) {
+            renderTrendPanel(sb, "new-passes", "Newly passing", newPasses, run, false, false);
+        }
+        if (!flakyTests.isEmpty()) {
+            renderTrendPanel(sb, "flaky", "Flaky tests", flakyTests, run, false, true);
+        }
+    }
+
+    private void renderTrendPanel(StringBuilder sb, String trendKey, String title,
+                                  List<int[]> tests, TestRun run,
+                                  boolean showRegressionReason, boolean showFlakyReason) {
+        sb.append("<div class=\"trends-details\" data-trend=\"").append(trendKey).append("\" hidden>\n")
+          .append("<div class=\"trends-details-title\">").append(esc(title)).append("</div>\n")
+          .append("<ul class=\"trend-list\">\n");
+        for (int[] entry : tests) {
+            int idx = entry[0];
+            Test t = run.tests().get(idx);
+            sb.append("<li class=\"trend-list-row\" data-test-index=\"").append(idx)
+              .append("\" tabindex=\"0\" role=\"button\">")
+              .append("<span class=\"trend-list-name\">").append(esc(t.name())).append("</span>");
+            if (showRegressionReason) {
+                String cause = regressionCause(t);
+                if (!cause.isEmpty()) {
+                    sb.append("<span class=\"trend-list-reason\">").append(esc(cause)).append("</span>");
+                }
+            }
+            if (showFlakyReason) {
+                String reason = FlakyDetector.flakyReason(t.name(), history.entries());
+                if (reason != null) {
+                    sb.append("<span class=\"trend-list-reason\">").append(esc(reason)).append("</span>");
+                }
+            }
+            sb.append("</li>\n");
+        }
+        sb.append("</ul>\n</div>\n");
+    }
+
+    private String regressionCause(Test t) {
+        String err = t.errorMessage();
+        String trace = t.stackTrace();
+        if (err.isEmpty() && trace.isEmpty()) {
+            for (Step s : t.steps()) {
+                if (!s.errorMessage().isEmpty() || !s.stackTrace().isEmpty()) {
+                    err = s.errorMessage();
+                    trace = s.stackTrace();
+                    break;
+                }
+            }
+        }
+        Diagnosis d = DIAGNOSIS.diagnose(err, trace);
+        if (d != null) return d.label();
+        return "now " + t.outcome().slug();
     }
 
     private void renderMeta(StringBuilder sb, TestRun run) {
