@@ -77,6 +77,9 @@ public final class HtmlRenderer {
         sb.append("<aside class=\"sidebar\">\n")
           .append("<div class=\"sidebar-brand\"><h1>OculiX Report</h1>")
           .append("<span class=\"tagline\">").append(esc(run.title())).append("</span></div>\n")
+          .append("<div class=\"sidebar-section-title\">Search</div>\n")
+          .append("<input type=\"search\" class=\"sidebar-search\" id=\"sidebar-search\" "
+              + "placeholder=\"Test name…\" autocomplete=\"off\">\n")
           .append("<div class=\"sidebar-section-title\">Filter</div>\n")
           .append("<ul class=\"sidebar-nav\">\n")
           .append(navLink("all", "All", run.total(), true));
@@ -171,6 +174,18 @@ public final class HtmlRenderer {
     private void renderTests(StringBuilder sb, TestRun run) {
         sb.append("<div class=\"section-title\"><h3>Tests</h3>")
           .append("<span class=\"subtitle\">Click a test to expand its steps</span></div>\n")
+          .append("<div class=\"tests-toolbar\">\n")
+          .append("<span class=\"toolbar-group\">")
+          .append("<span class=\"toolbar-label\">Sort by</span>")
+          .append("<button type=\"button\" class=\"sort-btn\" data-sort=\"name\">Name</button>")
+          .append("<button type=\"button\" class=\"sort-btn\" data-sort=\"duration\">Duration</button>")
+          .append("<button type=\"button\" class=\"sort-btn\" data-sort=\"outcome\">Outcome</button>")
+          .append("</span>")
+          .append("<span class=\"toolbar-group\">")
+          .append("<button type=\"button\" class=\"action-btn\" data-action=\"expand-all\">Expand all</button>")
+          .append("<button type=\"button\" class=\"action-btn\" data-action=\"collapse-all\">Collapse all</button>")
+          .append("</span>\n")
+          .append("</div>\n")
           .append("<div class=\"tests\">\n");
         int i = 0;
         for (Test t : run.tests()) renderTest(sb, t, i++);
@@ -178,25 +193,43 @@ public final class HtmlRenderer {
     }
 
     private void renderTest(StringBuilder sb, Test t, int index) {
-        sb.append("<article class=\"test\" data-outcome=\"").append(t.outcome().slug())
-          .append("\" data-test-index=\"").append(index).append("\">\n")
+        int shotCount = 0;
+        for (Step s : t.steps()) shotCount += s.screenshots().size();
+        long durationMs = t.duration().toMillis();
+
+        sb.append("<article class=\"test\" id=\"test-").append(index)
+          .append("\" data-outcome=\"").append(t.outcome().slug())
+          .append("\" data-test-index=\"").append(index)
+          .append("\" data-name=\"").append(esc(t.name()))
+          .append("\" data-duration-ms=\"").append(durationMs).append("\">\n")
           .append("<div class=\"test-header\">")
           .append("<span class=\"chevron\">&#9654;</span>")
           .append("<span class=\"badge\">").append(t.outcome().slug()).append("</span>")
           .append("<span class=\"test-name\">").append(esc(t.name())).append("</span>")
           .append("<span class=\"test-meta\">")
-          .append("<span class=\"steps-count\">").append(t.steps().size()).append(" steps</span>")
-          .append("<span class=\"duration\">").append(formatDuration(t.duration())).append("</span>")
+          .append("<span class=\"steps-count\">").append(t.steps().size()).append(" steps</span>");
+        if (shotCount > 0) {
+            sb.append("<span class=\"shots-count\">").append(shotCount).append(" shots</span>");
+        }
+        sb.append("<span class=\"duration\">").append(formatDuration(t.duration())).append("</span>")
+          .append("<a class=\"test-permalink\" href=\"#test-").append(index)
+          .append("\" title=\"Copy permalink\" aria-label=\"Permalink\">#</a>")
           .append("</span></div>\n")
           .append("<div class=\"test-body\">\n");
 
         if (!t.errorMessage().isEmpty() || !t.stackTrace().isEmpty()) {
             sb.append("<div class=\"section\"><h4>Error</h4>");
             if (!t.errorMessage().isEmpty()) {
-                sb.append("<pre>").append(esc(t.errorMessage())).append("</pre>");
+                sb.append("<div class=\"error-block\">")
+                  .append("<button type=\"button\" class=\"copy-btn\" aria-label=\"Copy\">Copy</button>")
+                  .append("<pre>").append(esc(t.errorMessage())).append("</pre>")
+                  .append("</div>");
             }
             if (!t.stackTrace().isEmpty()) {
-                sb.append("<pre>").append(esc(t.stackTrace())).append("</pre>");
+                sb.append("<div class=\"error-block\">")
+                  .append("<button type=\"button\" class=\"copy-btn\" aria-label=\"Copy\">Copy</button>")
+                  .append("<pre>").append(esc(t.stackTrace())).append("</pre>")
+                  .append("</div>");
             }
             sb.append("</div>\n");
         }

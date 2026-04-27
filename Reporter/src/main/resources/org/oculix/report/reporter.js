@@ -1,40 +1,160 @@
-// OculiX Reporter — Phase 1 JS.
-// Pure vanilla, no dep. Collapses tests by default, opens failed ones,
-// enables lightbox zoom on screenshots, and sidebar navigation.
+// OculiX Reporter — vanilla JS, no dep.
 (function () {
   'use strict';
 
-  // --- Collapse / expand tests ---
+  var testsContainer = document.querySelector('.tests');
+  var allTests = Array.prototype.slice.call(document.querySelectorAll('.test'));
+
+  // --- Combined filter (outcome + search) ---
+  var activeOutcome = 'all';
+  var searchQuery = '';
+  function applyFilters() {
+    var q = searchQuery.toLowerCase();
+    allTests.forEach(function (c) {
+      var matchOutcome = activeOutcome === 'all' || c.getAttribute('data-outcome') === activeOutcome;
+      var matchSearch = !q || c.getAttribute('data-name').toLowerCase().indexOf(q) !== -1;
+      c.style.display = (matchOutcome && matchSearch) ? '' : 'none';
+    });
+  }
+
+  // --- Collapse / expand a single test ---
   document.querySelectorAll('.test-header').forEach(function (h) {
-    h.addEventListener('click', function () {
-      var card = h.closest('.test');
-      card.classList.toggle('open');
+    h.addEventListener('click', function (e) {
+      // Don't toggle when clicking the permalink anchor
+      if (e.target.closest('.test-permalink')) return;
+      h.closest('.test').classList.toggle('open');
     });
   });
 
   // Auto-open failed/error tests on load.
-  document.querySelectorAll('.test').forEach(function (c) {
+  allTests.forEach(function (c) {
     var o = c.getAttribute('data-outcome');
     if (o === 'failed' || o === 'error') c.classList.add('open');
   });
 
-  // --- Sidebar filter ---
+  // --- Sidebar outcome filter ---
   var navLinks = document.querySelectorAll('.sidebar-nav a[data-filter]');
   navLinks.forEach(function (a) {
     a.addEventListener('click', function (e) {
       e.preventDefault();
-      var filter = a.getAttribute('data-filter');
+      activeOutcome = a.getAttribute('data-filter');
       navLinks.forEach(function (l) { l.classList.remove('active'); });
       a.classList.add('active');
-      document.querySelectorAll('.test').forEach(function (c) {
-        if (filter === 'all' || c.getAttribute('data-outcome') === filter) {
-          c.style.display = '';
-        } else {
-          c.style.display = 'none';
-        }
+      applyFilters();
+    });
+  });
+
+  // --- Sidebar search ---
+  var search = document.getElementById('sidebar-search');
+  if (search) {
+    search.addEventListener('input', function () {
+      searchQuery = search.value;
+      applyFilters();
+    });
+  }
+
+  // --- Sort buttons ---
+  var sortState = { key: null, dir: 1 }; // dir: 1 asc, -1 desc
+  document.querySelectorAll('.sort-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.getAttribute('data-sort');
+      if (sortState.key === key) {
+        sortState.dir = -sortState.dir;
+      } else {
+        sortState.key = key;
+        sortState.dir = (key === 'duration') ? -1 : 1; // duration: longest first
+      }
+      document.querySelectorAll('.sort-btn').forEach(function (b) {
+        b.classList.remove('active');
+        b.removeAttribute('data-direction');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('data-direction', sortState.dir > 0 ? '↑' : '↓');
+      sortTests();
+    });
+  });
+  function sortTests() {
+    if (!testsContainer || !sortState.key) return;
+    var arr = Array.prototype.slice.call(testsContainer.querySelectorAll('.test'));
+    arr.sort(function (a, b) {
+      var av, bv;
+      if (sortState.key === 'duration') {
+        av = parseInt(a.getAttribute('data-duration-ms'), 10) || 0;
+        bv = parseInt(b.getAttribute('data-duration-ms'), 10) || 0;
+        return (av - bv) * sortState.dir;
+      }
+      if (sortState.key === 'name') {
+        av = (a.getAttribute('data-name') || '').toLowerCase();
+        bv = (b.getAttribute('data-name') || '').toLowerCase();
+      } else { // outcome
+        av = a.getAttribute('data-outcome') || '';
+        bv = b.getAttribute('data-outcome') || '';
+      }
+      if (av < bv) return -1 * sortState.dir;
+      if (av > bv) return  1 * sortState.dir;
+      return 0;
+    });
+    arr.forEach(function (el) { testsContainer.appendChild(el); });
+  }
+
+  // --- Expand all / Collapse all ---
+  document.querySelectorAll('.action-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var action = btn.getAttribute('data-action');
+      allTests.forEach(function (c) {
+        if (action === 'expand-all') c.classList.add('open');
+        else if (action === 'collapse-all') c.classList.remove('open');
       });
     });
   });
+
+  // --- Copy stack trace / error message ---
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.parentElement.querySelector('pre');
+      if (!pre) return;
+      var text = pre.textContent || '';
+      var done = function () {
+        var orig = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.textContent = orig;
+          btn.classList.remove('copied');
+        }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); cb(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  // --- Permalink: jump to anchor on load + flash highlight ---
+  function handleHash() {
+    var hash = window.location.hash;
+    if (!hash || hash.indexOf('#test-') !== 0) return;
+    var el = document.getElementById(hash.substring(1));
+    if (!el) return;
+    el.classList.add('open');
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.remove('target-flash');
+    void el.offsetWidth; // restart animation
+    el.classList.add('target-flash');
+  }
+  window.addEventListener('hashchange', handleHash);
+  if (window.location.hash) setTimeout(handleHash, 50);
 
   // --- Lightbox for screenshots ---
   var lightbox = document.createElement('div');
