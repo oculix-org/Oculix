@@ -1,0 +1,276 @@
+/*
+ * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
+ */
+
+package org.sikuli.ide;
+
+import org.sikuli.basics.*;
+import org.sikuli.support.FileManager;
+import org.sikuli.support.runner.SikulixServer;
+import org.sikuli.script.SikuliXception;
+import org.sikuli.support.runner.IRunner;
+import org.sikuli.support.ide.Runner;
+import org.sikuli.support.Commons;
+import org.sikuli.support.RunTime;
+import org.sikuli.support.gui.SXDialog;
+import org.sikuli.support.ide.SikuliIDEI18N;
+
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.lang.reflect.Method;
+
+import static org.sikuli.util.CommandArgsEnum.*;
+
+public class Sikulix {
+
+  static SXDialog ideSplash = null;
+  static int waitStart = 0;
+
+  public static void stopSplash() {
+    if (waitStart > 0) {
+      try {
+        Thread.sleep(waitStart * 1000);
+      } catch (InterruptedException e) {
+      }
+    }
+
+    if (ideSplash != null) {
+      ideSplash.setVisible(false);
+      ideSplash.dispose();
+      ideSplash = null;
+    }
+  }
+
+  public static void main(String[] args) {
+    //region startup
+    Commons.setStartClass(Sikulix.class);
+    Commons.setStartArgs(args);
+
+    if (Commons.hasArg("h")) {
+      Commons.printHelp();
+      System.exit(0);
+    }
+
+    Commons.initOptions();
+
+    Commons.globals().setOption("SX_LOCALE", SikuliIDEI18N.getLocaleShow());
+
+    if (Commons.hasOption(APPDATA)) {
+      String argValue = Commons.globals().getOption(APPDATA);
+      File path = Commons.setAppDataPath(argValue);
+      Commons.setTempFolder(new File(path, "Temp"));
+    } else {
+      Commons.setTempFolder();
+    }
+
+    if (Commons.hasOption(VERBOSE)) {
+      Debug.globalDebugOn();
+    }
+
+    if (Commons.hasOption(CONSOLE)) {
+      System.setProperty("sikuli.console", "false");
+    }
+
+    if (Commons.hasOption(DEBUG)) {
+      Commons.globals().getOptionInteger("ARG_DEBUG", 3);
+      Debug.setDebugLevel(3);
+    }
+
+    //TODO autoCheckUpdate();
+
+    if (Commons.hasOption(RUN)) {
+      Commons.loadOpenCV();
+      HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
+        @Override
+        public void hotkeyPressed(HotkeyEvent e) {
+          if (Commons.hasOption(RUN)) {
+            Runner.abortAll();
+            RunTime.terminate(254, "AbortKey was pressed: aborting all running scripts");
+          }
+        }
+      });
+      String[] scripts = Runner.resolveRelativeFiles(Commons.getArgs("r"));
+      int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(), new IRunner.Options());
+      if (exitCode > 255) {
+        exitCode = 254;
+      }
+      RunTime.terminate(exitCode, "");
+    }
+
+    if (Commons.hasOption(SERVER)) {
+      SikulixServer.run();
+      RunTime.terminate();
+    }
+
+    Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
+    //endregion
+
+    // FlatLaf must be initialized before any Swing component creation
+    // Use modern system fonts: Segoe UI (Win), SF Pro (Mac), Inter/Cantarell (Linux)
+    FlatLaf.setPreferredFontFamily("Segoe UI");
+    FlatLaf.setPreferredMonospacedFontFamily("Cascadia Code");
+    String ideTheme = PreferencesUser.get().getIdeTheme();
+    if (PreferencesUser.THEME_LIGHT.equals(ideTheme)) {
+      FlatLightLaf.setup();
+    } else {
+      FlatDarkLaf.setup();
+    }
+
+    ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
+    ideSplash.run();
+
+    if (Commons.hasOption(VERBOSE)) {
+      Commons.show();
+      Commons.showOptions("ARG_");
+    }
+
+    // Belt-and-suspenders: make sure the splash is dismissed on any JVM exit
+    // (crash mid-startup, Ctrl+C, uncaught exception, etc.). Without this an
+    // abrupt termination can leave the splash window on top indefinitely.
+    Runtime.getRuntime().addShutdownHook(new Thread(Sikulix::stopSplash, "oculix-splash-closer"));
+
+    if (!Commons.hasOption(MULTI)) {
+      File isRunning = new File(Commons.getTempFolder(), "s_i_k_u_l_i-ide-isrunning");
+      FileOutputStream isRunningFile = null;
+      boolean shouldTerminate = false;
+      String terminateMsg = null;
+
+      // Stale-lock recovery: OS releases file locks when a process dies, so if
+      // the file is still on disk it is either a live IDE or a killed-JVM
+      // leftover (typical after Ctrl+C). Try to delete it first - delete will
+      // succeed only if no live process still has the file open.
+      if (isRunning.exists() && !isRunning.delete()) {
+        // File still open by a live process - give it a short moment (dying
+        // JVM may take a beat to release handles on Windows) and retry once.
+        try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
+        isRunning.delete();
+      }
+
+      try {
+        isRunning.createNewFile();
+        isRunningFile = new FileOutputStream(isRunning);
+        if (null == isRunningFile.getChannel().tryLock()) {
+          terminateMsg = "Terminating: another IDE instance is already running";
+          shouldTerminate = true;
+        } else {
+          Commons.setIsRunning(isRunning, isRunningFile);
+        }
+      } catch (Exception ex) {
+        terminateMsg = "Terminating on FatalError: cannot access IDE lock\n"
+            + isRunning + "\n" + ex.getMessage();
+        shouldTerminate = true;
+      }
+      if (shouldTerminate) {
+        // Dismiss the splash BEFORE showing the popup - otherwise the top-most
+        // splash hides the error dialog and the user only sees a stuck splash.
+        stopSplash();
+        org.sikuli.script.Sikulix.popError(terminateMsg);
+        System.exit(1);
+      }
+      for (String aFile : Commons.getTempFolder().list()) {
+        if ((aFile.startsWith("Sikulix"))
+            || (aFile.startsWith("jffi") && aFile.endsWith(".tmp"))) {
+          FileManager.deleteFileOrFolder(new File(Commons.getTempFolder(), aFile));
+        }
+      }
+    }
+
+    //region IDE temp folder
+    File ideTemp = new File(Commons.getTempFolder(), String.format("Sikulix_%d", FileManager.getRandomInt()));
+    ideTemp.mkdirs();
+    try {
+      File tempTest = new File(ideTemp, "tempTest.txt");
+      FileManager.writeStringToFile("temp test", tempTest);
+      boolean success = true;
+      if (tempTest.exists()) {
+        tempTest.delete();
+        if (tempTest.exists()) {
+          success = false;
+        }
+      } else {
+        success = false;
+      }
+      if (!success) {
+        throw new SikuliXception(String.format("init: temp folder not useable: %s", Commons.getTempFolder()));
+      }
+    } catch (Exception e) {
+      throw new SikuliXception(String.format("init: temp folder not useable: %s", Commons.getTempFolder()));
+    }
+    Commons.setIDETemp(ideTemp);
+    //endregion
+
+    // apple.laf.useScreenMenuBar removed — FlatLaf handles macOS menu integration natively
+
+    SikulixIDE.start();
+
+    //TODO start IDE in subprocess?
+    //region IDE subprocess
+    if (false) {
+      /*
+      if (false) {
+        RunTime.terminate(999, "//TODO start IDE in subprocess?");
+        List<String> cmd = new ArrayList<>();
+        System.getProperty("java.home");
+        if (Commons.runningWindows()) {
+          cmd.add(System.getProperty("java.home") + "\\bin\\java.exe");
+        } else {
+          cmd.add(System.getProperty("java.home") + "/bin/java");
+        }
+        if (!Commons.isJava8()) {
+      */
+//      Suppress Java 9+ warnings
+//      --add-opens
+//      java.desktop/javax.swing.plaf.basic=ALL-UNNAMED
+//      --add-opens
+//      java.base/sun.nio.ch=ALL-UNNAMED
+//      --add-opens
+//      java.base/java.io=ALL-UNNAMED
+/*
+
+//TODO IDE start: --add-opens supress warnings
+          cmd.add("--add-opens");
+          cmd.add("java.desktop/javax.swing.plaf.basic=ALL-UNNAMED");
+          cmd.add("--add-opens");
+          cmd.add("java.base/sun.nio.ch=ALL-UNNAMED");
+          cmd.add("--add-opens");
+          cmd.add("java.base/java.io=ALL-UNNAMED");
+        }
+
+        cmd.add("-Dfile.encoding=UTF-8");
+        cmd.add("-Dsikuli.IDE_should_run");
+
+        if (!classPath.isEmpty()) {
+          cmd.add("-cp");
+          cmd.add(classPath);
+        }
+
+        cmd.add("org.sikuli.ide.SikulixIDE");
+//      cmd.addAll(finalArgs);
+
+        RunTime.startLog(3, "*********************** leaving start");
+        //TODO detach IDE: for what does it make sense?
+*/
+/*
+    if (shouldDetach()) {
+      ProcessRunner.detach(cmd);
+      System.exit(0);
+    } else {
+      int exitCode = ProcessRunner.runBlocking(cmd);
+      System.exit(exitCode);
+    }
+*/
+/*
+
+        int exitCode = ProcessRunner.runBlocking(cmd);
+        System.exit(exitCode);
+      }
+      //endregion
+*/
+    }
+    //endregion
+  }
+}

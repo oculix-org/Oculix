@@ -1,0 +1,56 @@
+# Dependabot config for OculiX
+# Scan manuel via /network/updates → "Check for updates"
+# Schedule monthly = quasi-jamais auto, contrôle à la demande
+
+version: 2
+updates:
+  # Module IDE
+  - package-ecosystem: "maven"
+    directory: "/IDE"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      maven-deps:
+        patterns: ["*"]
+    labels:
+      - "dependencies"
+      - "module:IDE"
+    # JRuby 10.x requires Java 21; OculiX targets Java 17. Stay on the 9.4 line.
+    ignore:
+      - dependency-name: "org.jruby:jruby-complete"
+        update-types: ["version-update:semver-major"]
+
+  # Module API
+  - package-ecosystem: "maven"
+    directory: "/API"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      maven-deps:
+        patterns: ["*"]
+    labels:
+      - "dependencies"
+      - "module:API"
+    # JRuby 10.x requires Java 21; OculiX targets Java 17. Stay on the 9.4 line.
+    ignore:
+      - dependency-name: "org.jruby:jruby-complete"
+        update-types: ["version-update:semver-major"]
+
+  # Module MCP
+  - package-ecosystem: "maven"
+    directory: "/MCP"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      maven-deps:
+        patterns: ["*"]
+    labels:
+      - "dependencies"
+      - "module:MCP"
+    # Defensive: same ignore as API/IDE in case JRuby gets added here later.
+    ignore:
+      - dependency-name: "org.jruby:jruby-complete"
+        update-types: ["version-update:semver-major"]
