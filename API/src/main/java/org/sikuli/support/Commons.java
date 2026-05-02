@@ -1273,30 +1273,107 @@ public static void loadOpenCV() {
     if (libTesseractLoaded) {
       return;
     }
+    boolean nativesLoaded = false;
+    String version = "?";
     try {
       Class<?> legerix = Class.forName(libLegerixClassref);
-      legerix.getMethod("loadNatives").invoke(null);
-      Object tessdataPath = legerix.getMethod("getTessdataPath").invoke(null);
-      if (tessdataPath != null) {
-        libTesseractDataPath = tessdataPath.toString();
+      try {
+        legerix.getMethod("loadNatives").invoke(null);
+        nativesLoaded = true;
+      } catch (Throwable e) {
+        // Common on Windows when Legerix's bundled tesseract/leptonica DLLs
+        // depend on image/runtime libs that aren't on the system PATH (libpng,
+        // libtiff, libwebp, libcurl, libarchive, ...). The natives won't load,
+        // but we can still recover the bundled tessdata: Legerix extracts it
+        // to the cache dir before the JNA load step, AND we have the same
+        // /tessdata resources in the fat-jar to fall back on. If natives are
+        // unusable, Tess4J's own bundled DLLs (also in the fat-jar) handle the
+        // OCR runtime — we just need the .traineddata files.
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        System.err.println("[OculiX] Legerix.loadNatives() failed: "
+            + cause.getClass().getSimpleName() + ": " + cause.getMessage());
       }
-      libTesseractLoaded = true;
-      String version = "?";
       try {
         Object v = legerix.getMethod("getTesseractVersion").invoke(null);
         if (v != null) version = v.toString();
       } catch (Throwable ignore) { }
-      System.err.println("[OculiX] Tesseract loaded via Legerix (Tesseract " + version
-          + ", tessdata=" + libTesseractDataPath + ")");
+      // Try to recover the tessdata path even if loadNatives() failed —
+      // Legerix may have populated extractionDir during its setup phase.
+      try {
+        Object tessdataPath = legerix.getMethod("getTessdataPath").invoke(null);
+        if (tessdataPath != null) {
+          File p = new File(tessdataPath.toString());
+          if (p.isDirectory() && hasAnyTraineddata(p)) {
+            libTesseractDataPath = p.getAbsolutePath();
+          }
+        }
+      } catch (Throwable ignore) { }
+      // Last resort: extract /tessdata/*.traineddata directly from our own
+      // classpath into a stable cache folder.
+      if (libTesseractDataPath == null) {
+        File extracted = extractBundledTessdata();
+        if (extracted != null) {
+          libTesseractDataPath = extracted.getAbsolutePath();
+        }
+      }
     } catch (ClassNotFoundException cnfe) {
       System.err.println("[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
           + "OCR will fall back to system tesseract if available.");
-    } catch (Throwable e) {
-      Throwable cause = e.getCause() != null ? e.getCause() : e;
-      System.err.println("[OculiX] Legerix.loadNatives() failed: "
-          + cause.getClass().getSimpleName() + ": " + cause.getMessage()
-          + " — OCR will fall back to system tesseract if available.");
+      return;
     }
+    if (nativesLoaded) {
+      libTesseractLoaded = true;
+      System.err.println("[OculiX] Tesseract loaded via Legerix (Tesseract " + version
+          + ", tessdata=" + libTesseractDataPath + ")");
+    } else if (libTesseractDataPath != null) {
+      // Tess4J ships its own self-contained Tesseract DLLs/dylibs/sos and will
+      // load them lazily via JNA on first new Tesseract1(). We don't flip
+      // libTesseractLoaded — that flag tracks Legerix specifically — but the
+      // tessdata path is enough for TextRecognizer to find the language data.
+      System.err.println("[OculiX] Legerix natives unavailable — using Tess4J bundled binaries with "
+          + "Legerix-bundled tessdata (" + libTesseractDataPath + ")");
+    } else {
+      System.err.println("[OculiX] No Tesseract available — OCR will require a system install.");
+    }
+  }
+
+  private static boolean hasAnyTraineddata(File dir) {
+    String[] names = dir.list();
+    if (names == null) return false;
+    for (String n : names) {
+      if (n.endsWith(".traineddata")) return true;
+    }
+    return false;
+  }
+
+  private static File extractBundledTessdata() {
+    // Bundled languages in Legerix 5.5.x: eng, fra, spa, chi_sim, hin, plus osd
+    String[] langs = {"eng", "fra", "spa", "chi_sim", "hin", "osd"};
+    File target = new File(getAppDataPath(), "OculixTesseract/tessdata");
+    if (!target.exists() && !target.mkdirs()) {
+      return null;
+    }
+    int extracted = 0;
+    for (String lang : langs) {
+      File out = new File(target, lang + ".traineddata");
+      if (out.exists() && out.length() > 0) {
+        extracted++;
+        continue;
+      }
+      String resource = "/tessdata/" + lang + ".traineddata";
+      try (java.io.InputStream is = Commons.class.getResourceAsStream(resource)) {
+        if (is == null) continue;
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+          byte[] buf = new byte[8192];
+          int n;
+          while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
+        }
+        extracted++;
+      } catch (Throwable e) {
+        System.err.println("[OculiX] Failed to extract " + resource + ": " + e.getMessage());
+      }
+    }
+    return extracted > 0 ? target : null;
   }
 
   private static final String jarLibsPath = "/sikulixlibs/";
