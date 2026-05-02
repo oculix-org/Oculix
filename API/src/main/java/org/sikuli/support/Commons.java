@@ -151,6 +151,7 @@ public class Commons {
     // static-init chain has been triggered yet. Fixes UnsatisfiedLinkError on
     // first new Mat() from non-Finder call paths (e.g. Pattern.patternMask field init).
     loadOpenCV();
+    loadTesseract();
   }
 
   public static void init() {
@@ -1250,6 +1251,52 @@ public static void loadOpenCV() {
 
     System.err.println("[OculiX] FATAL: OpenCV native library '" + libName + "' could NOT be loaded. "
         + "Next new Mat() call will throw UnsatisfiedLinkError.");
+  }
+
+  private static final String libLegerixClassref = "io.github.julienmerconsulting.legerix.Legerix";
+  // No inline initializers: this field is declared AFTER the static {} block
+  // that calls loadTesseract(), so an explicit `= false` would run later in
+  // <clinit> and clobber the value loadTesseract() set. JLS default (false)
+  // is what we want.
+  private static volatile boolean libTesseractLoaded;
+  private static volatile String libTesseractDataPath;
+
+  public static boolean isTesseractLoaded() {
+    return libTesseractLoaded;
+  }
+
+  public static String getTesseractDataPath() {
+    return libTesseractDataPath;
+  }
+
+  public static void loadTesseract() {
+    if (libTesseractLoaded) {
+      return;
+    }
+    try {
+      Class<?> legerix = Class.forName(libLegerixClassref);
+      legerix.getMethod("loadNatives").invoke(null);
+      Object tessdataPath = legerix.getMethod("getTessdataPath").invoke(null);
+      if (tessdataPath != null) {
+        libTesseractDataPath = tessdataPath.toString();
+      }
+      libTesseractLoaded = true;
+      String version = "?";
+      try {
+        Object v = legerix.getMethod("getTesseractVersion").invoke(null);
+        if (v != null) version = v.toString();
+      } catch (Throwable ignore) { }
+      System.err.println("[OculiX] Tesseract loaded via Legerix (Tesseract " + version
+          + ", tessdata=" + libTesseractDataPath + ")");
+    } catch (ClassNotFoundException cnfe) {
+      System.err.println("[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
+          + "OCR will fall back to system tesseract if available.");
+    } catch (Throwable e) {
+      Throwable cause = e.getCause() != null ? e.getCause() : e;
+      System.err.println("[OculiX] Legerix.loadNatives() failed: "
+          + cause.getClass().getSimpleName() + ": " + cause.getMessage()
+          + " — OCR will fall back to system tesseract if available.");
+    }
   }
 
   private static final String jarLibsPath = "/sikulixlibs/";
