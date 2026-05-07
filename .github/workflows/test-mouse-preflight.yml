@@ -1,0 +1,39 @@
+name: Mouse preflight smoke (cross-OS)
+
+on:
+  push:
+    branches: [develop/cross-platform-mouse-preflight]
+  pull_request:
+    branches: [develop/cross-platform-mouse-preflight]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Preflight (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Linux — start Xvfb (headless display for AWT)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1280x800x24 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          sleep 2
+
+      - name: Build API + run preflight smoke
+        timeout-minutes: 4
+        run: mvn -B -pl API -am test -Dtest=MousePreflightSmokeTest
