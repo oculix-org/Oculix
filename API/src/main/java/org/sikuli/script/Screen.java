@@ -75,6 +75,7 @@ public class Screen extends Region implements IScreen, EventObserver {
       throw new SikuliXception(String.format("SikuliX: Init: running in headless environment"));
     }
     getGlobalRobot();
+    MouseDevice.start();
     log(logLevel, "initScreens: ending");
   }
 
