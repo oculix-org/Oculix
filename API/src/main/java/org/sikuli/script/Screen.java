@@ -187,49 +187,6 @@ public class Screen extends Region implements IScreen, EventObserver {
     }
     return globalRobot;
   }
-  //TODO obsolete - notused anywhere
-  /**
-   * create a Screen (ScreenUnion) object as a united region of all available monitors
-   *
-   * @return ScreenUnion
-
-  public static ScreenUnion all() {
-    return new ScreenUnion();
-  }
-   */
-
-  //TODO obsolete - notused anywhere
-  /**
-   * INTERNAL USE
-   * collect all physical screens to one big region<br>
-   * TODO: under evaluation, wether it really makes sense
-   * Zsage: flag  the Screen object as a ScreenUnion object
-   *
-   * @param isScreenUnion true/false
-  public Screen(boolean isScreenUnion) {
-    super(isScreenUnion);
-  }
-  */
-
-  //TODO obsolete - notused anywhere
-  /**
-   * INTERNAL USE
-   * collect all physical screens to one big region<br>
-   * This is under evaluation, wether it really makes sense
-  public void setAsScreenUnion() {
-    oldID = curID;
-    curID = -1;
-  }
-   */
-
-  //TODO obsolete - notused anywhere
-  /**
-   * INTERNAL USE
-   * reset from being a screen union to the screen used before
-  public void setAsScreen() {
-    curID = oldID;
-  }
-   */
 
   /**
    * {@inheritDoc}
