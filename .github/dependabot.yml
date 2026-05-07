@@ -1,0 +1,44 @@
+# Dependabot config for OculiX
+# Scan manuel via /network/updates → "Check for updates"
+# Schedule monthly = quasi-jamais auto, contrôle à la demande
+
+version: 2
+updates:
+  # Module IDE
+  - package-ecosystem: "maven"
+    directory: "/IDE"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      maven-deps:
+        patterns: ["*"]
+    labels:
+      - "dependencies"
+      - "module:IDE"
+
+  # Module API
+  - package-ecosystem: "maven"
+    directory: "/API"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      maven-deps:
+        patterns: ["*"]
+    labels:
+      - "dependencies"
+      - "module:API"
+
+  # Module MCP
+  - package-ecosystem: "maven"
+    directory: "/MCP"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    groups:
+      maven-deps:
+        patterns: ["*"]
+    labels:
+      - "dependencies"
+      - "module:MCP"

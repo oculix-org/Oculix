@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CODEOWNERS — who gets auto-requested for review on every PR.
+#
+# Both maintainers below have full trust across the entire repository.
+# A review from either is sufficient to merge (subject to branch protection).
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Default owners — everything in the repo
+*                           @julienmerconsulting @RaiMan
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Notes
+# ─────────────────────────────────────────────────────────────────────────────
+# - @julienmerconsulting: active maintainer, day-to-day reviews and releases.
+# - @RaiMan:              original SikuliX author, emeritus — lineage authority.
+# - Adding a scoped owner (e.g. `/MCP/  @someone`) is how we onboard trusted
+#   contributors to a specific module without giving them the whole repo.
