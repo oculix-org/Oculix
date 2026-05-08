@@ -440,18 +440,24 @@ public class SikulixIDE extends JFrame {
       sikulixIDE.getActiveContext().focus();
     }
     if (shouldExecuteOnStart) {
-      // Mirrors the -r flow (Sikulix.start) which is the proven-working
-      // path for "Jython runs a script". Spawn a thread; Runner.runScripts
-      // self-blocks until Jython is fully ready (the runner's init() is
-      // synchronized), so we don't need any manual gate. Output goes to
-      // the message panel because messages.initRedirect() ran in
-      // startGUI() BEFORE ideIsReady, so System.out is already piped.
-      // Going through Runner.runScripts instead of btnRun.runCurrentScript
-      // bypasses the UI button machinery (doHide / getActiveContext / save)
-      // which was the source of the silent no-op on -e (#224).
+      // Mirrors the -r flow at Sikulix.start verbatim — same loadOpenCV +
+      // resolveRelativeFiles + runScripts sequence — minus the
+      // RunTime.terminate(...) at the end so the IDE stays open after the
+      // auto-run completes. Wrapped in a thread so the EDT (running
+      // showAfterStart) is not blocked by the synchronous Runner call.
+      // Output goes to the message panel because messages.initRedirect()
+      // ran in startGUI() before ideIsReady, so System.out is already
+      // piped to the panel reader at this point.
       new Thread(() -> {
-        String[] scripts = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
-        Runner.runScripts(scripts, Commons.getUserArgs(), new IRunner.Options());
+        Commons.loadOpenCV();
+        String[] scripts = Runner.resolveRelativeFiles(
+            Commons.getArgs(CommandArgsEnum.LOAD.shortname()));
+        int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(),
+            new IRunner.Options());
+        if (exitCode > 255) {
+          exitCode = 254;
+        }
+        // No RunTime.terminate(): -e leaves the IDE running for the user.
       }, "auto-run-e").start();
     }
   }
