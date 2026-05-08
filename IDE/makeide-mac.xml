@@ -1,0 +1,46 @@
+<!--
+  ~ Copyright (c) 2010-2020, sikuli.org, sikulix.com - MIT license
+  -->
+
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0 http://maven.apache.org/xsd/assembly-1.1.0.xsd">
+  <id>complete-mac</id>
+  <formats>
+    <format>jar</format>
+  </formats>
+  <includeBaseDirectory>false</includeBaseDirectory>
+  <dependencySets>
+    <dependencySet>
+      <outputDirectory>/</outputDirectory>
+      <useProjectArtifact>true</useProjectArtifact>
+      <unpack>true</unpack>
+      <unpackOptions>
+        <excludes>
+          <exclude>**/win32-x86/**</exclude>
+          <exclude>/nu/pattern/opencv/linux/**</exclude>
+          <exclude>/nu/pattern/opencv/windows/**</exclude>
+        </excludes>
+      </unpackOptions>
+      <excludes>
+        <exclude>org.jruby:jruby-complete</exclude>
+        <exclude>org.apache.pdfbox:*</exclude>
+        <exclude>io.github.oculix-org:legerix</exclude>
+      </excludes>
+      <scope>runtime</scope>
+    </dependencySet>
+    <!-- Legerix unpacked LAST so its /tessdata/{eng,fra,spa,chi_sim,hin}.traineddata
+         and /darwin*/* natives win over Tess4J's bundled tessdata
+         (which only ships eng + osd and would otherwise overwrite Legerix's
+         multilingual set during unpack). -->
+    <dependencySet>
+      <outputDirectory>/</outputDirectory>
+      <useProjectArtifact>false</useProjectArtifact>
+      <unpack>true</unpack>
+      <includes>
+        <include>io.github.oculix-org:legerix</include>
+      </includes>
+      <scope>runtime</scope>
+    </dependencySet>
+  </dependencySets>
+</assembly>

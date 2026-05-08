@@ -1,0 +1,149 @@
+name: Sync issue labels to project Status
+
+on:
+  issues:
+    types: [labeled, unlabeled, closed, reopened]
+
+permissions:
+  issues: read
+  repository-projects: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update project Status field from label
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ORG: oculix-org
+          PROJECT_NUMBER: 3
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          set -e
+
+          # Priority order for status labels when multiple are present on the
+          # same issue (higher in the list = higher precedence). This is the
+          # single source of truth used by every codepath below.
+          #
+          # Rationale: a workflow that picks the "just-added" label is fragile
+          # because GitHub can fire events in any order and third-party tools
+          # (the gh CLI PATCH endpoint, GitHub Mobile, etc.) sometimes re-emit
+          # labeled/unlabeled events for labels that already existed. By
+          # re-evaluating the full label set of the issue every time, we make
+          # the sync idempotent.
+
+          resolve_status_from_current_labels() {
+            # Fetch the current labels on the issue via the REST API, then
+            # pick the highest-priority status label.
+            local labels
+            labels=$(gh api "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER" \
+                      --jq '[.labels[].name] | join(" ")')
+            echo "$labels" 1>&2
+            case " $labels " in
+              *" status:in-review "*)  echo "👀 In Review" ;;
+              *" status:in-progress "*) echo "In Progress" ;;
+              *" status:up-next "*)    echo "🎯 Up Next" ;;
+              *" status:backlog "*)    echo "📋 Backlog" ;;
+              *" help wanted "*)       echo "🤝 Help Wanted" ;;
+              *)                       echo "" ;;
+            esac
+          }
+
+          # Determine the target status. Closed/reopened are unambiguous. For
+          # labeled/unlabeled we always re-read the current label set rather
+          # than trusting the event payload.
+          if [ "$EVENT_ACTION" = "closed" ]; then
+            TARGET_STATUS="✅ Done"
+          elif [ "$EVENT_ACTION" = "reopened" ]; then
+            TARGET_STATUS="📋 Backlog"
+          else
+            # Fast-skip: if the event was triggered by a non-status label,
+            # and the issue has no status label at all, nothing to do.
+            case "$LABEL_NAME" in
+              status:*|"help wanted") ;;
+              *) echo "Label '$LABEL_NAME' is not a status label — skipping"; exit 0 ;;
+            esac
+            TARGET_STATUS=$(resolve_status_from_current_labels)
+            if [ -z "$TARGET_STATUS" ]; then
+              echo "No status label currently on issue — skipping"
+              exit 0
+            fi
+          fi
+          echo "Target status: $TARGET_STATUS"
+
+          # Fetch the project ID, Status field ID, and option IDs
+          gh api graphql -f query='
+            query($org: String!, $num: Int!) {
+              organization(login: $org) {
+                projectV2(number: $num) {
+                  id
+                  field(name: "Status") {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      options { id name }
+                    }
+                  }
+                }
+              }
+            }' -f org="$ORG" -F num="$PROJECT_NUMBER" > project.json
+
+          PROJECT_ID=$(jq -r '.data.organization.projectV2.id' project.json)
+          FIELD_ID=$(jq -r '.data.organization.projectV2.field.id' project.json)
+          OPTION_ID=$(jq -r --arg name "$TARGET_STATUS" \
+            '.data.organization.projectV2.field.options[] | select(.name==$name) | .id' project.json)
+
+          if [ -z "$OPTION_ID" ] || [ "$OPTION_ID" = "null" ]; then
+            echo "ERROR: option '$TARGET_STATUS' not found in project Status field"
+            jq '.data.organization.projectV2.field.options' project.json
+            exit 1
+          fi
+
+          # Find the project item for this issue (add it if missing)
+          ISSUE_NODE_ID=$(gh api "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER" --jq .node_id)
+
+          ITEM_ID=$(gh api graphql -f query='
+            query($org: String!, $num: Int!, $first: Int = 100, $after: String) {
+              organization(login: $org) {
+                projectV2(number: $num) {
+                  items(first: $first, after: $after) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes {
+                      id
+                      content {
+                        ... on Issue { id }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f org="$ORG" -F num="$PROJECT_NUMBER" \
+            --jq ".data.organization.projectV2.items.nodes[] | select(.content.id==\"$ISSUE_NODE_ID\") | .id")
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "Issue not yet in project — adding it"
+            ITEM_ID=$(gh api graphql -f query='
+              mutation($project: ID!, $content: ID!) {
+                addProjectV2ItemById(input: {projectId: $project, contentId: $content}) {
+                  item { id }
+                }
+              }' -f project="$PROJECT_ID" -f content="$ISSUE_NODE_ID" \
+              --jq .data.addProjectV2ItemById.item.id)
+          fi
+
+          # Update the Status field
+          gh api graphql -f query='
+            mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $project
+                itemId: $item
+                fieldId: $field
+                value: { singleSelectOptionId: $option }
+              }) {
+                projectV2Item { id }
+              }
+            }' -f project="$PROJECT_ID" -f item="$ITEM_ID" \
+               -f field="$FIELD_ID" -f option="$OPTION_ID"
+
+          echo "✓ Issue #$ISSUE_NUMBER moved to '$TARGET_STATUS'"
