@@ -448,14 +448,37 @@ public class SikulixIDE extends JFrame {
       // Output goes to the message panel because messages.initRedirect()
       // ran in startGUI() before ideIsReady, so System.out is already
       // piped to the panel reader at this point.
+      //
+      // Diagnostic logs at every junction (Commons.startLog level 3, always
+      // visible without -v) so a Windows tester pasting the message panel
+      // tells us exactly where the path stops if -e silently fails. The
+      // last visible "-e: ..." line in the panel is the breakpoint.
       new Thread(() -> {
-        Commons.loadOpenCV();
-        String[] scripts = Runner.resolveRelativeFiles(
-            Commons.getArgs(CommandArgsEnum.LOAD.shortname()));
-        int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(),
-            new IRunner.Options());
-        if (exitCode > 255) {
-          exitCode = 254;
+        try {
+          Commons.startLog(3, "-e: thread spawned");
+          Commons.loadOpenCV();
+          Commons.startLog(3, "-e: loadOpenCV returned");
+          String[] scripts = Runner.resolveRelativeFiles(
+              Commons.getArgs(CommandArgsEnum.LOAD.shortname()));
+          Commons.startLog(3, "-e: resolved scripts: %s",
+              scripts == null ? "null" : java.util.Arrays.toString(scripts));
+          int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(),
+              new IRunner.Options());
+          if (exitCode > 255) {
+            exitCode = 254;
+          }
+          Commons.startLog(3, "-e: runScripts returned exitCode=%d", exitCode);
+        } catch (Throwable t) {
+          // Surface any exception that would otherwise die silently in the
+          // background thread — the panel keeps the truth even when stdout
+          // is hijacked by a Jython interpreter that captured a stale
+          // reference. Concatenate the stack trace as a single string so
+          // formatting holds across the pipe.
+          java.io.StringWriter sw = new java.io.StringWriter();
+          t.printStackTrace(new java.io.PrintWriter(sw));
+          Commons.startLog(3, "-e: thread crashed: %s\n%s",
+              t.getClass().getName() + ": " + t.getMessage(),
+              sw.toString());
         }
         // No RunTime.terminate(): -e leaves the IDE running for the user.
       }, "auto-run-e").start();
