@@ -4496,11 +4496,34 @@ public class Region extends Element {
    * @return 1 if possible, 0 otherwise
    */
   public int type(String text) {
+    // #232 — Non-ASCII characters (Chinese, Japanese, accented Latin in
+    // some layouts, etc.) cannot be reproduced by the keystroke pipeline
+    // because there is no physical key for codepoints like 你 / 好 / こ /
+    // ñ on a Western QWERTY keyboard. The clipboard paste route preserves
+    // arbitrary Unicode regardless of the user's keyboard layout, so we
+    // transparently fall back to it when the input contains anything
+    // outside the 7-bit ASCII range. ASCII-only input keeps the keystroke
+    // behaviour for backward compatibility (modifier-friendly, faster on
+    // long strings, no clipboard side effects). Modifier-bearing variants
+    // type(text, modifiers) intentionally stay on the keystroke path
+    // since holding Shift / Ctrl / Cmd while pasting Unicode does not
+    // map to a meaningful gesture.
+    if (containsNonAscii(text)) {
+      return paste(text);
+    }
     try {
       return keyin(null, text, 0);
     } catch (FindFailed ex) {
       return 0;
     }
+  }
+
+  private static boolean containsNonAscii(String text) {
+    if (text == null) return false;
+    for (int i = 0; i < text.length(); i++) {
+      if (text.charAt(i) > 127) return true;
+    }
+    return false;
   }
 
   /**
@@ -4557,6 +4580,12 @@ public class Region extends Element {
    * @throws FindFailed if not found
    */
   public <PFRML> int type(PFRML target, String text) throws FindFailed {
+    // Same Unicode fallback as the no-target variant — see #232. Click
+    // the target first to focus, then route through paste for non-ASCII
+    // input so the clipboard-based path takes over.
+    if (containsNonAscii(text)) {
+      return paste(target, text);
+    }
     return keyin(target, text, 0);
   }
 
