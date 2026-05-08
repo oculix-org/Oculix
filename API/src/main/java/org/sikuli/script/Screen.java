@@ -189,44 +189,6 @@ public class Screen extends Region implements IScreen, EventObserver {
   }
 
   /**
-   * create a Screen (ScreenUnion) object as a united region of all available monitors
-   *
-   * @return ScreenUnion
-   */
-  public static ScreenUnion all() {
-    return new ScreenUnion();
-  }
-
-  /**
-   * INTERNAL USE
-   * collect all physical screens to one big region<br>
-   * TODO: under evaluation, wether it really makes sense
-   *
-   * @param isScreenUnion true/false
-   */
-  public Screen(boolean isScreenUnion) {
-    super(isScreenUnion);
-  }
-
-  /**
-   * INTERNAL USE
-   * collect all physical screens to one big region<br>
-   * This is under evaluation, wether it really makes sense
-   */
-  public void setAsScreenUnion() {
-    oldID = curID;
-    curID = -1;
-  }
-
-  /**
-   * INTERNAL USE
-   * reset from being a screen union to the screen used before
-   */
-  public void setAsScreen() {
-    curID = oldID;
-  }
-
-  /**
    * {@inheritDoc}
    *
    * @return Screen

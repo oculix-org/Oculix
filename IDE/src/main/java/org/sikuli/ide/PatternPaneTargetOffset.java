@@ -67,18 +67,21 @@ class PatternPaneTargetOffset extends JPanel implements
 
 	void findTarget(final String patFilename, final Location initOffset) {
 		new Thread(() -> {
-      Region screenUnion = Region.create(0, 0, 1, 1);
-			Finder f = new Finder(_simg, screenUnion);
+			//TODO rewrite completely for multi-monitor environments (concept ScreenUnion discarded=
+      //Region screenUnion = Region.create(0, 0, 1, 1);
+			//Finder f = new Finder(_simg, screenUnion);
+			//TODO evaluate wether it works
+			Region region = Region.create(0, 0, 1, 1);
+			Finder f = new Finder(_simg, region);
 			f.find(patFilename);
 
 			EventQueue.invokeLater(() -> {
   			try {
   				if (f.hasNext()) {
-  //TODO rewrite completely for ScreenUnion
-            Screen s = (Screen) screenUnion.getScreen();
-            s.setAsScreenUnion();
+            //Screen s = (Screen) screenUnion.getScreen();
+            //s.setAsScreenUnion();
   					_match = f.next();
-            s.setAsScreen();
+            //s.setAsScreen();
   					if (initOffset != null) {
   						setTarget(initOffset.x, initOffset.y);
   					} else {
