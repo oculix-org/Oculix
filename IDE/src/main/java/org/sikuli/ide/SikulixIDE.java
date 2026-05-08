@@ -2385,12 +2385,28 @@ public class SikulixIDE extends JFrame {
       }
     }
     if (Commons.hasArg(CommandArgsEnum.EXECUTE.shortname())) {
-      if (preloadedFromCli == 1) {
+      // Validate -e directly against the CLI args, NOT against the
+      // preloadedFromCli counter that the loop above maintains. The
+      // counter is incremented only AFTER the duplicate check skips
+      // already-loaded files — so when the IDE's session restore had
+      // the same file open from a previous run, the -l file was a
+      // duplicate, the increment was skipped, preloadedFromCli stayed
+      // at 0, and -e silently dropped with "no effect without -l"
+      // even though the user explicitly asked for it on the command
+      // line. (#224 reported by @julienmerconsulting on Windows.)
+      // The user contract is "-e runs the -l file regardless of
+      // whether it was already open" — so the gating predicate is
+      // purely on the CLI args being well-formed and pointing at an
+      // existing file.
+      String[] eArgs = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
+      if (eArgs != null && eArgs.length == 1 && new File(eArgs[0]).exists()) {
         shouldExecuteOnStart = true;
-      } else if (preloadedFromCli == 0) {
+      } else if (eArgs == null || eArgs.length == 0) {
         log("-e (--execute) has no effect without a valid -l file; ignoring");
+      } else if (eArgs.length > 1) {
+        log("-e (--execute) requires exactly one -l file but got %d; ignoring -e", eArgs.length);
       } else {
-        log("-e (--execute) requires exactly one -l file but got %d; ignoring -e", preloadedFromCli);
+        log("-e (--execute): -l file does not exist on disk: %s; ignoring", eArgs[0]);
       }
     }
     if (filesToLoad.size() > 0) {
