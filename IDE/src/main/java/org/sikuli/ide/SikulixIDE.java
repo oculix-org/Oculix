@@ -439,8 +439,20 @@ public class SikulixIDE extends JFrame {
     if (!sikulixIDE.contexts.isEmpty()) {
       sikulixIDE.getActiveContext().focus();
     }
-    if (shouldExecuteOnStart && sikulixIDE.getActiveContext() != null) {
-      sikulixIDE.btnRun.runCurrentScript();
+    if (shouldExecuteOnStart) {
+      // Mirrors the -r flow (Sikulix.start) which is the proven-working
+      // path for "Jython runs a script". Spawn a thread; Runner.runScripts
+      // self-blocks until Jython is fully ready (the runner's init() is
+      // synchronized), so we don't need any manual gate. Output goes to
+      // the message panel because messages.initRedirect() ran in
+      // startGUI() BEFORE ideIsReady, so System.out is already piped.
+      // Going through Runner.runScripts instead of btnRun.runCurrentScript
+      // bypasses the UI button machinery (doHide / getActiveContext / save)
+      // which was the source of the silent no-op on -e (#224).
+      new Thread(() -> {
+        String[] scripts = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
+        Runner.runScripts(scripts, Commons.getUserArgs(), new IRunner.Options());
+      }, "auto-run-e").start();
     }
   }
 
