@@ -17,6 +17,8 @@ import java.awt.font.TextAttribute;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 /**
  * Welcome panel displayed when no script is open.
  *
@@ -81,17 +83,19 @@ public class WelcomeTab extends JPanel {
     column.setOpaque(false);
 
     // ── Eyebrow ──
-    JLabel eyebrow = new JLabel(("VISUAL AUTOMATION · v" + Commons.getSXVersionShort()).toUpperCase());
+    // Source key has the brand prefix in CAPS already; .toUpperCase() is a
+    // safety net for locales where Google Translate broke the case (some
+    // ALL-CAPS prefixes return mixed case after the round-trip).
+    JLabel eyebrow = new JLabel(_I("welcomeEyebrow", Commons.getSXVersionShort()).toUpperCase());
     eyebrow.setFont(applyTracking(OculixFonts.mono(11), 0.20f).deriveFont(Font.BOLD));
     eyebrow.setForeground(OculixColors.OX_CYAN_500);
     column.add(eyebrow, "gapbottom 14");
 
     // ── Hero quote (RaiMan's words from the SikuliX1 README) ──
     // Sans-serif bold, "Raiman style 2010" — utilitarian, no flourish.
-    String hero = "<html><div style='line-height:1.05'>"
-        + "SikuliX automates anything you<br>"
-        + "see on the screen."
-        + "</div></html>";
+    // The translated value embeds the <br> from the bundle (preserved
+    // through translation by translate-bundles.py's HTML sentinel).
+    String hero = "<html><div style='line-height:1.05'>" + _I("welcomeHero") + "</div></html>";
     JLabel heroLabel = new JLabel(hero);
     heroLabel.setFont(OculixFonts.uiBold(36));
     // Hardcoded brand color — Welcome is brand-locked, so the hero stays light
@@ -100,17 +104,13 @@ public class WelcomeTab extends JPanel {
     heroLabel.setForeground(OculixColors.OX_INK_100);
     column.add(heroLabel, "gapbottom 10");
 
-    String body = "<html><div style='width:540px; line-height:1.5'>"
-        + "It uses image recognition powered by OpenCV to identify GUI components, "
-        + "and acts on them with mouse and keyboard. Handy when there is no easy "
-        + "access to a GUI's internals or to the source code."
-        + "</div></html>";
+    String body = "<html><div style='width:540px; line-height:1.5'>" + _I("welcomeBody") + "</div></html>";
     JLabel bodyLabel = new JLabel(body);
     bodyLabel.setFont(OculixFonts.ui(13));
     bodyLabel.setForeground(OculixColors.OX_INK_200);
     column.add(bodyLabel, "gapbottom 4");
 
-    JLabel attribution = new JLabel("— RaiMan, SikuliX1");
+    JLabel attribution = new JLabel(_I("welcomeAttribution"));
     attribution.setFont(OculixFonts.ui(11).deriveFont(Font.ITALIC));
     attribution.setForeground(OculixColors.OX_INK_400);
     column.add(attribution, "gapbottom 18");
@@ -119,29 +119,34 @@ public class WelcomeTab extends JPanel {
     column.add(new OculixAddsBox(), "growx, gapbottom 18");
 
     // ── Primary CTAs ──
+    // Leading glyph stays in code (visual rhythm, locale-independent).
+    // Only the action label is translated.
     JPanel primaryCtas = new JPanel(new MigLayout("insets 0, gap 10", "[]10[]push"));
     primaryCtas.setOpaque(false);
-    primaryCtas.add(new HeroButton("+  New script", "Ctrl+N", true, onNew));
-    primaryCtas.add(new HeroButton("↗  Open script", "Ctrl+O", false, onOpen));
+    primaryCtas.add(new HeroButton("+  " + _I("welcomeBtnNewScript"), "Ctrl+N", true, onNew));
+    primaryCtas.add(new HeroButton("↗  " + _I("welcomeBtnOpenScript"), "Ctrl+O", false, onOpen));
     column.add(primaryCtas, "gapbottom 10");
 
     // ── Secondary grid ──
     JPanel secondary = new JPanel(new MigLayout("insets 0, wrap 2, gap 4 18", "[grow, fill][grow, fill]", ""));
     secondary.setOpaque(false);
-    secondary.add(new SecondaryRow("⊞  New workspace", "Ctrl+Shift+N", onNewWorkspace));
-    secondary.add(new SecondaryRow("↓  Open workspace", "Ctrl+Shift+O", onOpenWorkspace));
+    secondary.add(new SecondaryRow("⊞  " + _I("welcomeBtnNewWorkspace"), "Ctrl+Shift+N", onNewWorkspace));
+    secondary.add(new SecondaryRow("↓  " + _I("welcomeBtnOpenWorkspace"), "Ctrl+Shift+O", onOpenWorkspace));
     column.add(secondary, "gapbottom 18");
 
     // ── Footer ──
+    // "v3.0.x" + "MIT" + "github.com/oculix-org" stay un-translated (version
+    // string, license code, URL display). "fork of SikuliX1", "Docs",
+    // "Release notes" go through _I().
     JPanel footer = new JPanel(new MigLayout("insets 0, gap 12", "[]12[]12[]push[]12[]12[]"));
     footer.setOpaque(false);
     footer.add(footerText("v" + Commons.getSXVersionShort()));
     footer.add(footerSep());
     footer.add(footerText("MIT"));
     footer.add(footerSep());
-    footer.add(footerText("fork of SikuliX1"));
-    footer.add(footerLink("Docs", "https://github.com/oculix-org/Oculix/wiki"));
-    footer.add(footerLink("Release notes", "https://github.com/oculix-org/Oculix/releases"));
+    footer.add(footerText(_I("welcomeFooterFork")));
+    footer.add(footerLink(_I("welcomeFooterDocs"), "https://github.com/oculix-org/Oculix/wiki"));
+    footer.add(footerLink(_I("welcomeFooterReleaseNotes"), "https://github.com/oculix-org/Oculix/releases"));
     footer.add(footerLink("github.com/oculix-org", "https://github.com/oculix-org/Oculix"));
     column.add(footer, "growx");
 
@@ -279,17 +284,14 @@ public class WelcomeTab extends JPanel {
       super(new MigLayout("wrap 1, insets 16 18 16 18, gap 6", "[grow, fill]", ""));
       setOpaque(false);
 
-      JLabel header = new JLabel(applyTracking(OculixFonts.mono(10), 0.18f) == null ? "" : "WHAT OCULIX ADDS");
+      JLabel header = new JLabel(_I("welcomeAddsHeader").toUpperCase());
       header.setFont(applyTracking(OculixFonts.mono(10), 0.18f).deriveFont(Font.BOLD));
       header.setForeground(OculixColors.OX_INK_300);
       add(header, "gapbottom 6");
 
-      add(bullet("VNC remote screens",
-          "mainframes (3270/5250), AS/400, Citrix sessions, datacenter machines without local desktop access"));
-      add(bullet("Modern Recorder",
-          "visual capture with multi-language script generation (Python, Java, Robot Framework)"));
-      add(bullet("Bundled OCR & OpenCV",
-          "works on any Linux distro, no apt install required"));
+      add(bullet(_I("welcomeAddsVncTitle"),      _I("welcomeAddsVncDesc")));
+      add(bullet(_I("welcomeAddsRecorderTitle"), _I("welcomeAddsRecorderDesc")));
+      add(bullet(_I("welcomeAddsOcrTitle"),      _I("welcomeAddsOcrDesc")));
     }
 
     private static JComponent bullet(String title, String desc) {

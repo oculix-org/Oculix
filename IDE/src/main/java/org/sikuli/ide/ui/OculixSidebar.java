@@ -128,7 +128,10 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(heroCardRef, "growx, gaptop 0, gapbottom 8");
 
     // ── SCRIPT section ──
-    addSectionHeader("SCRIPT");
+    // Section header values come from _I() — addSectionHeader uppercases
+    // the result so locales whose translation didn't preserve the CAPS
+    // (e.g. zh_CN, ja) still render the consistent kicker style.
+    addSectionHeader(_I("sidebarSectionScript"));
     navFile = new SidebarItem("\uD83D\uDCC1  " + _I("menuFile") + "  \u25B8", null);
     navFile.setMnemonic(java.awt.event.KeyEvent.VK_F);
     mainPanel.add(navFile);
@@ -143,7 +146,7 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(navRun);
 
     // ── TOOLS section ──
-    addSectionHeader("TOOLS");
+    addSectionHeader(_I("sidebarSectionTools"));
     navTools = new SidebarItem("\uD83D\uDD27  " + _I("menuTool") + "  \u25B8", null);
     navTools.setMnemonic(java.awt.event.KeyEvent.VK_T);
     mainPanel.add(navTools);
@@ -151,20 +154,20 @@ public class OculixSidebar extends JPanel {
     // ── STATUS section ──
     // Three glowing dots + label + value (right-aligned). Each dot is a
     // GlowingDot painted with a translucent radial halo so it reads "alive".
-    addSectionHeader("STATUS");
+    addSectionHeader(_I("sidebarSectionStatus"));
     JPanel statusPanel = new JPanel(new MigLayout("wrap 3, insets 0 2 0 2, gap 4 6", "[14!][grow][]", ""));
     statusPanel.setOpaque(false);
     paddleDot = new GlowingDot(OculixColors.OX_RED_500);
     statusPanel.add(paddleDot);
     ocrPaddleStatus = makeStatusLabel("PaddleOCR");
     statusPanel.add(ocrPaddleStatus, "growx");
-    paddleValue = makeStatusValue("offline");
+    paddleValue = makeStatusValue(_I("sidebarStatusOffline"));
     statusPanel.add(paddleValue, "align right");
     tesseractDot = new GlowingDot(OculixColors.OX_LIME_400);
     statusPanel.add(tesseractDot);
     ocrTesseractStatus = makeStatusLabel("Tesseract");
     statusPanel.add(ocrTesseractStatus, "growx");
-    tesseractValue = makeStatusValue("built-in");
+    tesseractValue = makeStatusValue(_I("sidebarStatusBuiltIn"));
     statusPanel.add(tesseractValue, "align right");
     javaDot = new GlowingDot(OculixColors.OX_CYAN_500);
     statusPanel.add(javaDot);
@@ -175,7 +178,7 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(statusPanel, "gapbottom 8");
 
     // ── LAST RUN section ──
-    addSectionHeader("LAST RUN");
+    addSectionHeader(_I("sidebarSectionLastRun"));
     LastRunCard lastRunCard = new LastRunCard();
     lastRunResult = lastRunCard.resultLabel;
     lastRunDuration = lastRunCard.durationLabel;
@@ -183,7 +186,7 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(lastRunCard, "growx, gapbottom 6");
 
     // ── HELP section ──
-    addSectionHeader("HELP");
+    addSectionHeader(_I("sidebarSectionHelp"));
     navHelp = new SidebarItem("\u2753  " + _I("menuHelp") + "  \u25B8", null);
     navHelp.setMnemonic(java.awt.event.KeyEvent.VK_H);
     mainPanel.add(navHelp);
@@ -245,7 +248,7 @@ public class OculixSidebar extends JPanel {
     boolean hasScript = name != null && !name.isEmpty();
     heroCardRef.setHasScript(hasScript);
     if (!hasScript) {
-      projectName.setText("— No script open");
+      projectName.setText(_I("sidebarNoScript"));
       projectPath.setText("");
       projectImages.setText("");
       return;
@@ -259,7 +262,11 @@ public class OculixSidebar extends JPanel {
       File[] pngs = scriptDir.listFiles((dir, fn) -> fn.endsWith(".png"));
       if (pngs != null) imgCount = pngs.length;
     }
-    projectImages.setText(imgCount + (imgCount == 1 ? " image" : " images") + "  ·  idle");
+    // Singular vs plural via two distinct keys; MessageFormat handles the
+    // {0,number,integer} interpolation per locale (e.g. some locales prefer
+    // grouping with a non-breaking-space).
+    String imgKey = imgCount == 1 ? "sidebarImageCountSingular" : "sidebarImageCountPlural";
+    projectImages.setText(_I(imgKey, imgCount));
   }
 
   /**
@@ -267,10 +274,10 @@ public class OculixSidebar extends JPanel {
    */
   public void updateLastRun(int exitCode, long durationMs) {
     if (exitCode == 0) {
-      lastRunResult.setText("Passed");
+      lastRunResult.setText(_I("sidebarRunPassed"));
       lastRunResult.setForeground(OculixColors.OX_LIME_400);
     } else {
-      lastRunResult.setText("Failed (code " + exitCode + ")");
+      lastRunResult.setText(_I("sidebarRunFailed", exitCode));
       lastRunResult.setForeground(OculixColors.OX_RED_500);
     }
     lastRunDuration.setText(String.format("%.1fs", durationMs / 1000.0));
@@ -288,11 +295,11 @@ public class OculixSidebar extends JPanel {
       paddleOk = (boolean) engineClass.getMethod("isAvailable").invoke(engine);
     } catch (Exception ignored) {}
     paddleDot.setColor(paddleOk ? OculixColors.OX_LIME_400 : OculixColors.OX_RED_500);
-    paddleValue.setText(paddleOk ? "OK" : "offline");
+    paddleValue.setText(paddleOk ? _I("sidebarStatusOk") : _I("sidebarStatusOffline"));
 
     // Tesseract is always bundled inside the IDE jar
     tesseractDot.setColor(OculixColors.OX_LIME_400);
-    tesseractValue.setText("built-in");
+    tesseractValue.setText(_I("sidebarStatusBuiltIn"));
 
     javaValue.setText(System.getProperty("java.version"));
   }
@@ -486,7 +493,7 @@ public class OculixSidebar extends JPanel {
       setOpaque(false);
       setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
-      nameLabel = new JLabel("— No script open");
+      nameLabel = new JLabel(_I("sidebarNoScript"));
       nameLabel.setFont(OculixFonts.uiBold(13));
       nameLabel.setForeground(UIManager.getColor("Label.foreground"));
       add(nameLabel);
@@ -596,7 +603,7 @@ public class OculixSidebar extends JPanel {
       super(new MigLayout("wrap 2, insets 8 12 8 12, gap 2 8", "[grow][]", ""));
       setOpaque(false);
 
-      resultLabel = new JLabel("— Not run yet");
+      resultLabel = new JLabel(_I("sidebarRunNotYet"));
       resultLabel.setFont(OculixFonts.uiBold(12));
       resultLabel.setForeground(OculixColors.OX_INK_200);
       add(resultLabel, "growx");
@@ -688,8 +695,10 @@ public class OculixSidebar extends JPanel {
       // Labels
       g2.setFont(applyTracking(OculixFonts.mono(10), 0.16f).deriveFont(Font.BOLD));
       FontMetrics fm = g2.getFontMetrics();
-      String labelDark = "DARK";
-      String labelLight = "LIGHT";
+      // Pill-switch labels — uppercased for the brand kicker style even
+      // when the locale's translation didn't preserve CAPS.
+      String labelDark = _I("sidebarThemeDark").toUpperCase();
+      String labelLight = _I("sidebarThemeLight").toUpperCase();
       g2.setColor(dark ? OculixColors.OX_INK_100 : OculixColors.OX_INK_400);
       int wDark = fm.stringWidth(labelDark);
       g2.drawString(labelDark, (half - wDark) / 2, h / 2 + fm.getAscent() / 2 - 2);
