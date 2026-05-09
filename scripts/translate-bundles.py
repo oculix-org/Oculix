@@ -167,7 +167,26 @@ def _java_decode(s: str) -> str:
     return s
 
 
-def _java_encode(s: str) -> str:
+def _java_encode(s: str, ascii_escape: bool = True) -> str:
+    """Encode a value for a .properties file.
+
+    Two modes:
+      - ascii_escape=True (default): historic Java format. ASCII printables
+        kept verbatim, every other character emitted as \\uXXXX. Compatible
+        with Java 1.0 .properties loader, BOM-safe, but unreadable for
+        non-Latin reviewers (\\u8B66\\u544A means nothing to a human).
+      - ascii_escape=False: keep characters in raw UTF-8. Modern Java 9+
+        loaders accept this when invoked via PropertyResourceBundle(Reader)
+        with an explicit UTF-8 reader, but the legacy Java loader (default
+        ResourceBundle.getBundle classpath route) does NOT — it falls back
+        to ISO-8859-1 and produces mojibake.
+
+    The staging files in translation/ are NEVER loaded by the IDE — they
+    are for native-speaker review. We write them in UTF-8 so reviewers
+    can actually read what got translated. The merge step that copies
+    validated keys into the live IDE bundle re-encodes in ascii_escape
+    mode for runtime safety.
+    """
     out = []
     for ch in s:
         cp = ord(ch)
@@ -179,7 +198,10 @@ def _java_encode(s: str) -> str:
             out.append("\\t")
         elif ch == "\\":
             out.append("\\\\")
-        elif cp < 0x20 or cp > 0x7E:
+        elif cp < 0x20:
+            # Control chars below space — always escape, even in UTF-8 mode
+            out.append(f"\\u{cp:04X}")
+        elif ascii_escape and cp > 0x7E:
             out.append(f"\\u{cp:04X}")
         else:
             out.append(ch)
@@ -212,14 +234,18 @@ def index(entries: list[Entry]) -> dict[str, str]:
             if e.key is not None and e.value is not None}
 
 
-def write_properties(path: Path, entries: list[Entry]) -> None:
+def write_properties(path: Path, entries: list[Entry],
+                     ascii_escape: bool = True) -> None:
+    """Serialize entries to disk. ascii_escape controls whether non-ASCII
+    values are emitted as \\uXXXX (Java legacy, runtime-safe) or kept in
+    raw UTF-8 (review-friendly, suitable for staging files only)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         for e in entries:
             if e.key is None:
                 f.write(e.raw + "\n")
             else:
-                f.write(f"{e.key}={_java_encode(e.value)}\n")
+                f.write(f"{e.key}={_java_encode(e.value, ascii_escape)}\n")
 
 
 # ── Google Translate web endpoint client (free, no API key) ──────────────
@@ -521,9 +547,14 @@ def main() -> int:
             complement_entries.append(
                 Entry(raw="", key=k, value=new_translations[k]))
 
-        write_properties(out_path, complement_entries)
+        # Staging files are never loaded by the IDE — keep them in raw
+        # UTF-8 so native-speaker reviewers can actually read the values
+        # (\\u8B66\\u544A escapes in IDE_zh_CN.properties make review
+        # impossible). The merge-to-live step re-encodes to ASCII escapes
+        # when keys move into IDE/src/main/resources/i18n/.
+        write_properties(out_path, complement_entries, ascii_escape=False)
         total_translated += len(all_keys)
-        print(f"  wrote {out_path} ({len(all_keys)} keys)")
+        print(f"  wrote {out_path} ({len(all_keys)} keys, UTF-8)")
 
     print(f"\nDone — {total_translated} keys translated "
           f"across {len(targets)} locales")
