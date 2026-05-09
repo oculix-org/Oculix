@@ -1,5 +1,13 @@
 name: Build and Release
 
+# Stable release workflow — twin of release-rc.yml without the -rc bits.
+# Runs only on explicit dispatch or when something is pushed to the
+# release/oculix branch. Guards against running on a pre-release version
+# (pom.xml version must be plain X.Y.Z, no -rc/-beta/-alpha suffix).
+# Produces all three modules (API, IDE, MCP) for Windows, macOS and Linux,
+# and publishes a GitHub release with the "latest" pointer pointing here -
+# so users pulling /releases/latest land on this stable release.
+
 on:
   workflow_dispatch:
   push:
@@ -22,6 +30,8 @@ jobs:
       run: mvn -B -pl API -P complete-win-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build IDE fat JAR (Windows)
       run: mvn -B -pl IDE -P complete-win-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
+    - name: Build MCP fat JAR
+      run: mvn -B -pl MCP -P mcp-fatjar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -29,6 +39,7 @@ jobs:
         path: |
           API/target/*complete-win*.jar
           IDE/target/*complete-win*.jar
+          MCP/target/oculix-mcp-server.jar
 
   build-macos:
     runs-on: ubuntu-latest
@@ -45,6 +56,8 @@ jobs:
       run: mvn -B -pl API -P complete-mac-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build IDE fat JAR (macOS)
       run: mvn -B -pl IDE -P complete-mac-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
+    - name: Build MCP fat JAR
+      run: mvn -B -pl MCP -P mcp-fatjar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -52,6 +65,7 @@ jobs:
         path: |
           API/target/*complete-mac*.jar
           IDE/target/*complete-mac*.jar
+          MCP/target/oculix-mcp-server.jar
 
   build-linux:
     runs-on: ubuntu-latest
@@ -68,6 +82,8 @@ jobs:
       run: mvn -B -pl API -P complete-lux-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build IDE fat JAR (Linux)
       run: mvn -B -pl IDE -P complete-lux-jar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
+    - name: Build MCP fat JAR
+      run: mvn -B -pl MCP -P mcp-fatjar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -75,6 +91,7 @@ jobs:
         path: |
           API/target/*complete-lux*.jar
           IDE/target/*complete-lux*.jar
+          MCP/target/oculix-mcp-server.jar
 
   release:
     needs: [build-windows, build-macos, build-linux]
@@ -109,9 +126,21 @@ jobs:
       run: |
         VERSION="${{ steps.version.outputs.VERSION }}"
         mkdir -p release-assets
+
+        # OS-specific API + IDE fat jars
         find windows-jars -name "*complete-win*" -exec cp {} release-assets/ \;
         find macos-jars -name "*complete-mac*" -exec cp {} release-assets/ \;
         find linux-jars -name "*complete-lux*" -exec cp {} release-assets/ \;
+
+        # MCP is cross-platform: one jar, but uploaded from each matrix
+        # build. Grab the first one found and rename with version suffix.
+        MCP_JAR=$(find windows-jars macos-jars linux-jars -name "oculix-mcp-server.jar" | head -1)
+        if [ -n "$MCP_JAR" ]; then
+          cp "$MCP_JAR" "release-assets/oculix-mcp-server-${VERSION}.jar"
+        else
+          echo "::warning::MCP jar not found in any artifact"
+        fi
+
         cd release-assets
         for f in *-complete-win.jar; do mv "$f" "${f%-complete-win.jar}-windows.jar"; done
         for f in *-complete-mac.jar; do mv "$f" "${f%-complete-mac.jar}-macos.jar"; done
@@ -119,16 +148,49 @@ jobs:
         echo "=== Release assets ==="
         ls -lh
 
+    - name: Extract release notes from CHANGELOG.md
+      id: notes
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        NOTES_FILE="release-notes-${VERSION}.md"
+        FALLBACK="OculiX ${VERSION}"
+
+        if [ -f CHANGELOG.md ]; then
+          awk -v ver="$VERSION" -v vver="v$VERSION" '
+            /^## / {
+              if (found) exit
+              if (index($0, "[" vver "]") > 0 || index($0, "[" ver "]") > 0) {
+                found = 1
+                next
+              }
+            }
+            found { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+        fi
+
+        if [ ! -s "$NOTES_FILE" ]; then
+          echo "::warning::No section for $VERSION found in CHANGELOG.md, using fallback notes"
+          echo "$FALLBACK" > "$NOTES_FILE"
+        fi
+
+        echo "NOTES_FILE=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+        echo "=== Release notes preview (first 40 lines) ==="
+        head -40 "$NOTES_FILE"
+
     - name: Create release if it does not exist
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        TAG="v${{ steps.version.outputs.VERSION }}"
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        TAG="v${VERSION}"
+        NOTES_FILE="${{ steps.notes.outputs.NOTES_FILE }}"
         if ! gh release view "$TAG" > /dev/null 2>&1; then
           gh release create "$TAG" \
-            --title "OculiX ${{ steps.version.outputs.VERSION }}" \
-            --notes "OculiX ${{ steps.version.outputs.VERSION }}" \
+            --title "OculiX ${VERSION}" \
+            --notes-file "$NOTES_FILE" \
             --target master
+        else
+          gh release edit "$TAG" --notes-file "$NOTES_FILE"
         fi
 
     - name: Upload assets to release
