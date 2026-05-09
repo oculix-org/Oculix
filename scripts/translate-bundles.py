@@ -273,37 +273,131 @@ def _is_placeholder_only(text: str) -> bool:
     return bool(_PLACEHOLDER_ONLY.match(text))
 
 
+# Strings we never want LibreTranslate to touch — brand names, tech acronyms,
+# keyboard shortcut tokens. Anything in this set gets stitched out via
+# sentinels before the API call and stitched back verbatim afterwards.
+# Order doesn't matter here, the protect step sorts longest-first to avoid
+# partial matches (e.g. "OculiX" must be matched before "Oc").
+NO_TRANSLATE_TERMS: set[str] = {
+    # OculiX-family brands
+    "OculiX", "SikuliX", "SikuliX1", "Apertix", "Legerix",
+    # Embedded engines / libraries
+    "OpenCV", "PaddleOCR", "Tesseract", "Robot Framework", "Jython",
+    # Tech standards / runtimes
+    "Java", "Python", "MIT", "VNC", "MCP", "AS/400", "OS",
+    # Acronyms users recognize in any language
+    "API", "IDE", "OCR", "CLI", "GUI", "JSON", "XML", "HTML", "CSS",
+    "ASCII", "URL", "RGB", "PNG", "JPG", "DPI",
+    # Keyboard shortcut tokens (translating "Ctrl" is a recipe for chaos)
+    "Ctrl", "Shift", "Alt", "Cmd",
+}
+
+
 # ── HTML/MessageFormat-aware translation wrapper ───────────────────────────
 
-# We keep MessageFormat placeholders (e.g. {0}, {1,number,integer}) and HTML
-# tags (<br>, <i>, etc.) untouched by replacing them with sentinel tokens
-# before sending to LibreTranslate, and restoring after. Otherwise the model
-# happily translates "br" or rewrites "{0}" to a localized digit.
+# We protect three classes of substrings before sending text to LibreTranslate:
+#   1) MessageFormat placeholders ({0}, {1,number,integer}, ...)
+#   2) HTML tags (<br>, <i>, <b>, ...)
+#   3) Brand names / tech acronyms from NO_TRANSLATE_TERMS
+#
+# Each protected substring is replaced by a self-closing HTML-like sentinel
+# <x0/>, <x1/>, ... — modern translation models (Argos included) treat these
+# as opaque tokens and tend to preserve them. We also accept variants like
+# <x0> or <x0 /> on the way back, since some models reformat.
+#
+# An earlier version used "§§N§§" as the sentinel, which Argos happily
+# fragmented into "§§ 0 § § §" — destroying the restore step. The HTML-
+# style sentinel is more robust because translation models are trained on
+# parallel HTML corpora and learn to leave tags alone.
 
-_PLACEHOLDER_RE = re.compile(r"\{[^{}]*\}|<[^<>]+>")
+_PROTECT_PLACEHOLDER_RE = re.compile(r"\{[^{}]*\}")
+_PROTECT_HTML_RE = re.compile(r"<[^<>]+>")
 
 
 def _protect(text: str) -> tuple[str, list[str]]:
     sentinels: list[str] = []
-    def sub(m: re.Match) -> str:
-        sentinels.append(m.group(0))
-        return f"§§{len(sentinels) - 1}§§"
-    return _PLACEHOLDER_RE.sub(sub, text), sentinels
+
+    def _stash(value: str) -> str:
+        sentinels.append(value)
+        return f"<x{len(sentinels) - 1}/>"
+
+    # 1) MessageFormat placeholders first (some contain {} that look like HTML
+    #    to the next regex if we did HTML first).
+    text = _PROTECT_PLACEHOLDER_RE.sub(lambda m: _stash(m.group(0)), text)
+    # 2) HTML tags
+    text = _PROTECT_HTML_RE.sub(lambda m: _stash(m.group(0)), text)
+    # 3) Brand names — longest first so "Robot Framework" is matched before
+    #    "Robot" alone, and "SikuliX1" before "SikuliX".
+    for term in sorted(NO_TRANSLATE_TERMS, key=len, reverse=True):
+        # \b only works with ASCII word boundaries here — fine for our terms.
+        pattern = re.compile(r"\b" + re.escape(term) + r"\b")
+        text = pattern.sub(lambda m: _stash(m.group(0)), text)
+
+    return text, sentinels
+
+
+# Match the canonical sentinel <xN/> AND the looser <xN> / <xN /> variants
+# that Argos sometimes emits after rewriting whitespace inside tags.
+_RESTORE_RE = re.compile(r"<x(\d+)\s*/?>")
 
 
 def _restore(text: str, sentinels: list[str]) -> str:
-    def sub(m: re.Match) -> str:
+    def _resolve(m: re.Match) -> str:
         idx = int(m.group(1))
         return sentinels[idx] if 0 <= idx < len(sentinels) else m.group(0)
-    return re.sub(r"§§(\d+)§§", sub, text)
+
+    return _RESTORE_RE.sub(_resolve, text)
+
+
+# Strings like "SCRIPT" / "TOOLS" / "DARK" / "STATUS" — single short ALL-CAPS
+# words. LibreTranslate often returns them unchanged or, worse, translates
+# them inconsistently across calls (DARK stays "DARK" but LIGHT becomes
+# "الليل" = "the night"). Treat them specially: translate the lowercase form,
+# uppercase the result. That way "STATUS" → "status" → "estado" → "ESTADO".
+_ALL_CAPS_RE = re.compile(r"^[A-Z][A-Z\s\-/]{0,30}$")
+
+
+def _is_all_caps_short(text: str) -> bool:
+    return bool(_ALL_CAPS_RE.match(text)) and any(c.isalpha() for c in text)
 
 
 def safe_translate(client: LibreTranslate, text: str, target: str) -> str:
+    # Pure placeholder strings — no semantic content, return as-is.
+    if not text.strip() or _is_placeholder_only(text):
+        return text
+
+    # Single-token strings that are obvious brand/tech terms — return as-is
+    # (the protect step would do it too but this saves an API round-trip).
+    stripped = text.strip()
+    if stripped in NO_TRANSLATE_TERMS:
+        return text
+
+    # ALL-CAPS short strings (section headers, theme labels): translate the
+    # lowercase form and uppercase the result for cross-locale consistency.
+    if _is_all_caps_short(stripped):
+        protected, sentinels = _protect(stripped.lower())
+        out = client.translate(protected, target) if not sentinels else client.translate(protected, target)
+        out = _restore(out, sentinels)
+        return out.upper()
+
+    # Standard path: protect, translate, restore.
     protected, sentinels = _protect(text)
-    if not sentinels:
-        return client.translate(text, target)
     out = client.translate(protected, target)
-    return _restore(out, sentinels)
+    out = _restore(out, sentinels)
+
+    # Sanity check: if the translation is wildly longer/shorter than the source
+    # AND no sentinel survived, the model probably hallucinated. Fall back to
+    # the source string so the user sees English instead of garbage like
+    # "VISUAL AUTOMATION · v{0}" → "Eliminating discrimination against women"
+    # observed during early Argos runs on uppercase + placeholders.
+    if sentinels and not _RESTORE_RE.search(out):
+        # All sentinels lost — restore would yield broken output.
+        return text
+    src_len = max(1, len(text.strip()))
+    out_len = len(out.strip())
+    if out_len > src_len * 5 or (src_len > 6 and out_len < src_len // 4):
+        return text
+    return out
 
 
 # ── Main pipeline ──────────────────────────────────────────────────────────
