@@ -385,15 +385,24 @@ public class OculixSidebar extends JPanel {
       // setLocale) — the latter is inherited from java.awt.Component
       // and renaming avoids a weak-access override compile error.
       if (languagePicker != null) languagePicker.setSelectedLocale(newLocale);
-      // Light-touch live refresh: re-translate the section headers + the
-      // status panel labels we control directly. Menus and deeper widgets
-      // need a restart, hence the toast below.
-      String msg = newLocale.getDisplayName(newLocale)
-          + " — restart the IDE for a full UI refresh";
-      // The IDE picks up its message bar via SikulixIDE.getStatusbar;
-      // we don't have a direct ref here so we just log + System.out so
-      // both the console pane and a paying-attention user see it.
-      System.out.println("[i18n] locale changed to " + newLocale + " — " + msg);
+
+      // User-facing notice that a restart is required for the full UI
+      // to switch (Welcome tab + Sidebar labels are constructed once,
+      // can't refresh in-place without rebuilding the whole tree).
+      // The popup itself uses _I() with the freshly-set locale, so the
+      // user sees the new translation as proof the change took effect.
+      String displayName = newLocale.getDisplayName(newLocale);
+      if (displayName == null || displayName.isEmpty()) {
+        displayName = newLocale.toLanguageTag();
+      }
+      // Capitalize first letter so 'français' / 'deutsch' look right.
+      displayName = Character.toUpperCase(displayName.charAt(0)) + displayName.substring(1);
+
+      JOptionPane.showMessageDialog(
+          SwingUtilities.getWindowAncestor(this),
+          _I("i18nLanguageChangedBody", displayName),
+          _I("i18nLanguageChangedTitle"),
+          JOptionPane.INFORMATION_MESSAGE);
     } catch (Exception ex) {
       System.err.println("[i18n] failed to change locale: " + ex);
     }
@@ -824,35 +833,83 @@ public class OculixSidebar extends JPanel {
     /**
      * Builds the popup lazily on each click so the labels reflect the
      * latest installed locales (in case bundles get added at runtime via
-     * the future extensions system).
+     * the future extensions system). 25 locales would overflow a single
+     * vertical popup on smaller screens, so we group them by region:
+     * Latin Europe, Slavic / Eastern Europe, Middle East, East Asia,
+     * Indian subcontinent. Each region opens as a sub-menu on hover.
+     *
+     * <p>The font for each item is the JVM's logical "Dialog" font —
+     * Java's font-rendering pipeline auto-falls-back through the OS
+     * font registry (Segoe UI on Windows, Helvetica on macOS, DejaVu on
+     * Linux) so CJK / Arabic / Hebrew / Devanagari / Tamil / Bengali /
+     * Telugu / Cyrillic glyphs render correctly. Without this, the
+     * brand-set OculixFonts (Latin-only Inter clones) would show empty
+     * boxes for every non-Latin script.
      */
     private void showPopup() {
       JPopupMenu menu = new JPopupMenu();
+      Font itemFont = new Font(Font.DIALOG, Font.PLAIN, 12);
+
+      // Region grouping — keeps the top-level popup short and lets
+      // users scan by language family instead of a flat 25-row list.
+      addRegionSubmenu(menu, itemFont, "🇪🇺  Europe (Latin)",
+          "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR",
+          "sv", "da", "ca");
+      addRegionSubmenu(menu, itemFont, "🇪🇺  Europe (Slavic / Other)",
+          "pl", "ru", "uk", "bg", "tr");
+      addRegionSubmenu(menu, itemFont, "🌍  Middle East",
+          "he", "ar");
+      addRegionSubmenu(menu, itemFont, "🌏  East Asia",
+          "ja", "ko", "zh", "zh_CN", "zh_TW");
+      addRegionSubmenu(menu, itemFont, "🇮🇳  Indian subcontinent",
+          "hi", "bn", "te", "ta", "ta_IN");
+
+      // Allow selecting any AVAILABLE locale that wasn't covered above
+      // (defensive — none today, but keeps the picker honest if locales
+      // get added without a region tag).
+      java.util.Set<String> covered = new java.util.HashSet<>();
+      for (java.util.Locale loc : AVAILABLE) covered.add(localeKey(loc));
+      // (no-op for now; the regions above already cover AVAILABLE)
+
+      menu.show(this, 0, getHeight());
+    }
+
+    /** Build one sub-menu of locales picked by language code from
+     *  {@link #AVAILABLE}, with the active locale marked by a leading bullet. */
+    private void addRegionSubmenu(JPopupMenu parent, Font font,
+                                  String label, String... codes) {
+      JMenu region = new JMenu(label);
+      region.setFont(font);
+      java.util.Set<String> wanted = new java.util.HashSet<>(java.util.Arrays.asList(codes));
       for (java.util.Locale loc : AVAILABLE) {
-        // Localized display name in the locale's own language —
-        // capitalize the first character because some locales (fr, de)
-        // return it lowercase by default.
-        String label = loc.getDisplayName(loc);
-        if (label == null || label.isEmpty()) {
-          label = loc.toLanguageTag();
+        if (!wanted.contains(localeKey(loc))) continue;
+        String displayLabel = loc.getDisplayName(loc);
+        if (displayLabel == null || displayLabel.isEmpty()) {
+          displayLabel = loc.toLanguageTag();
         } else {
-          label = Character.toUpperCase(label.charAt(0)) + label.substring(1);
+          displayLabel = Character.toUpperCase(displayLabel.charAt(0))
+              + displayLabel.substring(1);
         }
-        // Mark the active locale with a leading bullet so the user can
-        // see at a glance which one is selected.
         boolean isActive = loc.equals(current)
             || (loc.getLanguage().equals(current.getLanguage())
-                && loc.getCountry().equals(current.getCountry()));
-        String prefix = isActive ? "● " : "   ";
-        JMenuItem item = new JMenuItem(prefix + label);
-        item.setFont(OculixFonts.ui(12));
+                && java.util.Objects.equals(loc.getCountry(), current.getCountry()));
+        JMenuItem item = new JMenuItem((isActive ? "● " : "    ") + displayLabel);
+        item.setFont(font);
         final java.util.Locale picked = loc;
         item.addActionListener(e -> {
           if (onChange != null) onChange.accept(picked);
         });
-        menu.add(item);
+        region.add(item);
       }
-      menu.show(this, 0, getHeight());
+      if (region.getItemCount() > 0) parent.add(region);
+    }
+
+    /** Compose a stable key for matching a Locale against the region
+     *  string codes (handles language-only and language_COUNTRY forms). */
+    private static String localeKey(java.util.Locale loc) {
+      String c = loc.getCountry();
+      return (c == null || c.isEmpty()) ? loc.getLanguage()
+          : loc.getLanguage() + "_" + c;
     }
 
     @Override
