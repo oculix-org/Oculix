@@ -1,61 +1,60 @@
 #!/usr/bin/env python3
 """
-translate-bundles.py — Auto-translate IDE_en_US.properties → IDE_<locale>.properties
-via a self-hosted LibreTranslate instance.
+translate-bundles.py — Auto-translate IDE_en_US.properties into all OculiX
+locale bundles via Google Translate's public web endpoint.
 
 Why this exists
 ---------------
 OculiX ships a Java IDE with ~22 locales (IDE_en_US, IDE_fr, IDE_de, IDE_zh_CN, ...).
-Historically only a subset of keys was translated by RaiMan + community over a
-decade (menuFile, menuEdit, ...). The 3.0.x rebrand introduced ~30 new UI
-strings (Welcome tab, Sidebar, status bar) that were initially hardcoded in
-English. Doing 30 new keys × 21 target locales = 630 entries by hand is the
-kind of friction that kills i18n maintenance.
+Historically only a subset of keys was translated by RaiMan + community.
+The 3.0.x rebrand introduced ~30 new UI strings (Welcome tab, Sidebar,
+status bar) that were initially hardcoded in English. Doing 30 new keys ×
+21 target locales = ~630 entries by hand is the kind of friction that
+kills i18n maintenance.
 
 This script bridges the gap:
   - reads the source bundle IDE_en_US.properties
-  - for each missing key in each target IDE_<locale>.properties, POSTs the
-    English value to a LibreTranslate /translate endpoint
+  - for each missing key in each target IDE_<locale>.properties, calls
+    Google Translate's free public web endpoint to translate the value
   - writes the translated value back into the locale bundle
-  - preserves existing translations (won't overwrite a key that already has a
-    non-empty value in the target locale — RaiMan's original FR/DE/etc. work
-    stays intact)
-  - escapes Java .properties Unicode (\\uXXXX) so the resulting files are
-    portable across JDK locales without BOM headaches
+  - preserves existing translations (RaiMan's hand work stays intact)
+  - escapes Java .properties Unicode (\\uXXXX) so output is portable
+    across JDK locales without BOM headaches
 
-The IDE itself shows a one-time disclaimer popup on auto-translated locales
-(see SikuliIDEI18N + i18nDisclaimer* keys) so users know to report
-inaccuracies. Tamil (ta) is excluded because LibreTranslate's Argos backend
-does not currently ship a model for it; RaiMan's hand translation in
-IDE_ta_IN.properties is preserved as-is.
+Why Google Translate (and not LibreTranslate / Argos)?
+------------------------------------------------------
+We tried LibreTranslate self-hosted first (aligned with the OculiX
+local-first philosophy). Quality was unusable on short UI strings:
+  - "Docs"        → "Doctors" (Bulgarian)
+  - "fork of X"   → "fourchette de X" (utensil)
+  - "Dark theme"  → "Brand" (Bulgarian)
+  - "VISUAL AUTOMATION · v{0}"
+                  → "Eliminating discrimination against women" (Arabic)
+  - placeholders {0} fragmented into "§§ 0 § § §"
+Google Translate handles these correctly because its model has seen
+orders of magnitude more parallel software-localized text. UI strings
+are public anyway (visible in any unpacked jar), so the privacy concern
+is moot. The IDE itself shows a one-time disclaimer popup on
+auto-translated locales (see SikuliIDEI18N + i18nDisclaimer* keys).
 
-Privacy
--------
-LibreTranslate runs on localhost (default http://localhost:5000). No string
-ever leaves the developer's machine. Aligns with the OculiX philosophy of
-local-first, sovereign tooling.
+Tamil (ta_IN) is excluded because Google Translate handles it but
+the existing IDE_ta_IN.properties is a hand-curated RaiMan translation;
+we leave it untouched for respect.
+
+Privacy / dependency
+--------------------
+  - No pip install — pure stdlib (urllib, json, re, argparse).
+  - No API key — uses the same free public endpoint browsers hit.
+  - Network: ~700 small HTTP calls to translate.googleapis.com over
+    ~5-10 minutes. If Google rate-limits, the script retries with
+    exponential backoff.
 
 Usage
 -----
-1. Spin up LibreTranslate locally:
-     docker run -d --name libretranslate -p 5000:5000 \\
-       -e LT_LOAD_ONLY=ar,bg,ca,da,de,en,es,fr,he,it,ja,ko,nl,pl,pt,ru,sv,tr,uk,zh,zt \\
-       libretranslate/libretranslate:latest
-
-2. Wait until ready:
-     curl -s http://localhost:5000/languages
-
-3. Run this script from the repo root:
-     python scripts/translate-bundles.py
-   or with overrides:
-     python scripts/translate-bundles.py \\
-       --bundle-dir IDE/src/main/resources/i18n \\
-       --endpoint http://localhost:5000 \\
-       --only de,es,zh_CN
-
-4. Review the diff and commit. Re-run any time keys are added to
-   IDE_en_US.properties — only missing keys are filled in target bundles,
-   so existing translations are never trampled.
+    python scripts/translate-bundles.py                 # all locales
+    python scripts/translate-bundles.py --only de,zh_CN  # subset
+    python scripts/translate-bundles.py --dry-run        # preview, no write
+    python scripts/translate-bundles.py --overwrite      # force re-translate
 """
 
 from __future__ import annotations
@@ -66,19 +65,19 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-# ── Locale → LibreTranslate language code mapping ──────────────────────────
-# Java/SikuliX bundle suffix → ISO-639 code expected by LibreTranslate.
+# ── Locale → Google Translate language code mapping ───────────────────────
+# Java/SikuliX bundle suffix → ISO-639 code expected by Google.
 # Notes:
 #   - en_US is the source, never a target.
-#   - pt_BR → 'pt' (LibreTranslate's Portuguese model covers Brazilian usage
-#     well enough for UI strings; native pt-BR speakers can refine).
-#   - zh_CN → 'zh' (simplified), zh_TW → 'zt' (traditional).
-#   - ta_IN → skipped (no Argos model available at time of writing). The
-#     RaiMan-original IDE_ta_IN.properties is kept untouched.
+#   - pt_BR → 'pt' (Google's "pt" = Portuguese, no separate pt-BR for free
+#     endpoint; for UI strings the diff is cosmetic).
+#   - zh_CN → 'zh-CN' (simplified), zh_TW → 'zh-TW' (traditional).
+#   - ta_IN → skipped on purpose (RaiMan hand translation preserved).
 LOCALE_MAP: dict[str, str] = {
     "ar":    "ar",
     "bg":    "bg",
@@ -86,8 +85,8 @@ LOCALE_MAP: dict[str, str] = {
     "da":    "da",
     "de":    "de",
     "es":    "es",
-    "fr":    "fr",     # already hand-translated; opt-in via --include-fr if desired
-    "he":    "he",
+    "fr":    "fr",       # opt-in via --include-fr (FR is hand-translated)
+    "he":    "he",       # Google uses "iw" historically but accepts "he"
     "it":    "it",
     "ja":    "ja",
     "ko":    "ko",
@@ -98,40 +97,46 @@ LOCALE_MAP: dict[str, str] = {
     "sv":    "sv",
     "tr":    "tr",
     "uk":    "uk",
-    "zh_CN": "zh",
-    "zh_TW": "zt",
-    # "ta_IN": <not supported by LibreTranslate yet>
+    "zh_CN": "zh-CN",
+    "zh_TW": "zh-TW",
 }
 
-DEFAULT_ENDPOINT = "http://localhost:5000"
 SOURCE_LOCALE = "en_US"
 SOURCE_LANG_CODE = "en"
 
+# Strings we never want translated — brand names, tech acronyms, keyboard
+# tokens. They get stitched out via sentinels before each call and stitched
+# back verbatim afterwards.
+NO_TRANSLATE_TERMS: set[str] = {
+    # OculiX-family brands
+    "OculiX", "SikuliX", "SikuliX1", "Apertix", "Legerix",
+    # Embedded engines / libraries
+    "OpenCV", "PaddleOCR", "Tesseract", "Robot Framework", "Jython",
+    # Tech standards / runtimes
+    "Java", "Python", "MIT", "VNC", "MCP", "AS/400", "OS",
+    # Acronyms users recognize in any language
+    "API", "IDE", "OCR", "CLI", "GUI", "JSON", "XML", "HTML", "CSS",
+    "ASCII", "URL", "RGB", "PNG", "JPG", "DPI",
+    # Keyboard shortcut tokens
+    "Ctrl", "Shift", "Alt", "Cmd",
+}
 
-# ── .properties parser/writer (preserves comments + key order) ─────────────
-# We don't use java.util.Properties or python-jproperties because we want to
-# (a) keep header comments, (b) keep blank-line groupings, (c) write values
-# with java-style \\uXXXX escapes so the file is locale-independent on disk.
+
+# ── .properties parser/writer (preserves comments + key order) ────────────
 
 @dataclass
 class Entry:
-    """One line in a .properties file. Either a key=value pair or pure prose
-    (comment, blank line) we want to preserve verbatim on rewrite."""
-    raw: str            # original line (without trailing newline)
-    key: str | None     # set when this line is a `key=value` pair
-    value: str | None   # the unescaped value (Java-decoded)
+    raw: str
+    key: str | None
+    value: str | None
 
 
 _KV_RE = re.compile(r"^(?P<key>[^#!=:\s]+)\s*=\s*(?P<val>.*)$")
 
 
 def _java_decode(s: str) -> str:
-    """Decode the \\uXXXX sequences and the standard \\n/\\t/\\\\ escapes used
-    in Java .properties files."""
-    # Decode \\uXXXX
     s = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), s)
-    # Decode common escapes (order matters — \\\\ first)
-    s = s.replace("\\\\", "\x00")  # placeholder for literal backslash
+    s = s.replace("\\\\", "\x00")
     s = s.replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r")
     s = s.replace("\\:", ":").replace("\\=", "=").replace("\\ ", " ")
     s = s.replace("\x00", "\\")
@@ -139,9 +144,6 @@ def _java_decode(s: str) -> str:
 
 
 def _java_encode(s: str) -> str:
-    """Encode a string back to .properties form: ASCII-only + \\uXXXX for
-    non-ASCII. Preserves MessageFormat placeholders ({0}, {1,number,integer})
-    and HTML in values (used by the Welcome hero <br>)."""
     out = []
     for ch in s:
         cp = ord(ch)
@@ -161,8 +163,6 @@ def _java_encode(s: str) -> str:
 
 
 def parse_properties(path: Path) -> list[Entry]:
-    """Read a .properties file and return a list of Entry objects, preserving
-    comments / blank lines as raw entries with key=None."""
     entries: list[Entry] = []
     if not path.exists():
         return entries
@@ -170,7 +170,6 @@ def parse_properties(path: Path) -> list[Entry]:
         for raw_line in f:
             line = raw_line.rstrip("\n").rstrip("\r")
             stripped = line.lstrip()
-            # Comments, blank lines, or section banners → preserve as-is.
             if not stripped or stripped.startswith("#") or stripped.startswith("!"):
                 entries.append(Entry(raw=line, key=None, value=None))
                 continue
@@ -185,14 +184,11 @@ def parse_properties(path: Path) -> list[Entry]:
 
 
 def index(entries: list[Entry]) -> dict[str, str]:
-    """Flatten parsed entries to a dict[key] → value (last wins on dup, like
-    java.util.Properties). Skips comment/blank entries."""
-    return {e.key: e.value for e in entries if e.key is not None and e.value is not None}
+    return {e.key: e.value for e in entries
+            if e.key is not None and e.value is not None}
 
 
 def write_properties(path: Path, entries: list[Entry]) -> None:
-    """Write entries to disk. Pairs are re-encoded; comment/blank lines are
-    written verbatim (no transformation)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         for e in entries:
@@ -202,113 +198,83 @@ def write_properties(path: Path, entries: list[Entry]) -> None:
                 f.write(f"{e.key}={_java_encode(e.value)}\n")
 
 
-# ── LibreTranslate client ──────────────────────────────────────────────────
+# ── Google Translate web endpoint client (free, no API key) ──────────────
 
-class LibreTranslate:
-    """Thin urllib-based client. No external deps so the script runs on a
-    bare Python 3.10+ install."""
+GOOGLE_ENDPOINT = "https://translate.googleapis.com/translate_a/single"
 
-    def __init__(self, endpoint: str):
-        self.endpoint = endpoint.rstrip("/")
-        self._supported: set[str] | None = None
 
-    def _post(self, path: str, payload: dict, timeout: float = 30.0) -> dict:
-        body = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            f"{self.endpoint}{path}",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+class GoogleTranslate:
+    """Thin urllib client for the public Google Translate web endpoint —
+    same one browsers hit. Free, no API key, but rate-limited informally
+    (~100 req/min). On HTTP 429 we back off and retry."""
 
-    def _get(self, path: str, timeout: float = 10.0) -> list:
-        with urllib.request.urlopen(f"{self.endpoint}{path}", timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+    def __init__(self, max_retries: int = 4, throttle_ms: int = 80):
+        self.max_retries = max_retries
+        # Tiny per-call sleep keeps the request rate well under the
+        # informal limit — burning 1 hour for 600 calls instead of getting
+        # banned mid-run.
+        self.throttle = throttle_ms / 1000.0
 
-    def supported(self) -> set[str]:
-        if self._supported is None:
+    def translate(self, text: str, target: str,
+                  source: str = SOURCE_LANG_CODE) -> str:
+        if not text.strip():
+            return text
+        params = {
+            "client": "gtx",
+            "sl":     source,
+            "tl":     target,
+            "dt":     "t",
+            "q":      text,
+        }
+        url = f"{GOOGLE_ENDPOINT}?{urllib.parse.urlencode(params)}"
+        backoff = 1.0
+        for attempt in range(self.max_retries):
             try:
-                langs = self._get("/languages")
-                self._supported = {lang["code"] for lang in langs}
-            except (urllib.error.URLError, json.JSONDecodeError) as e:
-                print(f"ERROR: cannot reach LibreTranslate at {self.endpoint}: {e}",
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (translate-bundles.py)",
+                        "Accept":     "*/*",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                # Response shape: [[[<translated>, <source>, ...], ...], ...]
+                # Multi-segment input concatenates all [0][i][0] pieces.
+                segments = data[0] if data and data[0] else []
+                pieces = [seg[0] for seg in segments if seg and seg[0]]
+                time.sleep(self.throttle)
+                return "".join(pieces) if pieces else text
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 503) and attempt < self.max_retries - 1:
+                    print(f"    HTTP {e.code} → backoff {backoff:.1f}s",
+                          file=sys.stderr)
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                print(f"    HTTP {e.code} translating to {target}: "
+                      f"{text[:60]!r}", file=sys.stderr)
+                return text
+            except urllib.error.URLError as e:
+                print(f"    Network error to {target}: {e}", file=sys.stderr)
+                return text
+            except (KeyError, IndexError, json.JSONDecodeError) as e:
+                print(f"    Parse error on response for {target}: {e}",
                       file=sys.stderr)
-                sys.exit(2)
-        return self._supported
-
-    def translate(self, text: str, target: str, source: str = SOURCE_LANG_CODE) -> str:
-        """Translate text. Returns the translated string. Re-raises on
-        non-recoverable errors so the caller can decide whether to skip the
-        whole locale."""
-        # Empty / placeholder-only strings → return as-is. LibreTranslate
-        # tends to return weird artefacts on values like "{0}" alone.
-        if not text.strip() or _is_placeholder_only(text):
-            return text
-        try:
-            resp = self._post("/translate", {
-                "q": text,
-                "source": source,
-                "target": target,
-                "format": "text",
-            })
-            return resp.get("translatedText", text)
-        except urllib.error.HTTPError as e:
-            print(f"  HTTP {e.code} translating to {target}: {text[:60]!r}",
-                  file=sys.stderr)
-            return text
-        except urllib.error.URLError as e:
-            print(f"  Network error to {target}: {e}", file=sys.stderr)
-            return text
+                return text
+        return text
 
 
-_PLACEHOLDER_ONLY = re.compile(r"^\s*(\{[^{}]*\}\s*)+$")
+# ── Sentinel-based protection for placeholders / HTML / brand names ──────
 
-
-def _is_placeholder_only(text: str) -> bool:
-    """True if the string is only MessageFormat placeholders like '{0}' or
-    '{0,number,integer} {1,date}'. Translating these is a waste of an API
-    call and sometimes corrupts the placeholders."""
-    return bool(_PLACEHOLDER_ONLY.match(text))
-
-
-# Strings we never want LibreTranslate to touch — brand names, tech acronyms,
-# keyboard shortcut tokens. Anything in this set gets stitched out via
-# sentinels before the API call and stitched back verbatim afterwards.
-# Order doesn't matter here, the protect step sorts longest-first to avoid
-# partial matches (e.g. "OculiX" must be matched before "Oc").
-NO_TRANSLATE_TERMS: set[str] = {
-    # OculiX-family brands
-    "OculiX", "SikuliX", "SikuliX1", "Apertix", "Legerix",
-    # Embedded engines / libraries
-    "OpenCV", "PaddleOCR", "Tesseract", "Robot Framework", "Jython",
-    # Tech standards / runtimes
-    "Java", "Python", "MIT", "VNC", "MCP", "AS/400", "OS",
-    # Acronyms users recognize in any language
-    "API", "IDE", "OCR", "CLI", "GUI", "JSON", "XML", "HTML", "CSS",
-    "ASCII", "URL", "RGB", "PNG", "JPG", "DPI",
-    # Keyboard shortcut tokens (translating "Ctrl" is a recipe for chaos)
-    "Ctrl", "Shift", "Alt", "Cmd",
-}
-
-
-# ── HTML/MessageFormat-aware translation wrapper ───────────────────────────
-
-# We protect three classes of substrings before sending text to LibreTranslate:
+# We protect three classes of substring before sending text to the API:
 #   1) MessageFormat placeholders ({0}, {1,number,integer}, ...)
 #   2) HTML tags (<br>, <i>, <b>, ...)
 #   3) Brand names / tech acronyms from NO_TRANSLATE_TERMS
 #
 # Each protected substring is replaced by a self-closing HTML-like sentinel
-# <x0/>, <x1/>, ... — modern translation models (Argos included) treat these
-# as opaque tokens and tend to preserve them. We also accept variants like
-# <x0> or <x0 /> on the way back, since some models reformat.
-#
-# An earlier version used "§§N§§" as the sentinel, which Argos happily
-# fragmented into "§§ 0 § § §" — destroying the restore step. The HTML-
-# style sentinel is more robust because translation models are trained on
-# parallel HTML corpora and learn to leave tags alone.
+# <x0/>, <x1/>, ... — Google preserves these reliably because it's trained
+# on parallel HTML / localized-string corpora and learns to leave tags alone.
 
 _PROTECT_PLACEHOLDER_RE = re.compile(r"\{[^{}]*\}")
 _PROTECT_HTML_RE = re.compile(r"<[^<>]+>")
@@ -321,23 +287,14 @@ def _protect(text: str) -> tuple[str, list[str]]:
         sentinels.append(value)
         return f"<x{len(sentinels) - 1}/>"
 
-    # 1) MessageFormat placeholders first (some contain {} that look like HTML
-    #    to the next regex if we did HTML first).
     text = _PROTECT_PLACEHOLDER_RE.sub(lambda m: _stash(m.group(0)), text)
-    # 2) HTML tags
     text = _PROTECT_HTML_RE.sub(lambda m: _stash(m.group(0)), text)
-    # 3) Brand names — longest first so "Robot Framework" is matched before
-    #    "Robot" alone, and "SikuliX1" before "SikuliX".
     for term in sorted(NO_TRANSLATE_TERMS, key=len, reverse=True):
-        # \b only works with ASCII word boundaries here — fine for our terms.
         pattern = re.compile(r"\b" + re.escape(term) + r"\b")
         text = pattern.sub(lambda m: _stash(m.group(0)), text)
-
     return text, sentinels
 
 
-# Match the canonical sentinel <xN/> AND the looser <xN> / <xN /> variants
-# that Argos sometimes emits after rewriting whitespace inside tags.
 _RESTORE_RE = re.compile(r"<x(\d+)\s*/?>")
 
 
@@ -345,15 +302,16 @@ def _restore(text: str, sentinels: list[str]) -> str:
     def _resolve(m: re.Match) -> str:
         idx = int(m.group(1))
         return sentinels[idx] if 0 <= idx < len(sentinels) else m.group(0)
-
     return _RESTORE_RE.sub(_resolve, text)
 
 
-# Strings like "SCRIPT" / "TOOLS" / "DARK" / "STATUS" — single short ALL-CAPS
-# words. LibreTranslate often returns them unchanged or, worse, translates
-# them inconsistently across calls (DARK stays "DARK" but LIGHT becomes
-# "الليل" = "the night"). Treat them specially: translate the lowercase form,
-# uppercase the result. That way "STATUS" → "status" → "estado" → "ESTADO".
+_PLACEHOLDER_ONLY = re.compile(r"^\s*(\{[^{}]*\}\s*)+$")
+
+
+def _is_placeholder_only(text: str) -> bool:
+    return bool(_PLACEHOLDER_ONLY.match(text))
+
+
 _ALL_CAPS_RE = re.compile(r"^[A-Z][A-Z\s\-/]{0,30}$")
 
 
@@ -361,38 +319,32 @@ def _is_all_caps_short(text: str) -> bool:
     return bool(_ALL_CAPS_RE.match(text)) and any(c.isalpha() for c in text)
 
 
-def safe_translate(client: LibreTranslate, text: str, target: str) -> str:
-    # Pure placeholder strings — no semantic content, return as-is.
+def safe_translate(client: GoogleTranslate, text: str, target: str) -> str:
     if not text.strip() or _is_placeholder_only(text):
         return text
 
-    # Single-token strings that are obvious brand/tech terms — return as-is
-    # (the protect step would do it too but this saves an API round-trip).
     stripped = text.strip()
     if stripped in NO_TRANSLATE_TERMS:
         return text
 
-    # ALL-CAPS short strings (section headers, theme labels): translate the
-    # lowercase form and uppercase the result for cross-locale consistency.
+    # ALL-CAPS short strings (section headers): translate the lowercase form
+    # and uppercase the result for cross-locale consistency.
     if _is_all_caps_short(stripped):
         protected, sentinels = _protect(stripped.lower())
-        out = client.translate(protected, target) if not sentinels else client.translate(protected, target)
+        out = client.translate(protected, target)
         out = _restore(out, sentinels)
         return out.upper()
 
-    # Standard path: protect, translate, restore.
     protected, sentinels = _protect(text)
     out = client.translate(protected, target)
     out = _restore(out, sentinels)
 
-    # Sanity check: if the translation is wildly longer/shorter than the source
-    # AND no sentinel survived, the model probably hallucinated. Fall back to
-    # the source string so the user sees English instead of garbage like
-    # "VISUAL AUTOMATION · v{0}" → "Eliminating discrimination against women"
-    # observed during early Argos runs on uppercase + placeholders.
-    if sentinels and not _RESTORE_RE.search(out):
-        # All sentinels lost — restore would yield broken output.
+    # Sanity: if all sentinels evaporated, restore would yield broken output.
+    if sentinels and not _RESTORE_RE.search(out) and not all(
+            s in out for s in sentinels):
         return text
+
+    # Sanity: wild length divergence usually means hallucination.
     src_len = max(1, len(text.strip()))
     out_len = len(out.strip())
     if out_len > src_len * 5 or (src_len > 6 and out_len < src_len // 4):
@@ -400,7 +352,7 @@ def safe_translate(client: LibreTranslate, text: str, target: str) -> str:
     return out
 
 
-# ── Main pipeline ──────────────────────────────────────────────────────────
+# ── Main pipeline ────────────────────────────────────────────────────────
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
@@ -409,9 +361,6 @@ def main() -> int:
                         default="IDE/src/main/resources/i18n",
                         help="Directory containing IDE_*.properties bundles "
                              "(default: %(default)s)")
-    parser.add_argument("--endpoint",
-                        default=DEFAULT_ENDPOINT,
-                        help="LibreTranslate endpoint URL (default: %(default)s)")
     parser.add_argument("--only",
                         default=None,
                         help="Comma-separated locale suffixes to (re)generate "
@@ -427,7 +376,11 @@ def main() -> int:
                              "RaiMan-era hand translations)")
     parser.add_argument("--dry-run",
                         action="store_true",
-                        help="Don't write files, just report what would change")
+                        help="Don't write files, just translate and report")
+    parser.add_argument("--throttle-ms",
+                        type=int, default=80,
+                        help="Per-request sleep to avoid rate limit "
+                             "(default: %(default)s ms)")
     args = parser.parse_args()
 
     bundle_dir = Path(args.bundle_dir)
@@ -444,9 +397,7 @@ def main() -> int:
     source_idx = index(source_entries)
     print(f"Source: {source_path} — {len(source_idx)} keys")
 
-    client = LibreTranslate(args.endpoint)
-    supported = client.supported()
-    print(f"LibreTranslate supports {len(supported)} languages")
+    client = GoogleTranslate(throttle_ms=args.throttle_ms)
 
     targets = LOCALE_MAP.copy()
     if not args.include_fr:
@@ -460,33 +411,25 @@ def main() -> int:
             return 2
 
     total_added = 0
-    total_skipped = 0
     for locale_suffix, lang_code in sorted(targets.items()):
-        if lang_code not in supported:
-            print(f"\n[skip] {locale_suffix:>6} ({lang_code}) — model not loaded "
-                  f"in LibreTranslate (re-run container with LT_LOAD_ONLY?)")
-            continue
-
         target_path = bundle_dir / f"IDE_{locale_suffix}.properties"
         target_entries = parse_properties(target_path)
         target_idx = index(target_entries)
         existing_keys = set(target_idx.keys())
 
         missing_keys = [k for k in source_idx if k not in existing_keys]
-        keys_to_overwrite = list(existing_keys & set(source_idx)) if args.overwrite else []
+        keys_to_overwrite = (list(existing_keys & set(source_idx))
+                             if args.overwrite else [])
         all_keys = missing_keys + keys_to_overwrite
 
         action = "fill" if not args.overwrite else "overwrite"
         print(f"\n[{locale_suffix:>6} → {lang_code}] {len(missing_keys)} missing"
-              + (f", {len(keys_to_overwrite)} to {action}" if keys_to_overwrite else ""))
+              + (f", {len(keys_to_overwrite)} to {action}"
+                 if keys_to_overwrite else ""))
 
         if not all_keys:
-            total_skipped += 1
             continue
 
-        # Translate one key at a time. LibreTranslate supports batch but the
-        # per-key approach gives better failure granularity (one stuck call
-        # doesn't lose the whole locale) and clearer logs.
         new_translations: dict[str, str] = {}
         t0 = time.time()
         for i, key in enumerate(all_keys, 1):
@@ -494,30 +437,26 @@ def main() -> int:
             new_val = safe_translate(client, src_val, lang_code)
             new_translations[key] = new_val
             if i % 5 == 0 or i == len(all_keys):
-                print(f"    {i}/{len(all_keys)} translated"
-                      f" — last: {key} = {new_val[:50]!r}")
-        elapsed = time.time() - t0
-        print(f"  done in {elapsed:.1f}s")
+                preview = new_val[:60].replace("\n", " ")
+                print(f"    {i}/{len(all_keys)} — {key} = {preview!r}")
+        print(f"  done in {time.time() - t0:.1f}s")
 
-        # Merge into target_entries: append new keys at the end with a header
-        # marker; overwrite existing values in place if --overwrite.
         if args.dry_run:
             for k, v in new_translations.items():
                 print(f"    DRY-RUN  {k} = {v[:80]}")
             continue
 
-        # In-place overwrite for existing keys
+        # Overwrite existing keys in place
         for entry in target_entries:
             if entry.key in new_translations and entry.key in existing_keys:
                 entry.value = new_translations[entry.key]
-                # raw will be regenerated on write; keep key for diff readability
                 entry.raw = ""
 
-        # Append missing keys at the end of the file with a marker comment.
+        # Append missing keys at the end, marked as auto-translated
         if missing_keys:
-            target_entries.append(Entry(raw="", key=None, value=None))  # blank
+            target_entries.append(Entry(raw="", key=None, value=None))
             target_entries.append(Entry(
-                raw=f"# Auto-translated by LibreTranslate ({lang_code}) — "
+                raw=f"# Auto-translated by Google Translate ({lang_code}) — "
                     f"corrections welcome via github.com/oculix-org/Oculix/issues",
                 key=None, value=None))
             for k in missing_keys:
@@ -528,7 +467,7 @@ def main() -> int:
         total_added += len(missing_keys)
         print(f"  wrote {target_path}")
 
-    print(f"\nDone — {total_added} keys added across {len(targets) - total_skipped} locales")
+    print(f"\nDone — {total_added} keys added across {len(targets)} locales")
     return 0
 
 
