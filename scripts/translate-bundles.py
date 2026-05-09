@@ -49,12 +49,36 @@ Privacy / dependency
     ~5-10 minutes. If Google rate-limits, the script retries with
     exponential backoff.
 
+Output layout
+-------------
+By design the script NEVER touches the live bundles in
+IDE/src/main/resources/i18n/. It writes one staging file per locale into
+translation/ at the repo root:
+
+    translation/
+      IDE_ar.properties
+      IDE_de.properties
+      IDE_zh_CN.properties
+      ...
+
+Each staging file holds ONLY the keys that were missing in the live bundle
+(or all keys if --overwrite is set), with a header banner describing the
+source, engine, and review process. The live bundle is the source of truth
+for "what's already shipped"; the staging file is the "diff to merge after
+native-speaker review".
+
+Once a native speaker validates a locale (typically via a GitHub issue
+tagged 'i18n-Languages'), the maintainer merges the staging file into
+the matching live bundle by hand and deletes the staging file.
+
 Usage
 -----
-    python scripts/translate-bundles.py                 # all locales
+    python scripts/translate-bundles.py                  # all locales
     python scripts/translate-bundles.py --only de,zh_CN  # subset
     python scripts/translate-bundles.py --dry-run        # preview, no write
-    python scripts/translate-bundles.py --overwrite      # force re-translate
+    python scripts/translate-bundles.py --overwrite      # also re-translate
+                                                         # keys present in
+                                                         # the live bundle
 """
 
 from __future__ import annotations
@@ -359,7 +383,18 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--bundle-dir",
                         default="IDE/src/main/resources/i18n",
-                        help="Directory containing IDE_*.properties bundles "
+                        help="Directory containing the live IDE_*.properties "
+                             "bundles, used as reference for which keys are "
+                             "missing per locale (default: %(default)s)")
+    parser.add_argument("--output-dir",
+                        default="translation",
+                        help="Directory where the auto-translated *complement* "
+                             "files go. We never write into the live bundle "
+                             "dir — output is a review-ready staging area, one "
+                             "IDE_<locale>.properties per locale, containing "
+                             "only the keys that were missing in the live "
+                             "bundle. After native-speaker review, the file "
+                             "is moved/merged into bundle-dir manually. "
                              "(default: %(default)s)")
     parser.add_argument("--only",
                         default=None,
@@ -371,9 +406,10 @@ def main() -> int:
                              "hand-translated and considered authoritative)")
     parser.add_argument("--overwrite",
                         action="store_true",
-                        help="Overwrite existing values in target bundles "
-                             "(default: only fill missing keys, preserve "
-                             "RaiMan-era hand translations)")
+                        help="Re-translate keys that already exist in the live "
+                             "bundle (default: only translate keys missing "
+                             "from the live bundle, preserve RaiMan-era hand "
+                             "translations untouched)")
     parser.add_argument("--dry-run",
                         action="store_true",
                         help="Don't write files, just translate and report")
@@ -388,6 +424,8 @@ def main() -> int:
         print(f"ERROR: bundle dir not found: {bundle_dir}", file=sys.stderr)
         return 2
 
+    output_dir = Path(args.output_dir)
+
     source_path = bundle_dir / f"IDE_{SOURCE_LOCALE}.properties"
     if not source_path.exists():
         print(f"ERROR: source bundle not found: {source_path}", file=sys.stderr)
@@ -396,6 +434,7 @@ def main() -> int:
     source_entries = parse_properties(source_path)
     source_idx = index(source_entries)
     print(f"Source: {source_path} — {len(source_idx)} keys")
+    print(f"Output: {output_dir}/ (review-ready complement files)")
 
     client = GoogleTranslate(throttle_ms=args.throttle_ms)
 
@@ -410,21 +449,21 @@ def main() -> int:
                   f"{','.join(sorted(LOCALE_MAP))}", file=sys.stderr)
             return 2
 
-    total_added = 0
+    total_translated = 0
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     for locale_suffix, lang_code in sorted(targets.items()):
-        target_path = bundle_dir / f"IDE_{locale_suffix}.properties"
-        target_entries = parse_properties(target_path)
-        target_idx = index(target_entries)
-        existing_keys = set(target_idx.keys())
+        live_target_path = bundle_dir / f"IDE_{locale_suffix}.properties"
+        live_target_idx = index(parse_properties(live_target_path))
+        existing_keys = set(live_target_idx.keys())
 
         missing_keys = [k for k in source_idx if k not in existing_keys]
         keys_to_overwrite = (list(existing_keys & set(source_idx))
                              if args.overwrite else [])
         all_keys = missing_keys + keys_to_overwrite
 
-        action = "fill" if not args.overwrite else "overwrite"
         print(f"\n[{locale_suffix:>6} → {lang_code}] {len(missing_keys)} missing"
-              + (f", {len(keys_to_overwrite)} to {action}"
+              + (f", {len(keys_to_overwrite)} to overwrite"
                  if keys_to_overwrite else ""))
 
         if not all_keys:
@@ -446,28 +485,49 @@ def main() -> int:
                 print(f"    DRY-RUN  {k} = {v[:80]}")
             continue
 
-        # Overwrite existing keys in place
-        for entry in target_entries:
-            if entry.key in new_translations and entry.key in existing_keys:
-                entry.value = new_translations[entry.key]
-                entry.raw = ""
+        # Build the complement file: header banner + auto-translated keys.
+        # No existing-key merge — this is a *staging* file the maintainer
+        # reviews and merges into the live bundle by hand once a native
+        # speaker has signed off.
+        out_path = output_dir / f"IDE_{locale_suffix}.properties"
+        complement_entries: list[Entry] = [
+            Entry(raw="#", key=None, value=None),
+            Entry(raw=f"# Auto-translated complement for IDE_{locale_suffix}.properties",
+                  key=None, value=None),
+            Entry(raw=f"# Source: IDE_en_US.properties — {len(all_keys)} keys",
+                  key=None, value=None),
+            Entry(raw=f"# Engine: Google Translate (en → {lang_code})",
+                  key=None, value=None),
+            Entry(raw=f"# Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+                  key=None, value=None),
+            Entry(raw="#", key=None, value=None),
+            Entry(raw="# This file is NOT loaded by the IDE — it is a staging",
+                  key=None, value=None),
+            Entry(raw="# area. After native-speaker review (see GitHub issue",
+                  key=None, value=None),
+            Entry(raw="# tagged i18n-Languages), merge the keys into the live",
+                  key=None, value=None),
+            Entry(raw=f"# bundle at {bundle_dir}/IDE_{locale_suffix}.properties",
+                  key=None, value=None),
+            Entry(raw="#", key=None, value=None),
+            Entry(raw="# Corrections / refinements welcome via",
+                  key=None, value=None),
+            Entry(raw="# github.com/oculix-org/Oculix/issues",
+                  key=None, value=None),
+            Entry(raw="#", key=None, value=None),
+            Entry(raw="", key=None, value=None),
+        ]
+        for k in all_keys:
+            complement_entries.append(
+                Entry(raw="", key=k, value=new_translations[k]))
 
-        # Append missing keys at the end, marked as auto-translated
-        if missing_keys:
-            target_entries.append(Entry(raw="", key=None, value=None))
-            target_entries.append(Entry(
-                raw=f"# Auto-translated by Google Translate ({lang_code}) — "
-                    f"corrections welcome via github.com/oculix-org/Oculix/issues",
-                key=None, value=None))
-            for k in missing_keys:
-                target_entries.append(Entry(
-                    raw="", key=k, value=new_translations[k]))
+        write_properties(out_path, complement_entries)
+        total_translated += len(all_keys)
+        print(f"  wrote {out_path} ({len(all_keys)} keys)")
 
-        write_properties(target_path, target_entries)
-        total_added += len(missing_keys)
-        print(f"  wrote {target_path}")
-
-    print(f"\nDone — {total_added} keys added across {len(targets)} locales")
+    print(f"\nDone — {total_translated} keys translated "
+          f"across {len(targets)} locales")
+    print(f"Review staging files in: {output_dir}/")
     return 0
 
 
