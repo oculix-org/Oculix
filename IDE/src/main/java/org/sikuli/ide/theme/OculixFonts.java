@@ -86,21 +86,70 @@ public final class OculixFonts {
 
   /** Display / hero title (Welcome tab), Fraunces italic. */
   public static Font display(int size) {
-    return new Font(FAMILY_FRAUNCES, Font.ITALIC | Font.BOLD, size);
+    return brandOrFallback(FAMILY_FRAUNCES, Font.ITALIC | Font.BOLD, size);
   }
 
   /** UI body (default IDE font). */
   public static Font ui(int size) {
-    return new Font(FAMILY_INTER, Font.PLAIN, size);
+    return brandOrFallback(FAMILY_INTER, Font.PLAIN, size);
   }
 
   /** UI body, semibold weight (Swing maps to BOLD). */
   public static Font uiBold(int size) {
-    return new Font(FAMILY_INTER, Font.BOLD, size);
+    return brandOrFallback(FAMILY_INTER, Font.BOLD, size);
   }
 
   /** Monospace (code editor, console, kickers). */
   public static Font mono(int size) {
+    // Mono fallback uses Java's logical "Monospaced" family which auto-
+    // composites with system mono fonts that have CJK/Arabic/etc.
+    if (currentLocaleNeedsFallback()) {
+      return new Font(Font.MONOSPACED, Font.PLAIN, size);
+    }
     return new Font(FAMILY_MONO, Font.PLAIN, size);
+  }
+
+  // ── Locale-aware font fallback ─────────────────────────────────────
+  //
+  // The bundled brand fonts (Inter, JetBrains Mono, Fraunces) are
+  // Latin-only. Asking them to render Japanese / Chinese / Arabic /
+  // Hebrew / Tamil / Devanagari / Cyrillic produces empty boxes
+  // because Java's font system does NOT auto-composite physical fonts
+  // with system fallbacks the way logical fonts (Dialog, SansSerif,
+  // Monospaced) do.
+  //
+  // Solution: when the active locale belongs to a non-Latin script,
+  // return Java's logical "Dialog" family instead. The JVM auto-resolves
+  // it through the OS font registry (Segoe UI on Windows, .AppleSystemUI
+  // on macOS, DejaVu/Noto on Linux) which all carry full Unicode
+  // coverage. The user gets readable glyphs at the cost of losing the
+  // brand typography for that locale — an acceptable trade since
+  // unreadable boxes are the worst possible outcome.
+
+  /** Languages whose UI text uses a script not covered by Inter / JBM. */
+  private static final java.util.Set<String> NON_LATIN_LANGS = java.util.Set.of(
+      "ar", "he",                       // Arabic, Hebrew (RTL)
+      "ja", "ko", "zh",                 // East Asian
+      "hi", "bn", "te", "ta", "mr", "gu", // Indian subcontinent
+      "ru", "uk", "bg", "sr"            // Cyrillic
+  );
+
+  /** True when the active user locale needs the Unicode fallback chain. */
+  static boolean currentLocaleNeedsFallback() {
+    try {
+      java.util.Locale loc = org.sikuli.basics.PreferencesUser.get().getLocale();
+      return loc != null && NON_LATIN_LANGS.contains(loc.getLanguage());
+    } catch (Throwable t) {
+      // PreferencesUser may not be initialised yet during very early
+      // splash painting; fail safe to brand fonts.
+      return false;
+    }
+  }
+
+  private static Font brandOrFallback(String brandFamily, int style, int size) {
+    if (currentLocaleNeedsFallback()) {
+      return new Font(Font.DIALOG, style, size);
+    }
+    return new Font(brandFamily, style, size);
   }
 }
