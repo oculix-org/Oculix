@@ -4,6 +4,7 @@
 package org.sikuli.ide.ui;
 
 import net.miginfocom.swing.MigLayout;
+import org.sikuli.basics.PreferencesUser;
 import org.sikuli.ide.theme.OculixColors;
 import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.support.Commons;
@@ -147,6 +148,7 @@ public class WelcomeTab extends JPanel {
     footer.add(footerText(_I("welcomeFooterFork")));
     footer.add(footerLink(_I("welcomeFooterDocs"), "https://github.com/oculix-org/Oculix/wiki"));
     footer.add(footerLink(_I("welcomeFooterReleaseNotes"), "https://github.com/oculix-org/Oculix/releases"));
+    footer.add(footerLink(_I("welcomeFooterReportTranslation"), buildReportTranslationUrl()));
     footer.add(footerLink("github.com/oculix-org", "https://github.com/oculix-org/Oculix"));
     column.add(footer, "growx");
 
@@ -186,6 +188,51 @@ public class WelcomeTab extends JPanel {
     Map<TextAttribute, Object> attrs = new HashMap<>();
     attrs.put(TextAttribute.TRACKING, tracking);
     return base.deriveFont(attrs);
+  }
+
+  /**
+   * Build a pre-filled GitHub "new issue" URL for the i18n review tracker.
+   * The user's current locale tag (e.g. {@code de}, {@code zh_CN}) is
+   * embedded in the title so maintainers can filter by language without
+   * opening every issue.
+   *
+   * <p>Title + body are kept in English on purpose, even though the
+   * footer link label is translated: the maintainer triages all i18n
+   * issues from a single language (English), so a German reporter
+   * filing in German would slow the loop. The body is a guided template
+   * the reporter fills in (key + current value + suggested value +
+   * context).
+   */
+  private static String buildReportTranslationUrl() {
+    java.util.Locale locale;
+    try {
+      locale = PreferencesUser.get().getLocale();
+    } catch (Exception ex) {
+      locale = java.util.Locale.ENGLISH;
+    }
+    String localeTag = locale.getLanguage();
+    if (locale.getCountry() != null && !locale.getCountry().isEmpty()) {
+      localeTag = localeTag + "_" + locale.getCountry();
+    }
+    String title = "[i18n] Translation issue in " + localeTag;
+    String body =
+        "**Locale:** `" + localeTag + "`\n" +
+        "**OculiX version:** `" + Commons.getSXVersionShort() + "`\n\n" +
+        "**Affected key(s):**\n" +
+        "```\n<paste the key, e.g. welcomeBtnNewScript>\n```\n\n" +
+        "**Current value:**\n" +
+        "```\n<paste what OculiX currently shows>\n```\n\n" +
+        "**Suggested value:**\n" +
+        "```\n<your improved translation>\n```\n\n" +
+        "**Context (optional):**\n" +
+        "_e.g. label in the sidebar, button on the Welcome tab, error popup, ..._\n\n" +
+        "Thanks for helping make OculiX better in your language! 🦎";
+    String base = "https://github.com/oculix-org/Oculix/issues/new";
+    java.nio.charset.Charset utf8 = java.nio.charset.StandardCharsets.UTF_8;
+    return base
+        + "?labels=" + java.net.URLEncoder.encode("i18n-Languages", utf8)
+        + "&title="  + java.net.URLEncoder.encode(title, utf8)
+        + "&body="   + java.net.URLEncoder.encode(body, utf8);
   }
 
   // ── Background haze paint ────────────────────────────────────────
