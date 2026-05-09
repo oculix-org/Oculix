@@ -5,6 +5,8 @@ package org.sikuli.ide.ui.recorder;
 
 import net.miginfocom.swing.MigLayout;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -40,7 +42,7 @@ public class RecorderWheelDialog extends JDialog {
   private String result = null;
 
   public RecorderWheelDialog(Dialog parent, BufferedImage capture, String imagePath) {
-    super(parent, "Wheel Configuration", true);
+    super(parent, _I("recorderWheelDlgTitle"), true);
     this.capture = capture;
     this.imageName = new File(imagePath).getName();
     setResizable(false);
@@ -55,7 +57,7 @@ public class RecorderWheelDialog extends JDialog {
     content.setBackground(UIManager.getColor("Panel.background"));
 
     // Image preview with crosshair
-    JLabel lblImg = new JLabel("Captured region (click to set offset from center)");
+    JLabel lblImg = new JLabel(_I("recorderWheelLblRegion"));
     lblImg.setFont(UIManager.getFont("small.font"));
     lblImg.setForeground(UIManager.getColor("Label.disabledForeground"));
     content.add(lblImg);

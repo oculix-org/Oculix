@@ -9,6 +9,8 @@ import org.sikuli.support.recorder.generators.JavaCodeGenerator;
 import org.sikuli.support.recorder.generators.JythonCodeGenerator;
 import org.sikuli.support.recorder.generators.RobotFrameworkCodeGenerator;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 import javax.swing.*;
 import java.awt.*;
 
@@ -31,7 +33,7 @@ public class RecorderConfigDialog extends JDialog {
   };
 
   public RecorderConfigDialog(Frame parent) {
-    super(parent, "Recorder Configuration", true);
+    super(parent, _I("recorderConfigDlgTitle"), true);
     setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     setSize(380, 180);
     setLocationRelativeTo(parent);
@@ -44,7 +46,7 @@ public class RecorderConfigDialog extends JDialog {
         "wrap 2, insets 16, gap 8", "[right][grow, fill]", ""));
     content.setBackground(UIManager.getColor("Panel.background"));
 
-    content.add(new JLabel("Language:"));
+    content.add(new JLabel(_I("recorderConfigLblLanguage")));
     languageCombo = new JComboBox<>(LANGUAGES);
     languageCombo.setSelectedIndex(0);
     content.add(languageCombo);
@@ -54,13 +56,13 @@ public class RecorderConfigDialog extends JDialog {
     JPanel buttons = new JPanel(new MigLayout("insets 0, gap 8", "[grow][grow]"));
     buttons.setOpaque(false);
 
-    JButton btnStart = new JButton("Start Recording");
+    JButton btnStart = new JButton(_I("recorderConfigBtnStart"));
     btnStart.addActionListener(e -> {
       confirmed = true;
       dispose();
     });
 
-    JButton btnCancel = new JButton("Cancel");
+    JButton btnCancel = new JButton(_I("recorderConfigBtnCancel"));
     btnCancel.addActionListener(e -> dispose());
 
     buttons.add(btnStart, "grow");

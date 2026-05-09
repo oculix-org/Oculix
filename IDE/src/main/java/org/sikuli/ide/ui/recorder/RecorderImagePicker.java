@@ -9,6 +9,8 @@ import org.sikuli.script.ScreenImage;
 import javax.swing.*;
 import java.io.File;
 import java.util.List;
+
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 /**
  * @author Julien Mer (julienmerconsulting)
  * @author Claude (Anthropic)
@@ -29,14 +31,14 @@ class RecorderImagePicker {
 
   String pickImage(String purpose) {
     java.util.List<String> options = new java.util.ArrayList<>();
-    options.add("Capture screen");
-    options.add("Browse file...");
+    options.add(_I("recorderImageSrcCapture"));
+    options.add(_I("recorderImageSrcBrowse"));
     if (!capturedImages.isEmpty()) {
-      options.add("Use existing image");
+      options.add(_I("recorderImageSrcExisting"));
     }
 
     int choice = JOptionPane.showOptionDialog(parent,
-        "Choose image source for: " + purpose,
+        _I("recorderImageSrcDlgTitle", purpose),
         purpose,
         JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
         null, options.toArray(), options.get(0));
@@ -44,7 +46,7 @@ class RecorderImagePicker {
     if (choice < 0) return null;
     String selected = (String) options.get(choice);
 
-    if ("Capture screen".equals(selected)) {
+    if (_I("recorderImageSrcCapture").equals(selected)) {
       parent.setAlwaysOnTop(false);
       try {
         return captureImage(purpose);
@@ -52,10 +54,10 @@ class RecorderImagePicker {
         parent.setAlwaysOnTop(true);
       }
     }
-    if ("Browse file...".equals(selected)) {
+    if (_I("recorderImageSrcBrowse").equals(selected)) {
       return browseImage();
     }
-    if ("Use existing image".equals(selected)) {
+    if (_I("recorderImageSrcExisting").equals(selected)) {
       return pickFromLibrary();
     }
     return null;
@@ -75,7 +77,7 @@ class RecorderImagePicker {
 
     try {
       String defaultName = purpose.replaceAll("\\s+", "_").toLowerCase() + "_" + System.currentTimeMillis();
-      String imageName = JOptionPane.showInputDialog(parent, "Name this image:", defaultName);
+      String imageName = JOptionPane.showInputDialog(parent, _I("recorderImageNamePrompt"), defaultName);
       if (imageName == null || imageName.trim().isEmpty()) imageName = defaultName;
       imageName = imageName.trim().replaceAll("[^a-zA-Z0-9_\\-]", "_");
       if (!imageName.endsWith(".png")) imageName += ".png";
@@ -91,9 +93,9 @@ class RecorderImagePicker {
 
   String browseImage() {
     JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Select image file");
+    chooser.setDialogTitle(_I("recorderImageFileChooserTitle"));
     chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-        "Image files (*.png, *.jpg, *.jpeg, *.gif)", "png", "jpg", "jpeg", "gif"));
+        _I("recorderImageFileFilterDesc"), "png", "jpg", "jpeg", "gif"));
     // Default directory mirrors SikulixFileChooser.getLastDir — stored pref,
     // then JAR working dir, then user.home. Without this, JFileChooser falls
     // back to the OS profile root, which feels random to users mid-Recorder
@@ -124,7 +126,7 @@ class RecorderImagePicker {
         .map(p -> new File(p).getName())
         .toArray(String[]::new);
     String chosen = (String) JOptionPane.showInputDialog(parent,
-        "Choose image:", "Image Library",
+        _I("recorderImageSrcDlgPrompt"), _I("recorderImageSrcDlgLibrary"),
         JOptionPane.PLAIN_MESSAGE, null, names, names[names.length - 1]);
     if (chosen == null) return null;
     return capturedImages.stream()

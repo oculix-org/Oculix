@@ -10,6 +10,8 @@ import org.sikuli.support.RemotePreflightCheck;
 
 import javax.swing.*;
 import java.util.List;
+
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 /**
  * @author Julien Mer (julienmerconsulting)
  * @author Claude (Anthropic)
@@ -50,9 +52,8 @@ class RecorderAppScope {
   boolean warnIfNoApp(JDialog parent) {
     if (!firstActionDone && currentApp == null) {
       int answer = JOptionPane.showConfirmDialog(parent,
-          "No application launched. Launch your app first?\n\n"
-          + "Recording without Launch App will act on the full screen.",
-          "Launch App first?",
+          _I("recorderAppScopeLaunchFirstBody"),
+          _I("recorderAppScopeLaunchFirstTitle"),
           JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
       if (answer == JOptionPane.YES_OPTION) {
         handleLaunchApp(parent);
@@ -67,7 +68,7 @@ class RecorderAppScope {
     String[] modes = {"Local application", "Remote (VNC via SSH)"};
     int mode = JOptionPane.showOptionDialog(parent,
         "Choose launch mode:",
-        "Launch App",
+        _I("recorderAppScopeRemoteDlgTitle"),
         JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
         null, modes, modes[0]);
 
@@ -109,13 +110,13 @@ class RecorderAppScope {
     JPasswordField tfPass = new JPasswordField(20);
     JTextField tfPort = new JTextField("5900", 8);
 
-    panel.add(new JLabel("Host / IP:"));
+    panel.add(new JLabel(_I("recorderAppScopePromptHost")));
     panel.add(tfHost);
-    panel.add(new JLabel("SSH User:"));
+    panel.add(new JLabel(_I("recorderAppScopePromptUser")));
     panel.add(tfUser);
-    panel.add(new JLabel("SSH Password:"));
+    panel.add(new JLabel(_I("recorderAppScopePromptPassword")));
     panel.add(tfPass);
-    panel.add(new JLabel("VNC Port:"));
+    panel.add(new JLabel(_I("recorderAppScopePromptVncPort")));
     panel.add(tfPort);
 
     int result = JOptionPane.showConfirmDialog(parent, panel,
@@ -140,7 +141,7 @@ class RecorderAppScope {
     waitDialog.setSize(280, 80);
     waitDialog.setLocationRelativeTo(parent);
     waitDialog.setLayout(new java.awt.BorderLayout());
-    JLabel waitLabel = new JLabel("  \u23F3 Starting WSL environment...", SwingConstants.CENTER);
+    JLabel waitLabel = new JLabel("  \u23F3 " + _I("recorderAppScopeStartingWsl"), SwingConstants.CENTER);
     waitLabel.setForeground(javax.swing.UIManager.getColor("Label.foreground"));
     waitLabel.setFont(javax.swing.UIManager.getFont("defaultFont"));
     waitDialog.add(waitLabel, java.awt.BorderLayout.CENTER);
