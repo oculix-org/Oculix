@@ -769,5 +769,9 @@ def _setSCREEN(scr, theGlobals):
     theGlobals['SCREEN'] = SCREEN
 
 ############### set SCREEN as primary screen at startup ################
-ALL = JScreen.all().getRegion()
+# ScreenUnion + Screen.all() were removed by PR #235 (Track4 cleanup).
+# Falling back to the primary screen as a Region until the multi-monitor
+# preview redesign lands (#209 follow-up). Without this fix, every script
+# crashed at "from sikuli import *" with AttributeError on Screen.all.
+ALL = JScreen.getPrimaryScreen()
 Debug.log(3, "Jython: ending init")

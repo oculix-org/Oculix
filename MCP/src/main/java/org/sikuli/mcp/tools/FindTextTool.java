@@ -16,6 +16,9 @@ import java.io.File;
  *
  * <p>Complements {@link ReadTextInRegionTool} which extracts text;
  * this tool searches for a specific text and returns where it is.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class FindTextTool implements Tool {
 

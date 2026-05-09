@@ -11,6 +11,9 @@ import org.json.JSONObject;
  * <p>This is the expected behavior while no human-in-the-loop workflow
  * is configured. The audit trail remains the sole after-the-fact check
  * on agent behavior.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class AutoApproveGate implements ActionGate {
 

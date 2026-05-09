@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculix</artifactId>
+    <version>3.0.3-rc5</version>
+  </parent>
+
+  <artifactId>oculix-build-extensions</artifactId>
+  <packaging>jar</packaging>
+  <name>OculiX Build Extensions</name>
+  <description>
+    Maven core extensions loaded via .mvn/extensions.xml — currently a single
+    EventSpy (OculixBuildBanner) that prints the OculiX gecko + wordmark on
+    every mvn invocation. Pure cosmetic: zero impact on build output past
+    the banner. Picked up automatically by Maven on the second invocation
+    after a fresh clone (first run installs the artifact, subsequent runs
+    load the extension).
+  </description>
+
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!--
+      maven-core scope=provided — Maven itself supplies these classes at
+      runtime when our extension is loaded via .mvn/extensions.xml. Keeps
+      the produced jar small and avoids classloader conflicts.
+    -->
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>3.9.9</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>javax.inject</groupId>
+      <artifactId>javax.inject</artifactId>
+      <version>1</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+</project>

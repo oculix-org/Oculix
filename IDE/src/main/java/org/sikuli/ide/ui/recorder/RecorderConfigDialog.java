@@ -15,6 +15,9 @@ import java.awt.*;
 /**
  * Configuration dialog shown before the recorder opens.
  * Lets the user choose the target language and default settings.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderConfigDialog extends JDialog {
 

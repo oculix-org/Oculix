@@ -17,6 +17,9 @@ import java.nio.charset.StandardCharsets;
  * <p>Kept as a thin façade over {@link McpDispatcher} for backward compatibility
  * with the {@code run} subcommand and existing tests. For the HTTP transport
  * see {@code org.sikuli.mcp.transport.HttpTransport}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class McpServer {
 

@@ -16,6 +16,9 @@ import java.util.List;
  *
  * <p>Uses PaddleOCR if available (external Python microservice),
  * otherwise falls back to the bundled Tesseract engine.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ReadTextInRegionTool implements Tool {
 

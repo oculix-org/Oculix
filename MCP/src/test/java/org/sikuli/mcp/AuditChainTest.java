@@ -13,6 +13,11 @@ import org.sikuli.mcp.crypto.KeyManager;
 import java.nio.file.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 class AuditChainTest {
 

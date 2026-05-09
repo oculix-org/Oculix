@@ -149,19 +149,51 @@ jobs:
         echo "=== Release assets ==="
         ls -lh
 
+    - name: Extract release notes from CHANGELOG.md
+      id: notes
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        NOTES_FILE="release-notes-${VERSION}.md"
+        FALLBACK="Pre-release build. Do not use in production. See CHANGELOG / commits for the included fixes."
+
+        if [ -f CHANGELOG.md ]; then
+          awk -v ver="$VERSION" -v vver="v$VERSION" '
+            /^## / {
+              if (found) exit
+              if (index($0, "[" vver "]") > 0 || index($0, "[" ver "]") > 0) {
+                found = 1
+                next
+              }
+            }
+            found { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+        fi
+
+        if [ ! -s "$NOTES_FILE" ]; then
+          echo "::warning::No section for $VERSION found in CHANGELOG.md, using fallback notes"
+          echo "$FALLBACK" > "$NOTES_FILE"
+        fi
+
+        echo "NOTES_FILE=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+        echo "=== Release notes preview (first 40 lines) ==="
+        head -40 "$NOTES_FILE"
+
     - name: Create pre-release if it does not exist
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         VERSION="${{ steps.version.outputs.VERSION }}"
         TAG="v${VERSION}"
+        NOTES_FILE="${{ steps.notes.outputs.NOTES_FILE }}"
         if ! gh release view "$TAG" > /dev/null 2>&1; then
           gh release create "$TAG" \
             --title "OculiX ${VERSION} (release candidate)" \
-            --notes "Pre-release build. Do not use in production. See CHANGELOG / commits for the included fixes." \
-            --target master \
+            --notes-file "$NOTES_FILE" \
+            --target "$GITHUB_REF_NAME" \
             --prerelease \
             --latest=false
+        else
+          gh release edit "$TAG" --notes-file "$NOTES_FILE"
         fi
 
     - name: Upload assets to release

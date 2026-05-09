@@ -25,6 +25,9 @@ import java.util.Set;
  * <p>Ed25519 is natively available in the JDK since Java 15 via
  * {@code KeyPairGenerator.getInstance("Ed25519")}, so no external crypto
  * library is required.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class KeyManager {
 

@@ -26,6 +26,9 @@ import java.util.Set;
  * receives file contents — only a hash, a path, and minimal metadata —
  * but anyone with shell access to the machine obviously can read the files,
  * so the vault is not a secret store, it's a local-only landing zone.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class VaultDir {
 

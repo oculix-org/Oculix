@@ -10,7 +10,7 @@
 
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculixapi</artifactId>
-  <version>3.0.3-rc1</version>
+  <version>3.0.3-rc5</version>
 
   <packaging>jar</packaging>
 
@@ -49,7 +49,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <sikuli.jartype>plain.xml</sikuli.jartype>
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
-    <sikulixjrubyversion>10.1.0.0</sikulixjrubyversion>
+    <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
     <versiontess4j>5.18.0</versiontess4j>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd_HH:mm</maven.build.timestamp.format>
@@ -77,7 +77,7 @@
     <dependency>
       <groupId>io.github.oculix-org</groupId>
       <artifactId>tigervnc-java-oculix</artifactId>
-      <version>2.0.0</version>
+      <version>2.0.1</version>
       <!--License GPLv2-->
       <!-- TigerVNC Java viewer as a separate GPL artifact.
            Provides com.tigervnc.* (RFB protocol) and com.sikulix.vnc.*
@@ -88,11 +88,12 @@
     <dependency>
       <groupId>io.github.julienmerconsulting.apertix</groupId>
       <artifactId>opencv</artifactId>
-      <version>4.10.0-2</version>
+      <version>4.10.0-3</version>
       <!-- https://github.com/julienmerconsulting/Apertix
-           4.10.0-2 builds OpenCV with WITH_OBSENSOR=OFF, removing the broken
-           libOrbbecSDK.1.9.dylib dependency that caused UnsatisfiedLinkError
-           on macOS (both Intel and Apple Silicon). -->
+           4.10.0-3 ships dual Linux native builds: modern (glibc >= 2.38) at
+           linux-{x86-64,aarch64}/ and legacy (manylinux_2_28, glibc >= 2.28)
+           at linux-{x86-64,aarch64}-legacy/. Selection is done at runtime
+           in Commons.loadOpenCV() based on detected glibc version. -->
     </dependency>
     <dependency>
       <groupId>commons-cli</groupId>
@@ -134,21 +135,13 @@
       <artifactId>jnativehook</artifactId>
       <version>2.2.2</version>
     </dependency>
-    <dependency>
-      <groupId>org.rococoa</groupId>
-      <artifactId>rococoa-core</artifactId>
-      <version>0.5</version>
-      <exclusions>
-        <exclusion>
-          <groupId>asm</groupId>
-          <artifactId>asm</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>cglib</groupId>
-          <artifactId>cglib</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
+    <!--
+      Rococoa (org.rococoa:rococoa-core:0.5) was removed here — its native
+      librococoa.dylib shipped only ppc_7400 / ppc64 / i386 / x86_64 slices
+      (last built circa 2010, upstream dormant) and crashed on Apple Silicon.
+      Direct libobjc calls via JNA now fill the same role; see
+      org.sikuli.natives.mac.jna.ObjC.
+    -->
     <!-- cglib-nodep repackage ASM sous net.sf.cglib.asm au lieu de org.objectweb.asm -->
     <!-- evite le conflit ASM 3.x vs 7.x qui casse Jython sur macOS -->
     <dependency>
@@ -166,6 +159,18 @@
       <artifactId>junit-jupiter</artifactId>
       <version>6.0.3</version>
       <scope>test</scope>
+    </dependency>
+    <!-- Legerix declared LAST so Maven Assembly unpacks it last in the fat-jar,
+         letting its /tessdata/{eng,fra,spa,chi_sim,hin}.traineddata and
+         /<platform>/* native libs (libtesseract + libleptonica + all their
+         vcpkg-bundled runtime deps) win over Tess4J's bundled tessdata
+         (which only ships eng + osd). Combined with the dedicated final
+         dependencySet in makeapi-*.xml / makeide-*.xml as a belt-and-
+         suspenders. Do NOT move this dependency back up. -->
+    <dependency>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>legerix</artifactId>
+      <version>5.5.0-4</version>
     </dependency>
   </dependencies>
 

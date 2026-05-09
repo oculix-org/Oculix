@@ -263,9 +263,31 @@ class PatternPaneScreenshot extends JPanel implements ChangeListener, ComponentL
     }
   }
 
+  private int _paintLogCount = 0;
+
   @Override
   public void paintComponent(Graphics g) {
     Graphics2D g2d = (Graphics2D) g;
+    // Capped diag — same intent as PatternPaneTargetOffset.paintComponent.
+    // Captures the paint state on the Preview tab so we see whether the
+    // matching pipeline (Finder + filterMatches) is producing _showMatches
+    // and whether _screen survives the dark→light toggle that breaks the
+    // sister tab.
+    if (_paintLogCount < 10) {
+      _paintLogCount++;
+      String theme;
+      try {
+        theme = org.sikuli.basics.PreferencesUser.get().getIdeTheme();
+      } catch (Throwable t) { theme = "?"; }
+      org.sikuli.basics.Debug.log(2,
+        "PatternPaneScreenshot.paint #%d: theme=%s w=%d h=%d _screen=%s _showMatches=%s _fullMatches=%d _runFind=%s _similarity=%.2f",
+        _paintLogCount, theme,
+        getWidth(), getHeight(),
+        _screen == null ? "null" : (_screen.getWidth() + "x" + _screen.getHeight()),
+        _showMatches == null ? "null" : ("size=" + _showMatches.size()),
+        _fullMatches == null ? -1 : _fullMatches.size(),
+        Boolean.toString(_runFind), _similarity);
+    }
     if (_screen != null) {
       g2d.drawImage(_screen, 0, 0, _width, _height, null);
       if (_showMatches != null) {

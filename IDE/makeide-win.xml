@@ -17,17 +17,47 @@
       <unpack>true</unpack>
       <unpackOptions>
         <excludes>
-          <exclude>**/win32-x86/**</exclude>
-          <exclude>**/tessdata/**</exclude>
-          <exclude>/nu/pattern/opencv/linux/**</exclude>
-          <exclude>/nu/pattern/opencv/osx/**</exclude>
-          <exclude>/nu/pattern/opencv/windows/x86_32/**</exclude>
+          <!-- See API/makeapi-lux.xml for full rationale. -->
+          <exclude>darwin/**</exclude>
+          <exclude>darwin-aarch64/**</exclude>
+          <exclude>linux-x86-64/**</exclude>
+          <exclude>linux-x86-64-legacy/**</exclude>
+          <exclude>linux-aarch64/**</exclude>
+          <exclude>linux-aarch64-legacy/**</exclude>
+          <exclude>linux-arm/**</exclude>
+          <exclude>win32-x86/**</exclude>
         </excludes>
       </unpackOptions>
       <excludes>
         <exclude>org.jruby:jruby-complete</exclude>
         <exclude>org.apache.pdfbox:*</exclude>
+        <exclude>io.github.oculix-org:legerix</exclude>
       </excludes>
+      <scope>runtime</scope>
+    </dependencySet>
+    <!-- Legerix unpacked LAST so its /tessdata/{eng,fra,spa,chi_sim,hin}.traineddata
+         and /win32-x86-64/* natives win over Tess4J's bundled tessdata
+         (which only ships eng + osd and would otherwise overwrite Legerix's
+         multilingual set during unpack). -->
+    <dependencySet>
+      <outputDirectory>/</outputDirectory>
+      <useProjectArtifact>false</useProjectArtifact>
+      <unpack>true</unpack>
+      <unpackOptions>
+        <excludes>
+          <exclude>darwin/**</exclude>
+          <exclude>darwin-aarch64/**</exclude>
+          <exclude>linux-x86-64/**</exclude>
+          <exclude>linux-x86-64-legacy/**</exclude>
+          <exclude>linux-aarch64/**</exclude>
+          <exclude>linux-aarch64-legacy/**</exclude>
+          <exclude>linux-arm/**</exclude>
+          <exclude>win32-x86/**</exclude>
+        </excludes>
+      </unpackOptions>
+      <includes>
+        <include>io.github.oculix-org:legerix</include>
+      </includes>
       <scope>runtime</scope>
     </dependencySet>
   </dependencySets>

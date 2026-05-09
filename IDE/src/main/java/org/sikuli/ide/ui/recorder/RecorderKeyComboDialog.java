@@ -11,6 +11,9 @@ import java.awt.*;
 /**
  * Modal dialog to build a key combination with modifier checkboxes
  * and a key dropdown. Generates a type(Key.X, KeyModifier.Y + ...) expression.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderKeyComboDialog extends JDialog {
 

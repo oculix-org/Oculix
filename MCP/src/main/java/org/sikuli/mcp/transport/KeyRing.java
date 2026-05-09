@@ -43,6 +43,9 @@ import java.util.Set;
  *
  * <p>Thread-safe: all mutations are synchronized. Reads use a defensive
  * copy of the underlying map.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class KeyRing {
 

@@ -23,6 +23,9 @@ import org.sikuli.mcp.tools.ToolRegistry;
  * (e.g. in the HTTP transport where several clients share the same process).
  * Screen-mutating tool calls are serialized through a shared {@link ScreenLock}
  * so that two concurrent clicks cannot interleave.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class McpDispatcher {
 

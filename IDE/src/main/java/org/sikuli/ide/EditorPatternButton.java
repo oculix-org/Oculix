@@ -378,16 +378,43 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
   }
 
   //<editor-fold defaultstate="collapsed" desc="paint button">
-/*
+  /**
+   * Step 2 of RaiMan's #209 roadmap: draw glyph indicators over the
+   * thumbnail when the pattern carries non-default modifiers.
+   *
+   * <ul>
+   *   <li>Top-right green pill with the integer similarity (e.g. "85") if
+   *       {@code _similarity != DEFAULT_SIMILARITY}, with " +" appended
+   *       when {@code _resizeFactor != 1} and " M" when a mask is set</li>
+   *   <li>Red cross overlay positioned according to {@code _offset} when
+   *       {@code targetOffset} is non-zero</li>
+   * </ul>
+   *
+   * Both helpers ({@link #drawSimBadge}, {@link #drawCross},
+   * {@link #drawDecoration}) were already written but their paint() entry
+   * point was commented out. Reviving here as part of the rc5 cycle —
+   * lets the user see at a glance which patterns have a tuned similar
+   * threshold or a click-target offset, without dragging the full
+   * Pattern() chain into the script source.
+   */
   @Override
   public void paint(Graphics g) {
     super.paint(g);
-    Graphics2D g2d = (Graphics2D) g;
-    drawDecoration(g2d);
-    g2d.setColor(new Color(0, 128, 128, 128));
-    g2d.drawRoundRect(3, 3, getWidth() - 7, getHeight() - 7, 5, 5);
+    drawDecoration((Graphics2D) g);
   }
-*/
+
+  /**
+   * Step 3 of RaiMan's #209 roadmap: hover surfaces the FULL code variant
+   * (Pattern("name.png").similar(0.85).targetOffset(...)) instead of the
+   * bare filename used by the parent {@link EditorImageButton}. The
+   * representation is recomputed live from {@link #toString()} on each
+   * tooltip invocation, so it stays accurate as the user edits the pattern
+   * via the SXDialog menu.
+   */
+  @Override
+  public String getToolTipText() {
+    return toString();
+  }
 
   private void drawDecoration(Graphics2D g2d) {
     String strSim = null, strOffset = null;

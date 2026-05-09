@@ -14,6 +14,9 @@ import org.json.JSONObject;
  * <p>Serialisation format is canonical JSON: sorted keys, no whitespace,
  * UTF-8. The canonical form is what gets hashed to produce
  * {@code entry_hash} and what is signed to produce {@code signature}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class AuditEntry {
 

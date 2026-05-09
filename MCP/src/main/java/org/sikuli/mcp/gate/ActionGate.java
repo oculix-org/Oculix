@@ -20,6 +20,9 @@ import org.json.JSONObject;
  *
  * <p>Implementations must be thread-safe — a single server instance can
  * dispatch concurrent tool calls.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public interface ActionGate {
 

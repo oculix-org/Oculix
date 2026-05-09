@@ -12,6 +12,9 @@ import org.sikuli.script.*;
  *
  * <p>Complement of {@link WaitForImageTool} which blocks until the image
  * appears. Returns immediately with {@code found: true/false}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ExistsImageTool implements Tool {
 

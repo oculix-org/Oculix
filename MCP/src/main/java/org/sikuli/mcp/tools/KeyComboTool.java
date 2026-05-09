@@ -22,6 +22,9 @@ import java.util.Locale;
  *     "key": "c"  // or a special: "enter", "esc", "tab", "f5", ...
  *   }
  * </pre>
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class KeyComboTool implements Tool {
 

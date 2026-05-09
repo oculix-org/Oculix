@@ -1,6 +1,6 @@
 #globals; m 20; c; f 20
 
-#image; /icons/oculix-ide.png
+#image; /icons/gecko_cyclope_splash.png
 ---
 OculiX IDE  ---  {sxversion}  ---  starting on Java {javaversion}; bold
 

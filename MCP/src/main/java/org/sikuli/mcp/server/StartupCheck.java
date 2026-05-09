@@ -33,6 +33,9 @@ import java.util.stream.Stream;
  *
  * <p>Every REFUSE path throws a {@link StartupException} with a message
  * that names the exact recovery command the operator should run.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class StartupCheck {
 

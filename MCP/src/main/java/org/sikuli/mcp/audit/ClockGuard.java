@@ -15,6 +15,9 @@ import java.time.format.DateTimeFormatter;
  * <p>On regression, the caller is expected to emit a {@code clock_regression}
  * audit entry before the next real tool call entry. This {@code ClockGuard}
  * flags the event but never throws — the audit trail must keep running.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ClockGuard {
 

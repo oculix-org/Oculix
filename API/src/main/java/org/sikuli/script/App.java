@@ -121,7 +121,7 @@ public class App {
   }
 
   public App(String executable) {
-    this(executable, null);
+    this(executable, (String) null);
   }
 
   /**
@@ -142,9 +142,40 @@ public class App {
     if (StringUtils.isBlank(executable)) {
       return;
     }
-    cmd = new CommandLine(executable);
+    cmd = new CommandLine(stripOuterQuotes(executable));
     if (StringUtils.isNotBlank(arguments)) {
       cmd.addArguments(arguments);
+    }
+    process = osUtil.findProcesses(cmd.getExecutable()).stream().findFirst().orElse(new NullProcess());
+  }
+
+  /**
+   * Creates an App from an executable path and a pre-tokenised argument array.
+   * Each element of {@code arguments} maps to exactly one entry in the child
+   * process {@code argv} — no whitespace splitting, no quote stripping, no
+   * Apache Commons Exec quoting heuristics. This is the canonical way to
+   * launch a process when arguments contain spaces, quotes, or any character
+   * that would otherwise require escape conventions.
+   *
+   * <p>Mirrors the contract of {@link ProcessBuilder#ProcessBuilder(String...)}
+   * and is the recommended overload for programmatic call sites.</p>
+   *
+   * @param executable absolute or resolvable path of the binary; whitespace-safe
+   * @param arguments  one element per {@code argv} entry, or {@code null} for none
+   * @since 3.0.4 — see #230
+   */
+  public App(String executable, String[] arguments) {
+    this();
+    if (StringUtils.isBlank(executable)) {
+      return;
+    }
+    cmd = new CommandLine(stripOuterQuotes(executable));
+    if (arguments != null) {
+      for (String arg : arguments) {
+        if (arg != null) {
+          cmd.addArgument(arg, false);
+        }
+      }
     }
     process = osUtil.findProcesses(cmd.getExecutable()).stream().findFirst().orElse(new NullProcess());
   }
@@ -242,6 +273,29 @@ public class App {
   }
 
   /**
+   * Replaces the current arguments with a pre-tokenised array. Each element
+   * maps to exactly one entry in the child process {@code argv} — no parsing,
+   * no quoting heuristics. Use this overload whenever any argument contains a
+   * space, a quote, or any character that would otherwise need an escape
+   * convention.
+   *
+   * @param arguments one element per {@code argv} entry, or {@code null} for none
+   * @since 3.0.4 — see #230
+   */
+  public App setArguments(String[] arguments) {
+    String exe = cmd.getExecutable();
+    this.cmd = new CommandLine(exe);
+    if (arguments != null) {
+      for (String arg : arguments) {
+        if (arg != null) {
+          this.cmd.addArgument(arg, false);
+        }
+      }
+    }
+    return this;
+  }
+
+  /**
    * Use getArguments() insead
    */
   @Deprecated
@@ -261,8 +315,24 @@ public class App {
     if (StringUtils.isBlank(name)) {
       return;
     }
-    cmd = new CommandLine(name);
+    cmd = new CommandLine(stripOuterQuotes(name));
     process = osUtil.findProcesses(cmd.getExecutable()).stream().findFirst().orElse(new NullProcess());
+  }
+
+  /**
+   * Tolerates callers that still wrap the executable in matched double quotes
+   * — a habit left over from the pre-#191 era, when {@code CommandLine.parse}
+   * was invoked on the executable and quoting was the only way to survive a
+   * path with spaces. Since #191 parsing is gone; the quotes now reach
+   * {@code ProcessBuilder} verbatim and surface as "No such file or directory".
+   * Stripping a single matched pair here preserves the old call sites without
+   * changing the behaviour for properly unquoted inputs.
+   */
+  private static String stripOuterQuotes(String s) {
+    if (s != null && s.length() >= 2 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"') {
+      return s.substring(1, s.length() - 1);
+    }
+    return s;
   }
 
   public String getName() {

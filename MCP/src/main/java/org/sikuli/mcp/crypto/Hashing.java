@@ -9,6 +9,9 @@ import java.security.NoSuchAlgorithmException;
 
 /**
  * SHA-256 helpers used by the audit trail for result hashing and chaining.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class Hashing {
 

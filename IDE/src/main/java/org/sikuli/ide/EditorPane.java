@@ -205,11 +205,24 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   @Override
   public void afterThemeChange() {
-    setBackground(Color.WHITE);
-    setForeground(Color.BLACK);
-    setCaretColor(Color.BLACK);
+    // Resolve colors per active theme. Hardcoding Color.WHITE / Color.BLACK
+    // unconditionally was the source of the dark→light visual cascade
+    // (white background + black text forced on the JTextPane regardless of
+    // the FlatLaf swap that just ran — overrode the theme's own defaults
+    // and rippled through child painting).
+    String theme = PreferencesUser.get().getIdeTheme();
+    boolean dark = !PreferencesUser.THEME_LIGHT.equals(theme);
+    Color bg = dark ? UIManager.getColor("TextPane.background") : Color.WHITE;
+    Color fg = dark ? UIManager.getColor("TextPane.foreground") : Color.BLACK;
+    Color caret = dark ? UIManager.getColor("TextPane.caretForeground") : Color.BLACK;
+    if (bg == null) bg = dark ? new Color(0x0A, 0x10, 0x28) : Color.WHITE;
+    if (fg == null) fg = dark ? new Color(0xE6, 0xEA, 0xF2) : Color.BLACK;
+    if (caret == null) caret = fg;
+    setBackground(bg);
+    setForeground(fg);
+    setCaretColor(caret);
     if (!Settings.isMac()) {
-      setSelectionColor(new Color(170, 200, 255));
+      setSelectionColor(dark ? new Color(0x33, 0x47, 0x7A) : new Color(170, 200, 255));
     }
     if (savedThumbButtons == null || savedThumbButtons.isEmpty()) return;
     if (!(getDocument() instanceof DefaultStyledDocument)) return;
@@ -1142,8 +1155,14 @@ public class EditorPane extends JTextPane implements ThemeAware {
         SikulixIDE ide = SikulixIDE.get();
 
         try {
-          ide.clearMessageArea();
+          // No auto-clear: previous run output (and the boot startup lines)
+          // stays in the console so the full session history is preserved.
+          // A visible run separator is logged below to make run boundaries
+          // obvious. Users who want a fresh console can right-click →
+          // "Clear messages" or trigger ide.clearMessageArea() explicitly.
           ide.resetErrorMark();
+          String stamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
+          System.out.println(String.format("──────── Run started @ %s ────────", stamp));
 
           if (null != context.getSupport()) {
             context.getRunner().runLines(context.getSupport().normalizePartialScript(lines), null);

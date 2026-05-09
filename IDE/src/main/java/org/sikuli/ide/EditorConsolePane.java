@@ -39,17 +39,22 @@ import org.sikuli.basics.PreferencesUser;
 import org.sikuli.support.Commons;
 import org.sikuli.util.CommandArgsEnum;
 
-public class EditorConsolePane extends JPanel implements Runnable {
+public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
   private static final String me = "EditorConsolePane: ";
   //static boolean ENABLE_IO_REDIRECT = true;
 
   private int NUM_PIPES;
   private JTextPane textArea;
+  private JScrollPane scrollPane;
   private Thread[] reader;
   private boolean quit;
   private PipedInputStream[] pin;
   private JPopupMenu popup;
+  // Raw line buffer kept alongside the htmlized scrollback so afterThemeChange
+  // can re-render every existing line under the new palette. Without this the
+  // scrollback would freeze in the colors it had at insertion time.
+  private final java.util.List<String> rawLines = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
   Thread errorThrower; // just for testing (Throws an Exception at this Console)
 
   class PopupListener extends MouseAdapter {
@@ -89,8 +94,12 @@ public class EditorConsolePane extends JPanel implements Runnable {
     textArea.setEditorKit(kit);
     textArea.setTransferHandler(new JTextPaneHTMLTransferHandler());
     textArea.setEditable(false);
+
     setLayout(new BorderLayout());
-    add(new JScrollPane(textArea), BorderLayout.CENTER);
+    scrollPane = new JScrollPane(textArea);
+    scrollPane.setBorder(BorderFactory.createEmptyBorder());
+    add(scrollPane, BorderLayout.CENTER);
+    applyThemeColors();
 
     //Create the popup menu.
     popup = new JPopupMenu();
@@ -106,6 +115,78 @@ public class EditorConsolePane extends JPanel implements Runnable {
     //Add listener to components that can bring up popup menus.
     MouseListener popupListener = new PopupListener(popup);
     textArea.addMouseListener(popupListener);
+  }
+
+  /**
+   * True when the user's IDE theme preference is set to dark.
+   * <p>
+   * Reads {@link org.sikuli.basics.PreferencesUser#getIdeTheme()} — the same
+   * source of truth that {@code Sikulix.main()} uses to decide which LaF to
+   * install at startup. This is deliberately independent of
+   * {@code UIManager.getLookAndFeel()}, which can return a transient state at
+   * the moment {@code EditorConsolePane.init()} runs (e.g. when AWT image
+   * loading via {@code setIconImage()} primes Swing UIDefaults before FlatLaf
+   * is fully resolved). Reading the user preference removes any timing
+   * dependency on the Swing init order.
+   */
+  private static boolean isDarkLaf() {
+    String theme = org.sikuli.basics.PreferencesUser.get().getIdeTheme();
+    return !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(theme);
+  }
+
+  /**
+   * Re-applies the theme-dependent background / caret colors on the textArea,
+   * the panel itself and the scroll pane viewport. Called once from init() and
+   * again from {@link #afterThemeChange()} when the user toggles the IDE
+   * theme so the console surface tracks the new palette without requiring a
+   * restart.
+   *
+   * <p>The {@code htmlize()} call site reads {@link #isDarkLaf()} on every
+   * log message, so future logs already pick up the new palette automatically;
+   * existing log content keeps the colors it was rendered with (intentional —
+   * re-flowing the entire scrollback through htmlize on every toggle would be
+   * expensive and visually noisy).
+   */
+  private void applyThemeColors() {
+    boolean dark = isDarkLaf();
+    Color bg = dark ? new Color(0x05, 0x08, 0x1A) : new Color(0xF8, 0xFA, 0xFD);
+    Color caret = dark ? new Color(0x1E, 0xA5, 0xFF) : new Color(0x0F, 0x8D, 0xDB);
+    if (textArea != null) {
+      textArea.setBackground(bg);
+      textArea.setCaretColor(caret);
+    }
+    setBackground(bg);
+    if (scrollPane != null) {
+      scrollPane.getViewport().setBackground(bg);
+    }
+  }
+
+  @Override
+  public void beforeThemeChange() {
+    // No state to tear down — the swap happens entirely in afterThemeChange().
+  }
+
+  @Override
+  public void afterThemeChange() {
+    applyThemeColors();
+    // Re-render every line of scrollback under the new palette so existing
+    // logs match the new theme (otherwise they keep the colors they had at
+    // insertion time). Cheap in practice — typical scrollback is < a few
+    // hundred lines.
+    if (textArea != null) {
+      synchronized (textArea) {
+        java.util.List<String> snapshot;
+        synchronized (rawLines) {
+          snapshot = new java.util.ArrayList<>(rawLines);
+        }
+        textArea.setText("");
+        for (String line : snapshot) {
+          appendMsg(htmlize(line));
+        }
+      }
+    }
+    revalidate();
+    repaint();
   }
 
   private HTMLEditorKit editorKitWithLineWrap() {
@@ -255,16 +336,30 @@ public class EditorConsolePane extends JPanel implements Runnable {
         .replace("<", "&lt;")
         .replace(">", "&gt;");
 
-    String color = "color: #BBBBBB;";
+    // Picked per-theme so the existing [debug] / [info] / [log] / [error]
+    // tag detection still drives the color, but the actual hex is chosen
+    // for AA contrast against the active console bg (paper-100 in light,
+    // ink-900 in dark).
+    boolean dark = isDarkLaf();
+    // Dark palette unchanged — only light mode hexes were tweaked for AA
+    // contrast on near-white bg (the previous values washed out at common
+    // monitor gamma / brightness on Windows).
+    String normal = dark ? "#BBBBBB" : "#2F3D6E";
+    String error  = dark ? "#FF6B6B" : "#B91C1C";   // light: deeper red, more punchy on white
+    String debug  = dark ? "#C0A000" : "#9A4A06";   // light: dark orange (Jython startup, debug detail)
+    String log    = dark ? "#3DDBA4" : "#1B5E20";   // light: forest / wood green (success actions like CLICK)
+    String info   = dark ? "#6CB6FF" : "#0B5394";   // light: deeper blue (was washed-out medium blue)
+
+    String color = "color: " + normal + ";";
 
     for (String line : msg.split(lineSep)) {
       Matcher m = patMsgCat.matcher(line);
       if (m.matches()) {
         String logType = m.group(1).toLowerCase();
-        if (logType.contains("error")) color = "color: #FF6B6B;";
-        else if (logType.contains("debug")) color = "color: #C0A000;";
-        else if (logType.contains("log")) color = "color: #3DDBA4;";
-        else if (logType.contains("info")) color = "color: #6CB6FF;";
+        if (logType.contains("error")) color = "color: " + error + ";";
+        else if (logType.contains("debug")) color = "color: " + debug + ";";
+        else if (logType.contains("log")) color = "color: " + log + ";";
+        else if (logType.contains("info")) color = "color: " + info + ";";
       }
       String font = "font-family:monospace; font-size: medium;";
       int margin = 0;
@@ -298,6 +393,7 @@ public class EditorConsolePane extends JPanel implements Runnable {
             final String finalInput = input;
             EventQueue.invokeLater(() -> {
               synchronized (textArea) {
+                rawLines.add(finalInput);
                 appendMsg(htmlize(finalInput));
                 int textLen = textArea.getDocument().getLength();
                 if (textLen > 0) {
@@ -337,6 +433,7 @@ public class EditorConsolePane extends JPanel implements Runnable {
 
   public void clear() {
     textArea.setText("");
+    rawLines.clear();
   }
 }
 

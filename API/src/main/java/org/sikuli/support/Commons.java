@@ -151,6 +151,7 @@ public class Commons {
     // static-init chain has been triggered yet. Fixes UnsatisfiedLinkError on
     // first new Mat() from non-Finder call paths (e.g. Pattern.patternMask field init).
     loadOpenCV();
+    loadTesseract();
   }
 
   public static void init() {
@@ -1162,31 +1163,39 @@ public static void loadOpenCV() {
     }
     String libName = Core.NATIVE_LIBRARY_NAME;
 
-    // 1. Apertix / nu.pattern.OpenCV: try loadLocally() (extracts native from
-    //    jar) then loadShared() (relies on system loader). openpnp/opencv
-    //    historically exposes both; Apertix may only expose one — we try
-    //    whichever is present.
-    try {
-      Class<?> opencvClass = Class.forName(libOpenCVclassref);
-      String[] tryMethods = { "loadLocally", "loadShared" };
-      for (String m : tryMethods) {
-        try {
-          opencvClass.getMethod(m).invoke(null);
-          libOpenCVloaded = true;
-          System.err.println("[OculiX] OpenCV loaded via " + libOpenCVclassref + "." + m + "()");
-          return;
-        } catch (NoSuchMethodException nsme) {
-          System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() not found, trying next");
-        } catch (Throwable e) {
-          System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() threw: "
-              + e.getClass().getSimpleName() + ": " + e.getMessage());
-        }
+    // On Linux, we bypass nu.pattern.OpenCV.loadLocally() because Apertix
+    // 4.10.0-3+ ships two native variants (modern + manylinux_2_28-legacy)
+    // and the consumer is expected to pick the right one based on the
+    // runtime glibc version. loadLocally() is only aware of the modern path.
+    if (runningLinux()) {
+      if (loadOpenCVLinuxTiered(libName)) {
+        libOpenCVloaded = true;
+        return;
       }
-    } catch (ClassNotFoundException cnfe) {
-      System.err.println("[OculiX] " + libOpenCVclassref + " not on classpath (Apertix jar missing?)");
-    } catch (Throwable e) {
-      System.err.println("[OculiX] Apertix stage failed: "
-          + e.getClass().getSimpleName() + ": " + e.getMessage());
+    } else {
+      // macOS / Windows: single-tier, hand off to Apertix's loader.
+      try {
+        Class<?> opencvClass = Class.forName(libOpenCVclassref);
+        String[] tryMethods = { "loadLocally", "loadShared" };
+        for (String m : tryMethods) {
+          try {
+            opencvClass.getMethod(m).invoke(null);
+            libOpenCVloaded = true;
+            System.err.println("[OculiX] OpenCV loaded via " + libOpenCVclassref + "." + m + "()");
+            return;
+          } catch (NoSuchMethodException nsme) {
+            System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() not found, trying next");
+          } catch (Throwable e) {
+            System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() threw: "
+                + e.getClass().getSimpleName() + ": " + e.getMessage());
+          }
+        }
+      } catch (ClassNotFoundException cnfe) {
+        System.err.println("[OculiX] " + libOpenCVclassref + " not on classpath (Apertix jar missing?)");
+      } catch (Throwable e) {
+        System.err.println("[OculiX] Apertix stage failed: "
+            + e.getClass().getSimpleName() + ": " + e.getMessage());
+      }
     }
 
     // 2. System.loadLibrary (lib already on java.library.path)
@@ -1199,7 +1208,8 @@ public static void loadOpenCV() {
       System.err.println("[OculiX] System.loadLibrary(" + libName + ") failed: " + e.getMessage());
     }
 
-    // 3. Fallback: extract native lib from jar resource and load manually.
+    // 3. Manual extraction fallback for macOS / Windows (Linux already
+    //    exhausted its tiered attempts in step 1).
     String resource = null;
     String fileName = null;
     String nativeDir = getNativeLibDir();
@@ -1209,47 +1219,282 @@ public static void loadOpenCV() {
     } else if (runningMac()) {
       resource = nativeDir + "/lib" + libName + ".dylib";
       fileName = "lib" + libName + ".dylib";
-    } else if (runningLinux()) {
-      resource = nativeDir + "/lib" + libName + ".so";
-      fileName = "lib" + libName + ".so";
     }
-    if (resource != null) {
-      try {
-        java.io.InputStream is = Commons.class.getClassLoader().getResourceAsStream(resource);
-        if (is == null) {
-          // Some classloaders want a leading slash when going through Class, not ClassLoader.
-          is = Commons.class.getResourceAsStream("/" + resource);
-        }
-        if (is == null) {
-          System.err.println("[OculiX] jar resource not found on classpath: " + resource);
-        } else {
-          File tempDir = getTempFolder();
-          if (tempDir == null) {
-            tempDir = new File(System.getProperty("java.io.tmpdir"));
-          }
-          File tempLib = new File(tempDir, fileName);
-          try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempLib)) {
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = is.read(buf)) > 0) {
-              fos.write(buf, 0, len);
-            }
-          } finally {
-            is.close();
-          }
-          System.load(tempLib.getAbsolutePath());
-          libOpenCVloaded = true;
-          System.err.println("[OculiX] OpenCV loaded from jar resource: " + tempLib);
-          return;
-        }
-      } catch (Throwable e) {
-        System.err.println("[OculiX] jar extraction of " + resource + " failed: "
-            + e.getClass().getSimpleName() + ": " + e.getMessage());
-      }
+    if (resource != null && extractAndLoad(resource, fileName)) {
+      libOpenCVloaded = true;
+      return;
     }
 
     System.err.println("[OculiX] FATAL: OpenCV native library '" + libName + "' could NOT be loaded. "
         + "Next new Mat() call will throw UnsatisfiedLinkError.");
+  }
+
+  // GLIBC version below which we must use the legacy tier.
+  private static final int OPENCV_MODERN_GLIBC_MAJOR = 2;
+  private static final int OPENCV_MODERN_GLIBC_MINOR = 38;
+  // GLIBC version baked into the legacy tier (manylinux_2_28).
+  private static final int OPENCV_LEGACY_GLIBC_MINOR = 28;
+
+  /**
+   * Linux-only: pick the right Apertix native tier (modern vs legacy) based
+   * on the runtime glibc version, extract and load. Returns true on success.
+   */
+  private static boolean loadOpenCVLinuxTiered(String libName) {
+    String fileName = "lib" + libName + ".so";
+    String archDir = runningArm64() ? "linux-aarch64" : "linux-x86-64";
+    int[] glibc = detectGlibcVersion();
+
+    boolean useLegacy;
+    String reason;
+    if (glibc == null) {
+      useLegacy = true;
+      reason = "glibc detection failed (musl?), defaulting to legacy tier";
+    } else if (glibc[0] < OPENCV_MODERN_GLIBC_MAJOR
+        || (glibc[0] == OPENCV_MODERN_GLIBC_MAJOR && glibc[1] < OPENCV_LEGACY_GLIBC_MINOR)) {
+      useLegacy = true;
+      reason = "glibc " + glibc[0] + "." + glibc[1] + " is below legacy minimum "
+          + OPENCV_MODERN_GLIBC_MAJOR + "." + OPENCV_LEGACY_GLIBC_MINOR
+          + " — load may still fail";
+    } else if (glibc[0] == OPENCV_MODERN_GLIBC_MAJOR && glibc[1] < OPENCV_MODERN_GLIBC_MINOR) {
+      useLegacy = true;
+      reason = "glibc " + glibc[0] + "." + glibc[1] + " < "
+          + OPENCV_MODERN_GLIBC_MAJOR + "." + OPENCV_MODERN_GLIBC_MINOR + ", using legacy tier";
+    } else {
+      useLegacy = false;
+      reason = "glibc " + glibc[0] + "." + glibc[1] + " >= "
+          + OPENCV_MODERN_GLIBC_MAJOR + "." + OPENCV_MODERN_GLIBC_MINOR + ", using modern tier";
+    }
+    System.err.println("[OculiX] " + reason);
+
+    String firstTier = useLegacy ? archDir + "-legacy" : archDir;
+    if (extractAndLoad(firstTier + "/" + fileName, fileName)) {
+      System.err.println("[OculiX] OpenCV loaded from " + firstTier + "/");
+      return true;
+    }
+
+    // Cascade: if modern was the first choice and failed, retry with legacy
+    // before giving up. Covers e.g. systems where glibc reports >= 2.38 but
+    // libstdc++ is too old, or where detection misread the runtime.
+    if (!useLegacy) {
+      String fallbackTier = archDir + "-legacy";
+      System.err.println("[OculiX] modern tier load failed, retrying with " + fallbackTier + "/");
+      if (extractAndLoad(fallbackTier + "/" + fileName, fileName)) {
+        System.err.println("[OculiX] OpenCV loaded from " + fallbackTier + "/ (cascade fallback)");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** JNA binding to libc's gnu_get_libc_version(), present on glibc systems. */
+  private interface LibC extends com.sun.jna.Library {
+    String gnu_get_libc_version();
+  }
+
+  /**
+   * Returns {major, minor} of the runtime glibc, or null if not detectable
+   * (e.g. musl-based systems like Alpine, or non-Linux platforms).
+   */
+  private static int[] detectGlibcVersion() {
+    if (!runningLinux()) return null;
+    // 1. JNA → gnu_get_libc_version (cleanest, no process spawn).
+    try {
+      LibC libc = com.sun.jna.Native.load("c", LibC.class);
+      return parseGlibcVersion(libc.gnu_get_libc_version());
+    } catch (Throwable ignored) {
+      // Symbol absent (musl) or JNA failure — try ldd.
+    }
+    // 2. Fallback: parse `ldd --version` first line.
+    try {
+      Process p = new ProcessBuilder("ldd", "--version").redirectErrorStream(true).start();
+      try (java.io.BufferedReader br = new java.io.BufferedReader(
+          new java.io.InputStreamReader(p.getInputStream()))) {
+        String firstLine = br.readLine();
+        p.waitFor();
+        if (firstLine != null) {
+          Matcher m = Pattern.compile("(\\d+)\\.(\\d+)").matcher(firstLine);
+          if (m.find()) {
+            return new int[] { Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)) };
+          }
+        }
+      }
+    } catch (Throwable ignored) {
+    }
+    return null;
+  }
+
+  private static int[] parseGlibcVersion(String v) {
+    if (v == null) return null;
+    String[] parts = v.split("\\.");
+    if (parts.length < 2) return null;
+    try {
+      return new int[] { Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()) };
+    } catch (NumberFormatException nfe) {
+      return null;
+    }
+  }
+
+  private static final String libLegerixClassref = "io.github.julienmerconsulting.legerix.Legerix";
+  // No inline initializers: this field is declared AFTER the static {} block
+  // that calls loadTesseract(), so an explicit `= false` would run later in
+  // <clinit> and clobber the value loadTesseract() set. JLS default (false)
+  // is what we want.
+  private static volatile boolean libTesseractLoaded;
+  private static volatile String libTesseractDataPath;
+
+  public static boolean isTesseractLoaded() {
+    return libTesseractLoaded;
+  }
+
+  public static String getTesseractDataPath() {
+    return libTesseractDataPath;
+  }
+
+  public static void loadTesseract() {
+    if (libTesseractLoaded) {
+      return;
+    }
+    boolean nativesLoaded = false;
+    String version = "?";
+    try {
+      Class<?> legerix = Class.forName(libLegerixClassref);
+      try {
+        legerix.getMethod("loadNatives").invoke(null);
+        nativesLoaded = true;
+      } catch (Throwable e) {
+        // Common on Windows when Legerix's bundled tesseract/leptonica DLLs
+        // depend on image/runtime libs that aren't on the system PATH (libpng,
+        // libtiff, libwebp, libcurl, libarchive, ...). The natives won't load,
+        // but we can still recover the bundled tessdata: Legerix extracts it
+        // to the cache dir before the JNA load step, AND we have the same
+        // /tessdata resources in the fat-jar to fall back on. If natives are
+        // unusable, Tess4J's own bundled DLLs (also in the fat-jar) handle the
+        // OCR runtime — we just need the .traineddata files.
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        System.err.println("[OculiX] Legerix.loadNatives() failed: "
+            + cause.getClass().getSimpleName() + ": " + cause.getMessage());
+      }
+      try {
+        Object v = legerix.getMethod("getTesseractVersion").invoke(null);
+        if (v != null) version = v.toString();
+      } catch (Throwable ignore) { }
+      // Try to recover the tessdata path even if loadNatives() failed —
+      // Legerix may have populated extractionDir during its setup phase.
+      try {
+        Object tessdataPath = legerix.getMethod("getTessdataPath").invoke(null);
+        if (tessdataPath != null) {
+          File p = new File(tessdataPath.toString());
+          if (p.isDirectory() && hasAnyTraineddata(p)) {
+            libTesseractDataPath = p.getAbsolutePath();
+          }
+        }
+      } catch (Throwable ignore) { }
+      // Last resort: extract /tessdata/*.traineddata directly from our own
+      // classpath into a stable cache folder.
+      if (libTesseractDataPath == null) {
+        File extracted = extractBundledTessdata();
+        if (extracted != null) {
+          libTesseractDataPath = extracted.getAbsolutePath();
+        }
+      }
+    } catch (ClassNotFoundException cnfe) {
+      System.err.println("[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
+          + "OCR will fall back to system tesseract if available.");
+      return;
+    }
+    if (nativesLoaded) {
+      libTesseractLoaded = true;
+      System.err.println("[OculiX] Tesseract loaded via Legerix (Tesseract " + version
+          + ", tessdata=" + libTesseractDataPath + ")");
+    } else if (libTesseractDataPath != null) {
+      // Tess4J ships its own self-contained Tesseract DLLs/dylibs/sos and will
+      // load them lazily via JNA on first new Tesseract1(). We don't flip
+      // libTesseractLoaded — that flag tracks Legerix specifically — but the
+      // tessdata path is enough for TextRecognizer to find the language data.
+      System.err.println("[OculiX] Legerix natives unavailable — using Tess4J bundled binaries with "
+          + "Legerix-bundled tessdata (" + libTesseractDataPath + ")");
+    } else {
+      System.err.println("[OculiX] No Tesseract available — OCR will require a system install.");
+    }
+  }
+
+  private static boolean hasAnyTraineddata(File dir) {
+    String[] names = dir.list();
+    if (names == null) return false;
+    for (String n : names) {
+      if (n.endsWith(".traineddata")) return true;
+    }
+    return false;
+  }
+
+  private static File extractBundledTessdata() {
+    // Bundled languages in Legerix 5.5.x: eng, fra, spa, chi_sim, hin, plus osd
+    String[] langs = {"eng", "fra", "spa", "chi_sim", "hin", "osd"};
+    File target = new File(getAppDataPath(), "OculixTesseract/tessdata");
+    if (!target.exists() && !target.mkdirs()) {
+      return null;
+    }
+    int extracted = 0;
+    for (String lang : langs) {
+      File out = new File(target, lang + ".traineddata");
+      if (out.exists() && out.length() > 0) {
+        extracted++;
+        continue;
+      }
+      String resource = "/tessdata/" + lang + ".traineddata";
+      try (java.io.InputStream is = Commons.class.getResourceAsStream(resource)) {
+        if (is == null) continue;
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+          byte[] buf = new byte[8192];
+          int n;
+          while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
+        }
+        extracted++;
+      } catch (Throwable e) {
+        System.err.println("[OculiX] Failed to extract " + resource + ": " + e.getMessage());
+      }
+    }
+    return extracted > 0 ? target : null;
+  }
+
+  /**
+   * Extract a classpath resource to the temp folder and System.load() it.
+   * Returns true on success. Caller is responsible for setting libOpenCVloaded
+   * when the loaded resource is the OpenCV native.
+   */
+  private static boolean extractAndLoad(String resourcePath, String fileName) {
+    try {
+      java.io.InputStream is = Commons.class.getClassLoader().getResourceAsStream(resourcePath);
+      if (is == null) {
+        // Some classloaders want a leading slash when going through Class, not ClassLoader.
+        is = Commons.class.getResourceAsStream("/" + resourcePath);
+      }
+      if (is == null) {
+        System.err.println("[OculiX] jar resource not found on classpath: " + resourcePath);
+        return false;
+      }
+      File tempDir = getTempFolder();
+      if (tempDir == null) {
+        tempDir = new File(System.getProperty("java.io.tmpdir"));
+      }
+      File tempLib = new File(tempDir, fileName);
+      try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempLib)) {
+        byte[] buf = new byte[8192];
+        int len;
+        while ((len = is.read(buf)) > 0) {
+          fos.write(buf, 0, len);
+        }
+      } finally {
+        is.close();
+      }
+      System.load(tempLib.getAbsolutePath());
+      System.err.println("[OculiX] native loaded from jar resource: " + tempLib);
+      return true;
+    } catch (Throwable e) {
+      System.err.println("[OculiX] jar extraction of " + resourcePath + " failed: "
+          + e.getClass().getSimpleName() + ": " + e.getMessage());
+      return false;
+    }
   }
 
   private static final String jarLibsPath = "/sikulixlibs/";

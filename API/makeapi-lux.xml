@@ -17,16 +17,56 @@
       <unpack>true</unpack>
       <unpackOptions>
         <excludes>
-          <exclude>**/win32-x86/**</exclude>
-          <exclude>**/tessdata/**</exclude>
-          <exclude>/nu/pattern/opencv/osx/**</exclude>
-          <exclude>/nu/pattern/opencv/windows/**</exclude>
+          <!-- Apertix bundles native libs at the jar root in OS-arch
+               folders (darwin/, linux-x86-64/, win32-x86-64/, etc.) — NOT
+               under /nu/pattern/opencv/<os>/. The previous patterns
+               targeting /nu/pattern/opencv/* matched nothing, so each
+               complete-{lux,win,mac}-jar dragged in every other OS's
+               native libs. Verified against the actual layout in the
+               Apertix CI build (build-release-publish.yml). Excluding
+               by the real top-level paths drops ~100 MB of dead weight
+               per fat-jar. Tess4J uses the same path convention so
+               its non-Linux DLLs/dylibs are also pruned by these
+               patterns.
+               Do NOT exclude **/tessdata/** here: Legerix bundles its
+               .traineddata files (eng/fra/spa/chi_sim/hin) in /tessdata/
+               at the jar root. Stripping breaks Legerix.getTessdataPath()
+               and leaves the API standalone fat-jar without OCR data. -->
+          <exclude>darwin/**</exclude>
+          <exclude>darwin-aarch64/**</exclude>
+          <exclude>win32-x86/**</exclude>
+          <exclude>win32-x86-64/**</exclude>
         </excludes>
       </unpackOptions>
       <excludes>
         <exclude>org.jruby:jruby-complete</exclude>
         <exclude>org.apache.pdfbox:*</exclude>
+        <exclude>io.github.oculix-org:legerix</exclude>
       </excludes>
+      <scope>runtime</scope>
+    </dependencySet>
+    <!-- Legerix unpacked LAST so its /tessdata/{eng,fra,spa,chi_sim,hin}.traineddata
+         and /linux-x86-64/* natives win over Tess4J's bundled tessdata
+         (which only ships eng + osd and would otherwise overwrite Legerix's
+         multilingual set during unpack). -->
+    <dependencySet>
+      <outputDirectory>/</outputDirectory>
+      <useProjectArtifact>false</useProjectArtifact>
+      <unpack>true</unpack>
+      <unpackOptions>
+        <!-- Legerix uses the same OS-arch top-level layout as Apertix
+             (darwin/, linux-x86-64/, win32-x86-64/, …), so the same
+             exclusions apply to its Tesseract+Leptonica natives. -->
+        <excludes>
+          <exclude>darwin/**</exclude>
+          <exclude>darwin-aarch64/**</exclude>
+          <exclude>win32-x86/**</exclude>
+          <exclude>win32-x86-64/**</exclude>
+        </excludes>
+      </unpackOptions>
+      <includes>
+        <include>io.github.oculix-org:legerix</include>
+      </includes>
       <scope>runtime</scope>
     </dependencySet>
   </dependencySets>

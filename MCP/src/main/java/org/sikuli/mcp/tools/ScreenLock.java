@@ -20,6 +20,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * globally, regardless of which session issued them.
  *
  * <p>The lock is fair so that a hyperactive session cannot starve others.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ScreenLock {
 

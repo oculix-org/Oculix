@@ -67,18 +67,21 @@ class PatternPaneTargetOffset extends JPanel implements
 
 	void findTarget(final String patFilename, final Location initOffset) {
 		new Thread(() -> {
-      Region screenUnion = Region.create(0, 0, 1, 1);
-			Finder f = new Finder(_simg, screenUnion);
+			//TODO rewrite completely for multi-monitor environments (concept ScreenUnion discarded=
+      //Region screenUnion = Region.create(0, 0, 1, 1);
+			//Finder f = new Finder(_simg, screenUnion);
+			//TODO evaluate wether it works
+			Region region = Region.create(0, 0, 1, 1);
+			Finder f = new Finder(_simg, region);
 			f.find(patFilename);
 
 			EventQueue.invokeLater(() -> {
   			try {
   				if (f.hasNext()) {
-  //TODO rewrite completely for ScreenUnion
-            Screen s = (Screen) screenUnion.getScreen();
-            s.setAsScreenUnion();
+            //Screen s = (Screen) screenUnion.getScreen();
+            //s.setAsScreenUnion();
   					_match = f.next();
-            s.setAsScreen();
+            //s.setAsScreen();
   					if (initOffset != null) {
   						setTarget(initOffset.x, initOffset.y);
   					} else {
@@ -154,6 +157,8 @@ class PatternPaneTargetOffset extends JPanel implements
 	  if (zoomInOut == 0) {
       return;
     }
+    // mouse-wheel may fire before async image load completes
+    if (_img == null) return;
     int patW = (int) (getWidth() * _ratio);
     int patH = (int) (_img.getHeight() * _zoomRatio);
     if (zoomInOut < 0) {
@@ -210,10 +215,43 @@ class PatternPaneTargetOffset extends JPanel implements
 	public void mouseExited(MouseEvent me) {
 	}
 
+	private int _paintLogCount = 0;
+
 	@Override
 	public void paintComponent(Graphics g) {
 		Graphics2D g2d = (Graphics2D) g;
+		// Capped diag (max 10 lines) to capture the paint state when the user
+		// reports "le décalage de la cible casse au passage dark→light, image
+		// avec fond disparue, pas de log d'erreur". Logs the dimensions, async
+		// state and resizable rect visibility — enough to identify which value
+		// is missing/zero at the moment of the visual break.
+		if (_paintLogCount < 10) {
+			_paintLogCount++;
+			String theme;
+			try {
+				theme = org.sikuli.basics.PreferencesUser.get().getIdeTheme();
+			} catch (Throwable t) { theme = "?"; }
+			org.sikuli.basics.Debug.log(2,
+				"PatternPaneTargetOffset.paint #%d: theme=%s w=%d h=%d _img=%s _match=%s _zoomRatio=%.4f _viewW=%d _viewH=%d _viewX=%d _viewY=%d resizableRect.visible=%s",
+				_paintLogCount, theme,
+				getWidth(), getHeight(),
+				_img == null ? "null" : (_img.getWidth() + "x" + _img.getHeight()),
+				_match == null ? "null" : ("@" + _match.x + "," + _match.y + " " + _match.w + "x" + _match.h),
+				_zoomRatio, _viewW, _viewH, _viewX, _viewY,
+				resizableRect == null ? "null-rect" : Boolean.toString(resizableRect.isVisible()));
+		}
 		if (getWidth() > 0 && getHeight() > 0) {
+			// _img / _match populate from an async findTarget() thread (see ctor).
+			// Paint cycles triggered by initial layout, theme toggle's
+			// updateComponentTreeUI(), or any external repaint can race ahead of
+			// that thread. Show only the spinner until the image is available.
+			if (_img == null) {
+				paintBackground(g2d);
+				synchronized (this) {
+					if (_finding) paintLoading(g2d);
+				}
+				return;
+			}
 			if (_match != null) {
 				zoomToMatch();
 				paintSubScreen(g2d);
@@ -263,6 +301,10 @@ class PatternPaneTargetOffset extends JPanel implements
 	}
 
 	void paintMatch(Graphics2D g2d) {
+		// Defensive: paintComponent gates _img-null cases up-front, but this
+		// method is also reachable from external repaint paths. Same async
+		// load story as paintPatternOnly.
+		if (_img == null) return;
 		int w = (int) (getWidth() * _ratio);
 		int h = (int) ((float) w / _img.getWidth() * _img.getHeight());
 		int x = getWidth() / 2 - w / 2;
@@ -303,6 +345,14 @@ class PatternPaneTargetOffset extends JPanel implements
 	}
 
 	void paintPatternOnly(Graphics g2d) {
+		// _img can be transiently null during init or after a theme/LaF swap
+		// retriggers paint before the image has been re-decoded. Bailing out
+		// quietly is preferable to a NPE that fills the EDT log on every
+		// repaint until the dialog is closed.
+		if (_img == null) {
+			paintBackground(g2d);
+			return;
+		}
 		int patW = (int) (getWidth() * _ratio);
 		_zoomRatio = patW / (float) _img.getWidth();
 		int patH = (int) (_img.getHeight() * _zoomRatio);

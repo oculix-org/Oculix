@@ -26,6 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *       any captured token referring to it stops being accepted, even
  *       within its validity window.</li>
  * </ol>
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class SessionStore {
 

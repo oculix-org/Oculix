@@ -31,8 +31,62 @@ public class SikulixFileChooser {
     this.parentFrame = parentFrame;
   }
 
+  /**
+   * Public default-directory resolver shared with any other chooser the IDE
+   * spins up (Workspace dialogs, RecorderImagePicker, etc.). Same fallback
+   * chain as the internal {@link #getLastDir()}: stored {@code LAST_OPEN_DIR}
+   * pref → JVM working dir → user home. Returns a valid {@link File} that
+   * callers can pass to {@code JFileChooser.setCurrentDirectory(...)} without
+   * having to re-implement the cascade.
+   */
+  public static File resolveDefaultDir() {
+    String stored = PreferencesUser.get().get("LAST_OPEN_DIR", "");
+    if (!stored.isEmpty() && new File(stored).isDirectory()) {
+      return new File(stored);
+    }
+    String jarDir = System.getProperty("user.dir", "");
+    if (!jarDir.isEmpty() && new File(jarDir).isDirectory()) {
+      return new File(jarDir);
+    }
+    return new File(System.getProperty("user.home", ""));
+  }
+
+  /**
+   * Public companion to {@link #resolveDefaultDir()}: persists the parent
+   * directory of {@code chosen} (or {@code chosen} itself if it is already a
+   * directory) into the {@code LAST_OPEN_DIR} preference. Every chooser in
+   * the IDE — script open/save, workspace new/open, recorder image picker —
+   * should call this on a successful selection so the next dialog anywhere
+   * in the IDE lands at the same place. Without this, the dark-mode build
+   * had inconsistent behaviour: SikulixFileChooser persisted, but raw
+   * JFileChooser sites in WorkspaceDialog / openExistingWorkspace did not.
+   */
+  public static void persistLastDir(File chosen) {
+    if (chosen == null) return;
+    File dir = chosen.isDirectory() ? chosen : chosen.getParentFile();
+    if (dir == null || !dir.isDirectory()) return;
+    PreferencesUser.get().put("LAST_OPEN_DIR", dir.getAbsolutePath());
+  }
+
   private String getLastDir() {
-    return PreferencesUser.get().get("LAST_OPEN_DIR", "");
+    // Order of fallback when no preference is recorded yet (fresh install,
+    // never opened/saved a file in this session):
+    //   1. PreferencesUser "LAST_OPEN_DIR" — set on every successful open / save
+    //   2. user.dir — the JVM's working directory, i.e. where the OculiX jar
+    //      was launched from (Windows: typical user expectation for first
+    //      file chooser)
+    //   3. user.home — last-resort cross-platform anchor
+    // Returning "" leaves it to JFileChooser's default which on Windows is
+    // %USERPROFILE%\Documents and on macOS may pick an arbitrary location.
+    String stored = PreferencesUser.get().get("LAST_OPEN_DIR", "");
+    if (!stored.isEmpty() && new java.io.File(stored).isDirectory()) {
+      return stored;
+    }
+    String jarDir = System.getProperty("user.dir", "");
+    if (!jarDir.isEmpty() && new java.io.File(jarDir).isDirectory()) {
+      return jarDir;
+    }
+    return System.getProperty("user.home", "");
   }
 
   //TODO implement according to SX.doPop
@@ -106,7 +160,15 @@ public class SikulixFileChooser {
     }
     if (null != result[0]) {
       fileChosen = (File) result[0];
-      PreferencesUser.get().put("LAST_OPEN_DIR", fileChosen.getParent());
+      // Use the shared persistLastDir helper, NOT fileChosen.getParent()
+      // directly. Difference: for a .sikuli BUNDLE pick, fileChosen is the
+      // bundle directory itself — getParent() returns the bundle's PARENT,
+      // i.e. one level too high. The helper checks isDirectory() and stores
+      // the right path in either case (file → parent, dir → self). Without
+      // this, opening a .sikuli bundle made the next dialog land one level
+      // up — symptom: user opens a bundle in C:\Users\DELL\foo.sikuli and
+      // the next File ▸ Open lands at C:\Users\DELL.
+      persistLastDir(fileChosen);
       if (result[1] != null) {
         if (result[1].getClass().equals(SXFilter.class)) {
           SXFilter filter = (SXFilter) result[1];

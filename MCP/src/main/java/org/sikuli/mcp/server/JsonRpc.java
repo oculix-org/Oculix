@@ -15,6 +15,9 @@ import org.json.JSONObject;
  *   <li>error response</li>
  *   <li>notification (no id)</li>
  * </ul>
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class JsonRpc {
 

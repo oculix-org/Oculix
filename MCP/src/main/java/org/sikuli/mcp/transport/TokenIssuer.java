@@ -53,6 +53,9 @@ import java.util.Base64;
  * {@code sid} is still active and the {@code nonce} matches the one
  * recorded in {@link org.sikuli.mcp.server.SessionStore}. That combination
  * defeats replay of captured tokens after session teardown.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class TokenIssuer {
 

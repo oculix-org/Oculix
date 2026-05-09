@@ -7,7 +7,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculix</artifactId>
-  <version>3.0.3-rc1</version>
+  <version>3.0.3-rc5</version>
   <name>OculiX</name>
   <description>Visual automation - if you can see it, you can automate it</description>
   <url>https://github.com/oculix-org/Oculix</url>
@@ -35,9 +35,15 @@
   </scm>
 
   <modules>
+    <!-- build-extensions is the Maven core extension that prints the OculiX
+         gecko banner on every mvn invocation. Listed FIRST so it builds
+         and installs before the rest of the reactor — that way the very
+         next mvn run already loads it via .mvn/extensions.xml. -->
+    <module>build-extensions</module>
     <module>API</module>
     <module>IDE</module>
     <module>MCP</module>
+    <module>Reporter</module>
   </modules>
 
   <profiles>

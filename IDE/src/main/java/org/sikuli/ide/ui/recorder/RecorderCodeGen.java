@@ -10,6 +10,11 @@ import org.sikuli.support.recorder.generators.RobotFrameworkCodeGenerator;
 
 import javax.swing.*;
 import java.io.File;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 class RecorderCodeGen {
 
@@ -129,6 +134,29 @@ class RecorderCodeGen {
     }
   }
 
+  /**
+   * Number of header lines this generator pushes at the top of the preview
+   * via {@link #initHeaders()}. Used by {@code RecorderAssistant.insertAndClose}
+   * to skip the header when the destination pane already contains the
+   * language's import line, so consecutive recordings don't append a duplicate
+   * {@code from sikuli import *} (or its Java/Robot equivalent) every time.
+   */
+  private int headerLineCount = 0;
+
+  int getHeaderLineCount() {
+    return headerLineCount;
+  }
+
+  /**
+   * Returns the language-specific marker string that, if present in the
+   * destination pane, signals "header already there, skip it on Insert".
+   */
+  String getHeaderMarker() {
+    if (isRF()) return "*** Settings ***";
+    if (isJava()) return "import org.sikuli.script.*;";
+    return "from sikuli import *";
+  }
+
   void initHeaders() {
     if (isRF()) {
       addLine("*** Settings ***");
@@ -137,6 +165,7 @@ class RecorderCodeGen {
       addLine("");
       addLine("*** Test Cases ***");
       addLine("Recorded Test");
+      headerLineCount = 6;
     } else if (isJava()) {
       addLine("import org.sikuli.script.*;");
       addLine("import org.sikuli.basics.Settings;");
@@ -145,9 +174,11 @@ class RecorderCodeGen {
       addLine("    public static void main(String[] args) throws FindFailed {");
       addLine("        Screen screen = new Screen();");
       addLine("");
+      headerLineCount = 7;
     } else {
       addLine("from sikuli import *");
       addLine("");
+      headerLineCount = 2;
     }
   }
 }

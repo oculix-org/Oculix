@@ -14,6 +14,9 @@ import java.io.File;
  * Modal dialog for configuring a Swipe action over a captured zone.
  * Shows the captured image, 4 direction arrows, and a distance slider.
  * Generates a 2-line Jython snippet using dragDrop().
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderSwipeDialog extends JDialog {
 
@@ -56,7 +59,11 @@ public class RecorderSwipeDialog extends JDialog {
     content.add(lblImg);
 
     imagePanel = new ImagePanel();
-    int minW = 380, minH = 240, maxW = 1200, maxH = 800;
+    int minW = 380, minH = 240;
+    java.awt.Rectangle screenBounds = java.awt.GraphicsEnvironment
+        .getLocalGraphicsEnvironment().getMaximumWindowBounds();
+    int maxW = Math.min(1200, (int) (screenBounds.width * 0.8));
+    int maxH = (int) (screenBounds.height * 0.5);
     int imgW = capture.getWidth(), imgH = capture.getHeight();
     double scale;
     if (imgW < minW || imgH < minH) {

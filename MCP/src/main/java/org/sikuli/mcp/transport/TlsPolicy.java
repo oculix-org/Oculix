@@ -22,6 +22,9 @@ import java.util.Set;
  * <p>For a future in-process TLS listener (Undertow {@code addHttpsListener})
  * this class is where the policy check will gain a {@code tlsConfigured}
  * clause.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class TlsPolicy {
 

@@ -11,6 +11,9 @@ import org.sikuli.script.Screen;
  * Type a literal text string at the current keyboard focus.
  *
  * <p>Does not handle modifiers — use {@link KeyComboTool} for Ctrl+C, Cmd+Tab, etc.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class TypeTextTool implements Tool {
 
