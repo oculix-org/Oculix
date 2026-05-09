@@ -87,7 +87,7 @@ public class RecorderWheelDialog extends JDialog {
     imagePanel.setBorder(BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1));
     content.add(imagePanel, "align center");
 
-    offsetLabel = new JLabel("Offset: (0, 0) — centered on pattern");
+    offsetLabel = new JLabel(_I("recorderWheelLblOffset"));
     offsetLabel.setFont(UIManager.getFont("small.font"));
     offsetLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
     content.add(offsetLabel);
@@ -97,7 +97,7 @@ public class RecorderWheelDialog extends JDialog {
     // Direction
     JPanel dirPanel = new JPanel(new MigLayout("insets 0, gap 12", "[][]"));
     dirPanel.setOpaque(false);
-    JLabel lblDir = new JLabel("Direction:");
+    JLabel lblDir = new JLabel(_I("recorderWheelLblDirection"));
     lblDir.setFont(UIManager.getFont("defaultFont"));
     dirPanel.add(lblDir);
     rbDown = new JRadioButton("Down", true);
@@ -117,7 +117,7 @@ public class RecorderWheelDialog extends JDialog {
     // Steps
     JPanel stepsPanel = new JPanel(new MigLayout("insets 0, gap 12", "[][60]"));
     stepsPanel.setOpaque(false);
-    JLabel lblSteps = new JLabel("Steps:");
+    JLabel lblSteps = new JLabel(_I("recorderWheelLblSteps"));
     stepsPanel.add(lblSteps);
     spinnerSteps = new JSpinner(new SpinnerNumberModel(3, 1, 50, 1));
     spinnerSteps.addChangeListener(e -> updatePreview());
@@ -127,7 +127,7 @@ public class RecorderWheelDialog extends JDialog {
     content.add(new JSeparator(), "growx, gaptop 4");
 
     // Code preview
-    JLabel lblPrev = new JLabel("Generated code");
+    JLabel lblPrev = new JLabel(_I("recorderWheelLblGeneratedCode"));
     lblPrev.setFont(UIManager.getFont("small.font"));
     lblPrev.setForeground(UIManager.getColor("Label.disabledForeground"));
     content.add(lblPrev);
@@ -143,9 +143,9 @@ public class RecorderWheelDialog extends JDialog {
     // Buttons
     JPanel buttons = new JPanel(new MigLayout("insets 0, gap 8", "push[][]", ""));
     buttons.setOpaque(false);
-    cancelBtn = new JButton("Cancel");
+    cancelBtn = new JButton(_I("cancel"));
     cancelBtn.addActionListener(e -> { result = null; dispose(); });
-    okBtn = new JButton("OK");
+    okBtn = new JButton(_I("ok"));
     okBtn.putClientProperty("JButton.buttonType", "default");
     okBtn.addActionListener(e -> { result = buildCode(); dispose(); });
     buttons.add(cancelBtn);
