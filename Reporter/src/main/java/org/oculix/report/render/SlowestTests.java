@@ -15,6 +15,9 @@ import java.util.Map;
  * Renders a "Top N slowest tests" panel as plain HTML — sorted bars where
  * the longest test sets the 100% mark and others scale relative to it.
  * Returns empty string if there's no usable timing data.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class SlowestTests {
 

@@ -10,7 +10,7 @@
 
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculixide</artifactId>
-  <version>3.0.3-rc4</version>
+  <version>3.0.3-rc5</version>
 
   <name>OculiX IDE</name>
   <description>Visual automation IDE - edit and run OculiX scripts</description>
@@ -119,6 +119,17 @@
       <groupId>com.miglayout</groupId>
       <artifactId>miglayout-swing</artifactId>
       <version>11.4.3</version>
+    </dependency>
+
+    <!-- JUnit 5 — same version as API. Required for the IDE test suite that
+         the rc5 cycle is rolling out (RecorderCodeGen, cleanBundle, theme,
+         file dialogs). Without this, mvn -pl IDE test silently skips
+         compilation with "No sources to compile". -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>6.0.3</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

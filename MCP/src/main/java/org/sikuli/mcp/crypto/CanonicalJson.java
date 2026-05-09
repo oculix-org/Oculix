@@ -25,6 +25,9 @@ import java.util.List;
  *   <li>numbers serialised via {@link JSONObject#numberToString(Number)}</li>
  *   <li>arrays preserving element order</li>
  * </ul>
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class CanonicalJson {
 

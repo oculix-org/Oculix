@@ -9,6 +9,9 @@ import org.sikuli.script.*;
 
 /**
  * Block until a reference image becomes visible, up to a timeout.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class WaitForImageTool implements Tool {
 

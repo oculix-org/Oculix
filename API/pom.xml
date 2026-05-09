@@ -10,7 +10,7 @@
 
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculixapi</artifactId>
-  <version>3.0.3-rc4</version>
+  <version>3.0.3-rc5</version>
 
   <packaging>jar</packaging>
 
@@ -77,7 +77,7 @@
     <dependency>
       <groupId>io.github.oculix-org</groupId>
       <artifactId>tigervnc-java-oculix</artifactId>
-      <version>2.0.0</version>
+      <version>2.0.1</version>
       <!--License GPLv2-->
       <!-- TigerVNC Java viewer as a separate GPL artifact.
            Provides com.tigervnc.* (RFB protocol) and com.sikulix.vnc.*

@@ -10,6 +10,9 @@ import java.awt.*;
 /**
  * Thin wrapper around DJ-Raven toast notifications for the Recorder.
  * Phase 1: skeleton with 4 methods.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderNotifications {
 

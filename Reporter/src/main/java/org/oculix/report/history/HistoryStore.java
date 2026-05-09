@@ -17,6 +17,9 @@ import java.util.Map;
  * Persists the last N {@link HistoryEntry}s to a JSON file with a tiny
  * hand-rolled serializer/parser — no Jackson, zero external dependency.
  * Robust to corruption: a malformed file resets the store on next write.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class HistoryStore {
 

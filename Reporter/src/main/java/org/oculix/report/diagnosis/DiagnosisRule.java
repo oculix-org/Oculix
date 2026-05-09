@@ -6,6 +6,9 @@ import java.util.regex.Pattern;
 /**
  * One regex-based diagnosis rule: pattern + metadata + how to build the
  * resulting {@link Diagnosis} when it matches.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class DiagnosisRule {
 

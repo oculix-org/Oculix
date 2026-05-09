@@ -20,6 +20,9 @@ package org.sikuli.ide;
  *
  * <p>Implementations should keep both methods idempotent and fast. Heavy work
  * (image decode, OCR) must be scheduled outside the EDT.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public interface ThemeAware {
   /**

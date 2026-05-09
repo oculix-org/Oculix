@@ -27,6 +27,11 @@ import java.time.Instant;
  * ghost steps in the run.
  */
 @SuppressWarnings("deprecation")
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 public final class SeleniumReportingListener implements WebDriverListener, WebDriverEventListener {
 
     // ========== Selenium 4 API (WebDriverListener) ==========

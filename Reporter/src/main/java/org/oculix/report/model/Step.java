@@ -10,6 +10,9 @@ import java.util.List;
  * A single action inside a test: {@code click}, {@code type}, {@code wait}, etc.
  * Holds the action name, its target, timing, outcome, and zero-to-many screenshots
  * (typically one before and one after the action).
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class Step {
     private final String action;

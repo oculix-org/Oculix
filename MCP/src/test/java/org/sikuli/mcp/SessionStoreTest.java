@@ -9,6 +9,11 @@ import org.sikuli.mcp.server.SessionStore;
 import org.sikuli.mcp.server.SessionStore.IssuedSession;
 
 import static org.junit.jupiter.api.Assertions.*;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 class SessionStoreTest {
 

@@ -30,6 +30,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * marker whose {@code prev_hash} chains to the previous marker.
  *
  * <p>Thread-safety: all public methods are synchronized on {@code this}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class JournalWriter implements AutoCloseable {
 

@@ -16,6 +16,9 @@ import java.util.Date;
  * Modal dialog for creating a new workspace.
  * Collects name, description, author, then lets the user choose a directory.
  * Creates a workspace.json file in the selected directory.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class WorkspaceDialog extends JDialog {
 
@@ -97,6 +100,10 @@ public class WorkspaceDialog extends JDialog {
     chooser.setDialogTitle("Choose workspace directory");
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
     chooser.setAcceptAllFileFilterUsed(false);
+    // Default landing folder: shared resolver (LAST_OPEN_DIR pref → user.dir
+    // → user.home) so the workspace dialog feels consistent with the script
+    // open / save dialogs and never lands on OS-default %USERPROFILE%.
+    chooser.setCurrentDirectory(org.sikuli.util.SikulixFileChooser.resolveDefaultDir());
 
     int result = chooser.showOpenDialog(this);
     if (result != JFileChooser.APPROVE_OPTION) {
@@ -104,6 +111,10 @@ public class WorkspaceDialog extends JDialog {
     }
 
     workspaceDir = chooser.getSelectedFile();
+    // Persist for the next dialog (any chooser, anywhere in the IDE) so the
+    // global "remember last folder" behaviour is consistent across script
+    // open/save, workspace new/open, recorder image picker.
+    org.sikuli.util.SikulixFileChooser.persistLastDir(workspaceDir);
 
     // Create workspace.json
     try {

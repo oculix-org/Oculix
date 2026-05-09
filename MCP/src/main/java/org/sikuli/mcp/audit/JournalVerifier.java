@@ -31,6 +31,9 @@ import java.util.List;
  *   <li>strictly increments by 1 per entry</li>
  *   <li>{@code (ts_utc, seq)} is strictly increasing</li>
  * </ul>
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class JournalVerifier {
 

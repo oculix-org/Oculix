@@ -1,4 +1,9 @@
 package org.oculix.report.model;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 public enum Outcome {
     PASSED("passed", "#22c55e"),

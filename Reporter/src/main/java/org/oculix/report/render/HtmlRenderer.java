@@ -33,6 +33,9 @@ import java.util.stream.Collectors;
  * output is fully self-contained: one file, no network, no missing
  * assets. Screenshots are already base64 data URIs in the model, so the
  * whole report is truly standalone.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class HtmlRenderer {
 

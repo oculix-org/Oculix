@@ -11,6 +11,9 @@ import java.util.Map;
  * donut.py): a single thick circle per segment, with dasharray sized to
  * represent the segment's fraction of the total circumference.
  * Massively simpler and smaller than path-based arc drawing.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class Donut {
 

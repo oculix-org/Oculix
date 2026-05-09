@@ -17,14 +17,20 @@
       <unpack>true</unpack>
       <unpackOptions>
         <excludes>
-          <exclude>**/win32-x86/**</exclude>
-          <!-- Do NOT exclude **/tessdata/** here: Legerix bundles its
-               .traineddata files (eng/fra/spa/chi_sim/hin) in /tessdata/
-               at the jar root. Stripping breaks Legerix.getTessdataPath()
-               and leaves the API standalone fat-jar without OCR data. -->
-          <exclude>/nu/pattern/opencv/linux/**</exclude>
-          <exclude>/nu/pattern/opencv/osx/**</exclude>
-          <exclude>/nu/pattern/opencv/windows/x86_32/**</exclude>
+          <!-- See makeapi-lux.xml header comment for the full rationale.
+               TL;DR: Apertix natives live at the jar root in OS-arch
+               folders (darwin/, linux-x86-64/, win32-x86-64/), not under
+               /nu/pattern/opencv/<os>/. Legacy patterns targeting that
+               nested path matched nothing.
+               win32-x86/** stays excluded (Win 32-bit is dead). -->
+          <exclude>darwin/**</exclude>
+          <exclude>darwin-aarch64/**</exclude>
+          <exclude>linux-x86-64/**</exclude>
+          <exclude>linux-x86-64-legacy/**</exclude>
+          <exclude>linux-aarch64/**</exclude>
+          <exclude>linux-aarch64-legacy/**</exclude>
+          <exclude>linux-arm/**</exclude>
+          <exclude>win32-x86/**</exclude>
         </excludes>
       </unpackOptions>
       <excludes>
@@ -42,6 +48,18 @@
       <outputDirectory>/</outputDirectory>
       <useProjectArtifact>false</useProjectArtifact>
       <unpack>true</unpack>
+      <unpackOptions>
+        <excludes>
+          <exclude>darwin/**</exclude>
+          <exclude>darwin-aarch64/**</exclude>
+          <exclude>linux-x86-64/**</exclude>
+          <exclude>linux-x86-64-legacy/**</exclude>
+          <exclude>linux-aarch64/**</exclude>
+          <exclude>linux-aarch64-legacy/**</exclude>
+          <exclude>linux-arm/**</exclude>
+          <exclude>win32-x86/**</exclude>
+        </excludes>
+      </unpackOptions>
       <includes>
         <include>io.github.oculix-org:legerix</include>
       </includes>

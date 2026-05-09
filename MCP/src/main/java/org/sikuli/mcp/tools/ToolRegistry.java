@@ -35,6 +35,9 @@ import java.util.Map;
  *
  * <p>This is the mechanism that lets operators promise a regulated
  * customer: "no bank-internal screen content ever reaches the LLM".
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ToolRegistry {
 

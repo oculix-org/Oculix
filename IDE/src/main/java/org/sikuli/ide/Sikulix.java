@@ -17,6 +17,9 @@ import org.sikuli.support.ide.SikuliIDEI18N;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLaf;
+import org.sikuli.ide.theme.OculixDarkLaf;
+import org.sikuli.ide.theme.OculixFonts;
+import org.sikuli.ide.theme.OculixLightLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 
 import java.io.File;
@@ -109,15 +112,21 @@ public class Sikulix {
     Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
     //endregion
 
-    // FlatLaf must be initialized before any Swing component creation
-    // Use modern system fonts: Segoe UI (Win), SF Pro (Mac), Inter/Cantarell (Linux)
-    FlatLaf.setPreferredFontFamily("Segoe UI");
-    FlatLaf.setPreferredMonospacedFontFamily("Cascadia Code");
+    // FlatLaf must be initialized before any Swing component creation.
+    // Order matters: first register the bundled OculiX fonts (Inter / JetBrains
+    // Mono / Fraunces) so FlatLaf can resolve them via the .properties theme,
+    // then set preferred font families (used as fallback when our brand
+    // families are not yet referenced explicitly), then install the LaF
+    // (OculixDarkLaf / OculixLightLaf — FlatDarkLaf / FlatLightLaf subclasses
+    // that layer the OculiX brand tokens on top).
+    OculixFonts.setup();
+    FlatLaf.setPreferredFontFamily("Inter");
+    FlatLaf.setPreferredMonospacedFontFamily("JetBrains Mono");
     String ideTheme = PreferencesUser.get().getIdeTheme();
     if (PreferencesUser.THEME_LIGHT.equals(ideTheme)) {
-      FlatLightLaf.setup();
+      OculixLightLaf.setup();
     } else {
-      FlatDarkLaf.setup();
+      OculixDarkLaf.setup();
     }
 
     ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);

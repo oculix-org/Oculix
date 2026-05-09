@@ -14,6 +14,9 @@ package org.sikuli.mcp.server;
  *
  * <p>Access is synchronized because an HTTP transport may expose the same
  * handle to overlapping request threads for the same session id.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class SessionHandle {
 

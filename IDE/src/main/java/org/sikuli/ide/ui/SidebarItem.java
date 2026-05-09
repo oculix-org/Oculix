@@ -14,6 +14,9 @@ import java.awt.event.MouseEvent;
 /**
  * A sidebar button with icon and optional label text.
  * Supports collapsed mode (icon only) and expanded mode (icon + label).
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class SidebarItem extends JButton {
 

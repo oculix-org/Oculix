@@ -67,6 +67,9 @@ import java.util.UUID;
  * <p>{@link TlsPolicy#assertSafe(String)} is called at bind time to
  * refuse plain HTTP on non-loopback interfaces unless the operator
  * has explicitly opted into "TLS terminated upstream".
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class HttpTransport implements AutoCloseable {
 

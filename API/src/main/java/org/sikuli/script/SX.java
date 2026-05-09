@@ -329,10 +329,22 @@ public class SX {
       }
     }
     Object returnValue = popRun.getReturnValue();
-    if (timeoutJob.isDone()) {
-      returnValue = null;
-    } else {
-      timeoutJob.cancel(false);
+    // Bug fix v2: timeoutJob.cancel(false) is already called in the finally
+    // block above (lines 317 and 327). Calling cancel() AGAIN here returns
+    // false because the task was already cancelled — Future.cancel returns
+    // false 'if the task could not be cancelled, typically because it has
+    // already completed normally OR has been cancelled previously'. The v1
+    // fix used `cancel()`'s return value as the discriminator and read this
+    // false as 'timeout fired' — same null-bug as before.
+    //
+    // Correct check: isCancelled() reflects the cancellation status
+    // regardless of how many times cancel was called. If the task was
+    // successfully cancelled at any point, isCancelled() is true → popup
+    // completed normally → keep returnValue. If the task ran to completion
+    // (timeout fired and dispose() forced the dialog closed), isCancelled()
+    // is false, isDone() is true → returnValue is bogus → null.
+    if (timeoutJob.isDone() && !timeoutJob.isCancelled()) {
+      returnValue = null;     // dispose() ran first, user input was lost
     }
     // Do NOT shutdown the singleton TIMEOUT_EXECUTOR here: it is reused by
     // every subsequent popup, so shutting it down on the first call causes

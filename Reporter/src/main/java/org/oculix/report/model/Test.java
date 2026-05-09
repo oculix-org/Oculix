@@ -9,6 +9,9 @@ import java.util.List;
 /**
  * One named test inside a run. Aggregates its steps, final outcome
  * (worst wins — any failed/error step marks the whole test), and timing.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class Test {
     private final String name;

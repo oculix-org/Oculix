@@ -36,6 +36,9 @@ import java.util.stream.Stream;
  *   java -jar oculix-mcp-server.jar verify FILE  # verify a journal file
  *   java -jar oculix-mcp-server.jar --help
  * </pre>
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class Main {
 

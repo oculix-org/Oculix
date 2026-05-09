@@ -11,6 +11,9 @@ import java.util.Map;
 /**
  * A single past run snapshot — id, timestamp, and the outcome each test
  * had in that run. Built from a {@link TestRun} after it ends.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class HistoryEntry {
 

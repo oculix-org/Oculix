@@ -29,6 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration test for the two-layer HTTP auth plus signed session tokens.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 class HttpTransportTest {
 

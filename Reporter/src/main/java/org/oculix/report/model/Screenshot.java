@@ -1,6 +1,11 @@
 package org.oculix.report.model;
 
 import java.time.Instant;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 public final class Screenshot {
     private final String dataUri;

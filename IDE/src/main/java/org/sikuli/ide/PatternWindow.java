@@ -5,20 +5,16 @@ package org.sikuli.ide;
 
 import org.apache.commons.io.FilenameUtils;
 import org.sikuli.basics.Debug;
+import org.sikuli.script.Screen;
 import org.sikuli.support.FileManager;
 import org.sikuli.script.Location;
 import org.sikuli.script.ScreenImage;
-import org.sikuli.support.devices.ScreenUnion;
+//import org.sikuli.support.devices.ScreenUnion;
 import org.sikuli.support.ide.SikuliIDEI18N;
-import org.sikuli.support.gui.notused.PatternPaneNaming;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
 
 public class PatternWindow extends JFrame {
 
@@ -26,7 +22,6 @@ public class PatternWindow extends JFrame {
 	private static final String me = "PatternWindow: ";
 	private PatternPaneScreenshot _screenshot;
 	private PatternPaneTargetOffset _tarOffsetPane;
-	private PatternPaneNaming paneNaming;
 	private JTabbedPane tabPane;
 	private JPanel paneTarget, panePreview;
 	private JLabel[] msgApplied;
@@ -37,9 +32,6 @@ public class PatternWindow extends JFrame {
 	private boolean previewShowsCurrentScreen = false;
 	private boolean dirty;
   private EditorPane currentPane;
-  boolean isFileOverwritten = false;
-  String fileRenameOld;
-  String fileRenameNew;
   Dimension pDim;
 
   static String _I(String key, Object... args) {
@@ -110,30 +102,36 @@ public class PatternWindow extends JFrame {
 		msgApplied[tabSequence] = new JLabel();
     setMessageApplied(tabSequence, false);
 
-/*
   	tabSequence++;
 		msgApplied[tabSequence] = new JLabel();
     setMessageApplied(tabSequence, false);
 		panePreview = createPreviewPanel();
 		tabPane.addTab(_I("tabMatchingPreview"), panePreview);
-*/
 
 		tabSequence++;
 		msgApplied[tabSequence] = new JLabel();
     setMessageApplied(tabSequence, false);
 		paneTarget = createTargetPanel();
-//		tabPane.addTab(_I("tabTargetOffset"), paneTarget);
+		tabPane.addTab(_I("tabTargetOffset"), paneTarget);
 
-//		cp.add(tabPane, BorderLayout.CENTER);
-		cp.add(paneTarget, BorderLayout.NORTH);
+		cp.add(tabPane, BorderLayout.CENTER);
 		cp.add(createButtons(), BorderLayout.SOUTH);
 		cp.doLayout();
 		pack();
 		try {
-			_screenshot.setParameters(imgBtn.getFilename(), false, 0.7, -1);
+			// numMatches must be >= 0 — filterMatches() short-circuits on negative
+			// values and never populates _showMatches, leaving the preview stuck on
+			// its loading spinner. Use the cap to "show all matches up to MAX".
+			_screenshot.setParameters(imgBtn.getFilename(), false, 0.7,
+					PatternPaneScreenshot.MAX_NUM_MATCHING);
 		} catch (Exception e) {
       Debug.error(me + "Problem while setting up pattern pane\n%s", e.getMessage());
 		}
+		// Apply the active LaF (OculiX dark/light) to the freshly-built tree.
+		// PatternWindow is a transient JFrame, so it is not in the global theme
+		// dispatch list — we materialise the current LaF on opening and leave
+		// theme-toggle responsiveness to a follow-up cycle.
+		SwingUtilities.updateComponentTreeUI(this);
 		setDirty(false);
     setLocation(pLoc);
 		setVisible(true);
@@ -238,7 +236,8 @@ public class PatternWindow extends JFrame {
 			Thread.sleep(500);
 		} catch (Exception e) {
 		}
-		ScreenImage img = (new ScreenUnion()).getScreen().capture();
+		//TODO Another concept needed, to present the current screen content even in multi-screen environments
+		ScreenImage img = Screen.getPrimaryScreen().capture(); //(new ScreenUnion()).getScreen().capture();
 		SikulixIDE.showAgain();
 		this.setVisible(true);
 		this.requestFocus();
@@ -297,72 +296,13 @@ public class PatternWindow extends JFrame {
 	//</editor-fold>
 
 	//<editor-fold desc="actions OK/APPLY/CANCEL,  dirty ">
+	// Renaming is handled in a dedicated SXDialog window (see
+	// SXDialogPaneImage.rename), so this dialog only persists the pattern's
+	// matching parameters (similarity, num matches, target offset) back to the
+	// EditorImageButton. File rename / on-disk image rewrite is intentionally
+	// not part of the Optimize flow anymore.
 	private void actionPerformedUpdates(Window _parent) {
 		boolean tempDirty = isDirty();
-		if (paneNaming.isDirty()) {
-			String filename = paneNaming.getAbsolutePath();
-			if (filename.contains("%")) {
-				Debug.error("%s\n%% in filename replaced with _", filename);
-				filename = filename.replace("%", "_");
-			}
-			String oldFilename = imgBtn.getFilename();
-			if (new File(filename).exists()) {
-				String name = new File(filename).getName();
-				int ret = JOptionPane.showConfirmDialog(
-								_parent,
-								SikuliIDEI18N._I("msgFileExists", name),
-								SikuliIDEI18N._I("dlgFileExists"),
-								JOptionPane.WARNING_MESSAGE,
-								JOptionPane.YES_NO_OPTION);
-				if (ret != JOptionPane.YES_OPTION) {
-					return;
-				}
-        if (isFileOverwritten) {
-          if (!revertImageRename()) {
-            return;
-          }
-        }
-        isFileOverwritten = true;
-			}
-			try {
-				FileManager.xcopy(oldFilename, filename);
-				renameScreenshot(oldFilename, filename);
-				imgBtn.setImage(filename);
-        fileRenameOld = oldFilename;
-        fileRenameNew = filename;
-			} catch (IOException ioe) {
-				Debug.error("renaming failed: old: %s \nnew: %s\n%s",
-                oldFilename, filename, ioe.getMessage());
-				isFileOverwritten = false;
-        return;
-			}
-			//paneNaming.updateFilename();
-			addDirty(true);
-		}
-
-
-		Rectangle changedBounds = _tarOffsetPane.getChangedBounds();
-		if(changedBounds != null) {
-
-		  File file = new File(paneNaming.getAbsolutePath());
-
-		  BufferedImage changedImg = _simg.getImage().getSubimage(changedBounds.x,changedBounds.y, changedBounds.width, changedBounds.height);
-
-		  try {
-        ImageIO.write(changedImg, "png", file);
-      } catch (IOException e) {
-        Debug.error("PatternWindow: Error while saving resized pattern image: %s", e.getMessage());
-      }
-
-      //TODO imgBtn.reloadImage();
-      _screenshot.reloadImage();
-      paneNaming.reloadImage();
-      currentPane.repaint();
-
-      if (!currentPane.hasScreenshotImage(file.getName())) {
-				_simg.save(file.getName(), currentPane.context.getScreenshotFolder().getAbsolutePath());
-			}
-		}
 
 		addDirty(imgBtn.setParameters(
 						_screenshot.isExact(), _screenshot.getSimilarity(),
@@ -370,8 +310,8 @@ public class PatternWindow extends JFrame {
 		addDirty(imgBtn.setTargetOffset(_tarOffsetPane.getTargetOffset()));
 		if (isDirty() || tempDirty) {
 			Debug.log(3, "Preview: update: " + imgBtn.toString());
-			int i = imgBtn.getWindow().tabPane.getSelectedIndex();
-			imgBtn.getWindow().setMessageApplied(i, true);
+			int i = tabPane.getSelectedIndex();
+			setMessageApplied(i, true);
 			imgBtn.repaint();
 		}
 	}
@@ -386,31 +326,6 @@ public class PatternWindow extends JFrame {
 		}
 	}
 
-	private void renameScreenshot(String oldFilename, String filename) {
-		File oldFile = new File(oldFilename);
-		File newFile = new File(filename);
-
-		File oldScreenshotImageFile = currentPane.getScreenshotImageFile(oldFile.getName());
-		File newScreenshotImageFile = currentPane.getScreenshotImageFile(newFile.getName());
-
-		if (oldScreenshotImageFile.exists()) {
-			FileManager.xcopy(oldScreenshotImageFile, newScreenshotImageFile);
-		}
-	}
-
-	private boolean revertImageRename() {
-		try {
-			FileManager.xcopy(fileRenameNew, fileRenameOld);
-			renameScreenshot(fileRenameNew, fileRenameOld);
-			imgBtn.setImage(fileRenameOld);
-		} catch (IOException ioe) {
-			Debug.error("revert renaming failed: new: %s \nold: %s\n%s",
-					fileRenameNew, fileRenameOld, ioe.getMessage());
-			return false;
-		}
-		return true;
-	}
-
 	class ActionOK implements ActionListener {
 
 		private Window _parent;
@@ -422,10 +337,7 @@ public class PatternWindow extends JFrame {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			actionPerformedUpdates(_parent);
-			if (fileRenameOld != null) {
-				SikulixIDE.get().reparseOnRenameImage(fileRenameOld, fileRenameNew, isFileOverwritten);
-			}
-			imgBtn.getWindow().close();
+			close();
 			_parent.dispose();
 			currentPane.setDirty(setDirty(false));
 		}
@@ -442,7 +354,8 @@ public class PatternWindow extends JFrame {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			actionPerformedUpdates(_parent);
-			imgBtn.getWindow().tabPane.getSelectedComponent().transferFocus();
+			Component sel = tabPane.getSelectedComponent();
+			if (sel != null) sel.transferFocus();
 		}
 	}
 
@@ -458,9 +371,6 @@ public class PatternWindow extends JFrame {
 		public void actionPerformed(ActionEvent e) {
 			if (isDirty()) {
 				imgBtn.resetParameters();
-        if (isFileOverwritten) {
-          revertImageRename();
-        }
 			}
 			close();
 		}

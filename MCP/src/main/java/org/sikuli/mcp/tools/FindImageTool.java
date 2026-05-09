@@ -12,6 +12,9 @@ import org.sikuli.script.*;
  *
  * <p>Does not click, does not wait. For a waiting variant use
  * {@link WaitForImageTool}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class FindImageTool implements Tool {
 

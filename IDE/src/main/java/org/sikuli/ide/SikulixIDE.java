@@ -6,8 +6,16 @@ package org.sikuli.ide;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.sikuli.basics.*;
+import org.sikuli.idesupport.IDEDesktopSupport;
+import org.sikuli.idesupport.IDETaskbarSupport;
 import org.sikuli.support.FileManager;
-import org.sikuli.support.ide.*;
+import org.sikuli.support.ide.ExtensionManager;
+import org.sikuli.support.ide.IButton;
+import org.sikuli.support.ide.IDESupport;
+import org.sikuli.support.ide.IIDESupport;
+import org.sikuli.support.ide.JythonSupport;
+import org.sikuli.support.ide.Runner;
+import org.sikuli.support.ide.SikuliIDEI18N;
 import org.sikuli.support.ide.syntaxhighlight.ResolutionException;
 import org.sikuli.support.ide.syntaxhighlight.grammar.Lexer;
 import org.sikuli.support.ide.syntaxhighlight.grammar.Token;
@@ -16,7 +24,6 @@ import org.sikuli.script.Image;
 import org.sikuli.script.Sikulix;
 import org.sikuli.script.*;
 import org.sikuli.support.runner.IRunner;
-import org.sikuli.support.ide.Runner;
 import org.sikuli.support.runner.InvalidRunner;
 import org.sikuli.support.runner.JythonRunner;
 import org.sikuli.support.runner.TextRunner;
@@ -193,7 +200,9 @@ public class SikulixIDE extends JFrame {
 
     ideWindowRect = getWindowRect();
 
-    IDEDesktopSupport.init();
+    IDEDesktopSupport.init(sikulixIDE);
+    IDETaskbarSupport.setTaskbarIcon(getIconResource("/icons/gecko_cyclope.png").getImage());
+    sikulixIDE.setIconImage(getIconResource("/icons/gecko_cyclope.png").getImage());
     IDESupport.initIDESupport();
     if (!Commons.hasOption(CommandArgsEnum.CONSOLE)) {
       get().messages = new EditorConsolePane();
@@ -302,9 +311,15 @@ public class SikulixIDE extends JFrame {
       }
     });
 
-    // Explorer + Editor in a horizontal split
-    JSplitPane editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, explorer, codePane);
-    editorSplit.setDividerLocation(180);
+    // Explorer + Editor in a horizontal split.
+    // The explorer (workspace pane) is hidden by default: when the IDE boots
+    // there's no script open, so a half-empty Workspace column on the left
+    // just steals 180px of editor real-estate and visually duplicates the
+    // sidebar. The split divider sits at 0 → explorer collapsed. As soon as
+    // a script is created or a workspace is loaded, refreshExplorerVisibility()
+    // (called from refreshWorkspace) re-opens the divider to its working width.
+    editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, explorer, codePane);
+    editorSplit.setDividerLocation(0);
     editorSplit.setResizeWeight(0.0); // editor gets all extra space
     editorSplit.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, UIManager.getColor("Separator.foreground")));
     editorSplit.setOneTouchExpandable(true);
@@ -313,11 +328,28 @@ public class SikulixIDE extends JFrame {
     JPanel editPane = new JPanel(new BorderLayout(0, 0));
     mainPane = null;
     if (messageArea != null) {
-      // Console always at the bottom (Eclipse-style)
+      // Console always at the bottom (Eclipse-style). The split divider gets
+      // a visible 1px ink-500 line so the editor / log boundary reads clearly
+      // in both themes — without that border, the surfaces blur into each
+      // other (sidebar paper-100 ≈ workspace paper-100 ≈ editor white in light).
       mainPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorSplit, messageArea);
       mainPane.setResizeWeight(0.75);
       mainPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
       mainPane.setOneTouchExpandable(true);
+      mainPane.setDividerSize(4);
+      mainPane.setUI(new javax.swing.plaf.basic.BasicSplitPaneUI() {
+        @Override
+        public javax.swing.plaf.basic.BasicSplitPaneDivider createDefaultDivider() {
+          return new javax.swing.plaf.basic.BasicSplitPaneDivider(this) {
+            @Override
+            public void paint(Graphics g) {
+              boolean dark = UIManager.getLookAndFeel().getName().toLowerCase(java.util.Locale.ROOT).contains("dark");
+              g.setColor(dark ? new Color(0x2B, 0x3A, 0x72) : new Color(0xBC, 0xC7, 0xE2));
+              g.fillRect(0, 0, getSize().width, getSize().height);
+            }
+          };
+        }
+      });
       editPane.add(mainPane, BorderLayout.CENTER);
     } else {
       editPane.add(editorSplit, BorderLayout.CENTER);
@@ -406,6 +438,50 @@ public class SikulixIDE extends JFrame {
     }
     if (!sikulixIDE.contexts.isEmpty()) {
       sikulixIDE.getActiveContext().focus();
+    }
+    if (shouldExecuteOnStart) {
+      // Mirrors the -r flow at Sikulix.start verbatim — same loadOpenCV +
+      // resolveRelativeFiles + runScripts sequence — minus the
+      // RunTime.terminate(...) at the end so the IDE stays open after the
+      // auto-run completes. Wrapped in a thread so the EDT (running
+      // showAfterStart) is not blocked by the synchronous Runner call.
+      // Output goes to the message panel because messages.initRedirect()
+      // ran in startGUI() before ideIsReady, so System.out is already
+      // piped to the panel reader at this point.
+      //
+      // Diagnostic logs at every junction (Commons.startLog level 3, always
+      // visible without -v) so a Windows tester pasting the message panel
+      // tells us exactly where the path stops if -e silently fails. The
+      // last visible "-e: ..." line in the panel is the breakpoint.
+      new Thread(() -> {
+        try {
+          Commons.startLog(3, "-e: thread spawned");
+          Commons.loadOpenCV();
+          Commons.startLog(3, "-e: loadOpenCV returned");
+          String[] scripts = Runner.resolveRelativeFiles(
+              Commons.getArgs(CommandArgsEnum.LOAD.shortname()));
+          Commons.startLog(3, "-e: resolved scripts: %s",
+              scripts == null ? "null" : java.util.Arrays.toString(scripts));
+          int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(),
+              new IRunner.Options());
+          if (exitCode > 255) {
+            exitCode = 254;
+          }
+          Commons.startLog(3, "-e: runScripts returned exitCode=%d", exitCode);
+        } catch (Throwable t) {
+          // Surface any exception that would otherwise die silently in the
+          // background thread — the panel keeps the truth even when stdout
+          // is hijacked by a Jython interpreter that captured a stale
+          // reference. Concatenate the stack trace as a single string so
+          // formatting holds across the pipe.
+          java.io.StringWriter sw = new java.io.StringWriter();
+          t.printStackTrace(new java.io.PrintWriter(sw));
+          Commons.startLog(3, "-e: thread crashed: %s\n%s",
+              t.getClass().getName() + ": " + t.getMessage(),
+              sw.toString());
+        }
+        // No RunTime.terminate(): -e leaves the IDE running for the user.
+      }, "auto-run-e").start();
     }
   }
 
@@ -589,6 +665,12 @@ public class SikulixIDE extends JFrame {
     SidebarSubmenu sub = new SidebarSubmenu();
     scriptDependentItems.add(sub.addItem("\uD83D\uDCF7  Capture", null,
         e -> btnCapture.captureWithAutoDelay()));
+    // Ins\u00E9rer image \u2014 picks a PNG/JPG from disk, copies it to the script
+    // bundle and inserts the matching code. Same action class as the legacy
+    // toolbar button. Auto-disabled when no script is open via
+    // scriptDependentItems \u2192 no NPE on getActiveContext().getPane().
+    scriptDependentItems.add(sub.addItem("\uD83D\uDDBC\uFE0F  " + _I("btnInsertImageLabel"), null,
+        e -> btnInsertImage.actionPerformed(e)));
     scriptDependentItems.add(sub.addItem("\uD83D\uDD34  Record", null,
         e -> btnRecord.actionPerformed(e)));
     scriptDependentItems.add(sub.addItem("\uD83D\uDFE2  Modern Recorder (beta)", null,
@@ -668,6 +750,12 @@ public class SikulixIDE extends JFrame {
         }
       }
     }
+    if (messages instanceof ThemeAware) {
+      list.add((ThemeAware) messages);
+    }
+    if (explorer instanceof ThemeAware) {
+      list.add((ThemeAware) explorer);
+    }
     if (sidebar != null) {
       // Sidebar is not a ThemeAware by itself, but its cached submenus need
       // updateUI() replayed since JPopupMenu lives outside the window tree.
@@ -734,6 +822,39 @@ public class SikulixIDE extends JFrame {
   private ScriptExplorer explorer;
 
   private JSplitPane mainPane;
+  private JSplitPane editorSplit;
+  private static final int EXPLORER_OPEN_WIDTH = 200;
+
+  /**
+   * Re-opens or collapses the workspace explorer pane based on whether any
+   * scripts are open OR a workspace is loaded. Called after every
+   * refreshWorkspace() — the explorer is purely contextual: empty IDE = no
+   * workspace and no scripts = collapsed; otherwise visible.
+   *
+   * <p>The setDividerLocation call is wrapped in {@link SwingUtilities#invokeLater}
+   * because {@link JSplitPane} silently ignores divider position changes if
+   * the pane hasn't been fully laid out yet — typical when this is called
+   * synchronously from a workspace-load action triggered by a button click
+   * before the pane has had its first paint pass. invokeLater pushes it
+   * onto the EDT after the current event has finished and the next layout
+   * round has run.
+   */
+  private void refreshExplorerVisibility() {
+    if (editorSplit == null) return;
+    boolean hasScripts = !contexts.isEmpty();
+    boolean hasWorkspace = currentWorkspaceDir != null;
+    boolean shouldShow = hasScripts || hasWorkspace;
+    final int target = shouldShow ? EXPLORER_OPEN_WIDTH : 0;
+    SwingUtilities.invokeLater(() -> {
+      if (explorer != null) {
+        explorer.setVisible(shouldShow);
+      }
+      editorSplit.setDividerLocation(target);
+      editorSplit.setDividerSize(shouldShow ? 4 : 0);
+      editorSplit.revalidate();
+      editorSplit.repaint();
+    });
+  }
 
   private void initTabs() {
     tabs = new CloseableTabbedPane();
@@ -894,6 +1015,7 @@ public class SikulixIDE extends JFrame {
       selected = -1;
     }
     explorer.updateScripts(scripts, selected);
+    refreshExplorerVisibility();
   }
 
   public void createEmptyScriptContext() {
@@ -952,14 +1074,14 @@ public class SikulixIDE extends JFrame {
   }
 
   public File selectFileToOpen() {
-    // Set initial directory to workspace or last script location
+    // Initial directory: leave it to SikulixFileChooser.getLastDir which has
+    // a proper fallback chain (LAST_OPEN_DIR pref → user.dir → user.home).
+    // Pre-setting LAST_OPEN_DIR here was overriding the value the previous
+    // chooser had correctly stored (fileChosen.getParent()) with the
+    // grand-parent of the active context's folder — landing the user one
+    // level up from where they last picked a file.
     if (currentWorkspaceDir != null) {
       PreferencesUser.get().put("LAST_OPEN_DIR", currentWorkspaceDir.getAbsolutePath());
-    } else {
-      PaneContext ctx = getActiveContext();
-      if (ctx != null && ctx.getFolder() != null) {
-        PreferencesUser.get().put("LAST_OPEN_DIR", ctx.getFolder().getParentFile().getAbsolutePath());
-      }
     }
     File fileSelected = new SikulixFileChooser(sikulixIDE).open();
     if (fileSelected == null) {
@@ -969,11 +1091,10 @@ public class SikulixIDE extends JFrame {
   }
 
   public File selectFileForSave(PaneContext context) {
-    // Set initial directory to workspace or script location
+    // Same rationale as selectFileToOpen: respect the chooser's stored value
+    // unless an explicit workspace is set.
     if (currentWorkspaceDir != null) {
       PreferencesUser.get().put("LAST_OPEN_DIR", currentWorkspaceDir.getAbsolutePath());
-    } else if (context.getFolder() != null && context.getFolder().getParentFile() != null) {
-      PreferencesUser.get().put("LAST_OPEN_DIR", context.getFolder().getParentFile().getAbsolutePath());
     }
     File fileSelected = new SikulixFileChooser(sikulixIDE).saveAs(
             context.getExt(), context.isBundle() || context.isTemp());
@@ -1265,6 +1386,14 @@ public class SikulixIDE extends JFrame {
       pane.makeReady();
       if (load()) {
         pane.requestFocus();
+        // Convert image filenames present in the loaded text into inline
+        // EditorImageButton thumbnails. reparse() already gates internally on
+        // getShowThumbs(), so this is a no-op when the user has plain-text
+        // mode enabled. Without this call, opening a .py file that references
+        // images in the same folder loads the text but leaves the filenames
+        // un-embedded — visible regression on every IDE start before the
+        // user manually toggled the "Show Thumbs" menu off and on.
+        reparse();
       } else {
         if (lastPos >= 0) {
           tabs.remove(pos);
@@ -1371,9 +1500,10 @@ public class SikulixIDE extends JFrame {
       if (files == null || files.length == 0) {
         return;
       }
+      File recycle = new File(scriptFolder, ".recycle");
       for (File image : files) {
         if (!usedImages.contains(image.getName())) {
-          image.delete(); //TODO make a backup??
+          softDeleteToRecycle(image, recycle);
         }
       }
     }
@@ -1384,11 +1514,41 @@ public class SikulixIDE extends JFrame {
         if (files == null || files.length == 0) {
           return;
         }
+        File recycle = new File(screenshotsDir, ".recycle");
         for (File screenshot : files) {
           if (!usedImages.contains(screenshot.getName())) {
-            screenshot.delete();
+            softDeleteToRecycle(screenshot, recycle);
           }
         }
+      }
+    }
+
+    /**
+     * Soft-delete: move the file to a {@code .recycle/} sibling instead of
+     * hard-deleting. cleanBundle() invokes this on every save for any
+     * {@code .png/.jpg/.jpeg} not matched by {@code collectImages}, but the
+     * matcher uses string-literal regex only — dynamically composed filenames
+     * (concat, f-strings, variable interpolation) are missed and would be
+     * lost on save without recovery. Soft-delete keeps a 1-cycle backup so
+     * the user can restore by hand if the matcher rates a false negative.
+     */
+    private void softDeleteToRecycle(File file, File recycleDir) {
+      if (!recycleDir.exists() && !recycleDir.mkdirs()) {
+        // cannot create recycle bin → fall back to hard delete to keep
+        // pre-fix behaviour rather than leaving stale files behind
+        file.delete();
+        return;
+      }
+      File target = new File(recycleDir, file.getName());
+      if (target.exists()) {
+        // Suffix with timestamp on collision so we never overwrite a previous
+        // recycled copy.
+        String stamp = String.valueOf(System.currentTimeMillis());
+        target = new File(recycleDir, file.getName() + "." + stamp);
+      }
+      if (!file.renameTo(target)) {
+        // rename across volumes can fail on some FS — last resort hard delete
+        file.delete();
       }
     }
 
@@ -1493,14 +1653,94 @@ public class SikulixIDE extends JFrame {
 
     private void copyContent(PaneContext currentContext, PaneContext newContext, boolean asBundle) throws
             IOException {
+      // Save-As bug fix: previously this method assumed FileUtils.copyDirectory
+      // would silently DTRT, but in practice it could leave the destination
+      // empty without throwing (e.g. when the destination folder pre-exists
+      // from setFile() but the source folder is itself empty due to ordering
+      // races). Now we copy the .py explicitly first, then enumerate every
+      // sibling file (.png images, fixtures, anything else in the bundle)
+      // and copy each one individually with REPLACE_EXISTING. Logs each step
+      // so a missing image is instantly diagnosable in the message panel.
       if (asBundle) {
-        FileUtils.copyDirectory(currentContext.folder, newContext.folder);
+        File srcFolder = currentContext.folder;
+        File dstFolder = newContext.folder;
+        if (!dstFolder.exists()) {
+          dstFolder.mkdirs();
+        }
+        // 1. Copy the script file, renamed in-place to the new base name.
         final String oldName = currentContext.file.getName();
         final String newName = FilenameUtils.getBaseName(newContext.file.getName());
         final String ext = "." + FilenameUtils.getExtension(oldName);
-        new File(newContext.folder, oldName).renameTo(new File(newContext.folder, newName + ext));
+        File srcScript = new File(srcFolder, oldName);
+        File dstScript = new File(dstFolder, newName + ext);
+        if (srcScript.isFile()) {
+          FileUtils.copyFile(srcScript, dstScript);
+        } else {
+          // Fallback: source script is open in memory only; flush the active
+          // pane's text directly into the destination.
+          currentContext.getPane().write(new BufferedWriter(
+              new OutputStreamWriter(new FileOutputStream(dstScript), "UTF8")));
+        }
+        // 2. Copy every other file in the source bundle (images, .json,
+        // workspace metadata, anything the user dropped there).
+        File[] siblings = srcFolder.listFiles();
+        int copied = 0;
+        if (siblings != null) {
+          for (File sibling : siblings) {
+            if (sibling.equals(srcScript)) continue;       // already handled above
+            if (!sibling.isFile()) continue;               // skip subdirs for now
+            File dst = new File(dstFolder, sibling.getName());
+            try {
+              java.nio.file.Files.copy(sibling.toPath(), dst.toPath(),
+                  java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+              copied++;
+            } catch (IOException ioex) {
+              log("PaneContext: copyContent: skipped %s (%s)",
+                  sibling.getName(), ioex.getMessage());
+            }
+          }
+        }
+        log("PaneContext: copyContent: %s -> %s (%d sibling file(s) copied)",
+            srcFolder, dstFolder, copied);
       } else {
         FileUtils.copyFile(currentContext.file, newContext.file);
+        // Same intent as the bundle branch above, but for flat-script saves:
+        // walk the source's text, find every "xxx.png" / "xxx.jpg" reference
+        // it can resolve against the source's image folder, and copy each one
+        // alongside the destination script. Without this, a Save As of a
+        // .py with image-based wait/click leaves the destination orphaned —
+        // the script references files that only exist next to the *original*.
+        File dstDir = newContext.file.getParentFile();
+        if (dstDir == null || !dstDir.isDirectory()) {
+          // Nothing else we can do safely — destination has no resolvable folder.
+          log("PaneContext: copyContent: flat save: no destination folder, image copy skipped");
+          return;
+        }
+        try {
+          String[] text = currentContext.getPane().getText().split("\n");
+          List<Map<String, Object>> images = currentContext.collectImages(text);
+          int copied = 0, skipped = 0;
+          Set<String> seen = new HashSet<>();
+          for (Map<String, Object> image : images) {
+            File src = (File) image.get(IButton.FILE);
+            if (src == null || !src.isFile()) { skipped++; continue; }
+            if (!seen.add(src.getName())) continue; // de-dup multiple references
+            File dst = new File(dstDir, src.getName());
+            try {
+              java.nio.file.Files.copy(src.toPath(), dst.toPath(),
+                  java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+              copied++;
+            } catch (IOException ioex) {
+              log("PaneContext: copyContent: flat save: skipped %s (%s)",
+                  src.getName(), ioex.getMessage());
+              skipped++;
+            }
+          }
+          log("PaneContext: copyContent: flat save: %s -> %s (%d image(s) copied, %d skipped)",
+              currentContext.file, newContext.file, copied, skipped);
+        } catch (Exception ex) {
+          log("PaneContext: copyContent: flat save: image scan failed (%s)", ex.getMessage());
+        }
       }
     }
 
@@ -1584,7 +1824,49 @@ public class SikulixIDE extends JFrame {
         try {
           int itemStart = getLineStart((Integer) item.get(IButton.LINE)) + (Integer) item.get(IButton.LOFF);
           int itemLen = ((String) item.get(IButton.TEXT)).length();
+          // Defensive against the historical "Invalid remove" — present in
+          // SikuliX1 too, where it manifested silently as missing thumbnails
+          // on script load. The collectImages() pass works on a snapshot of
+          // pane.getText() taken at method entry; between that snapshot and
+          // the doc.remove() call, the document may have been mutated by
+          // another listener (caret move, theme refresh, async lexer hook,
+          // a parallel reparse triggered from PaneContext.create()), so the
+          // (line, loff, text) tuple computed from the snapshot can point
+          // PAST the live doc end or at content that no longer matches.
+          //
+          // Two guards prevent the BadLocationException explosion:
+          //   1) bounds: itemStart in [0, docLen], itemEnd <= docLen.
+          //   2) content: doc.getText(itemStart, itemLen) must equal the
+          //      TEXT we captured. If it doesn't, a previous swap on the
+          //      same offset already replaced the literal with the "￼"
+          //      placeholder, or the text shifted — either way, skip.
+          if (itemStart < 0 || itemStart + itemLen > doc.getLength()) {
+            continue;
+          }
+          String live = doc.getText(itemStart, itemLen);
+          String expected = (String) item.get(IButton.TEXT);
+          if (!live.equals(expected)) {
+            continue;
+          }
           EditorImageButton button = new EditorImageButton(item);
+          // If the captured TEXT was a Pattern(...).chain expression, replay
+          // the parsed modifiers onto the freshly built button so its
+          // internal state matches what the script encoded. setParameters
+          // also flips _isPattern, which both makes the badge visible and
+          // keeps File ▸ Save round-tripping the chain.
+          String capturedText = (String) item.get(IButton.TEXT);
+          if (capturedText != null && capturedText.startsWith("Pattern(")) {
+            Object simObj = item.get("PATTERN_SIMILAR");
+            double sim = simObj instanceof Double ? (Double) simObj : 0.7;
+            boolean exact = Boolean.TRUE.equals(item.get("PATTERN_EXACT"));
+            button.setParameters(exact, sim, 0);
+            Object ox = item.get("PATTERN_OFFSET_X");
+            Object oy = item.get("PATTERN_OFFSET_Y");
+            if (ox instanceof Integer && oy instanceof Integer) {
+              button.setTargetOffset(
+                  new org.sikuli.script.Location((Integer) ox, (Integer) oy));
+            }
+          }
           javax.swing.text.SimpleAttributeSet attr = new javax.swing.text.SimpleAttributeSet();
           javax.swing.text.StyleConstants.setComponent(attr, button);
           doc.remove(itemStart, itemLen);
@@ -1614,6 +1896,21 @@ public class SikulixIDE extends JFrame {
       return patterns;
     }
 
+    // Optional Pattern(...) wrap with arbitrary chained modifiers like
+    //   Pattern("name.png").similar(0.85).exact().targetOffset(10,5).resize(2)
+    // We extend the basic "name.png" match to cover the whole chain so that
+    // when doShowThumbs swaps the literal for the inline button, it
+    // SUBSTITUTES THE FULL EXPRESSION — visible code becomes
+    //   wait(<image>, 10)
+    // instead of the cluttered
+    //   wait(Pattern("name.png").similar(0.85), 10)
+    // Modifier values are parsed from the chain and applied to the button
+    // via setParameters / setTargetOffset so that Optimize finds the right
+    // initial state and File ▸ Save round-trips the chain unchanged.
+    private static final Pattern CHAIN_MODIFIER = Pattern.compile("\\.\\w+\\([^)]*\\)");
+    private static final Pattern SIMILAR_PARSE  = Pattern.compile("\\.similar\\(([-0-9.eE]+)\\)");
+    private static final Pattern OFFSET_PARSE   = Pattern.compile("\\.targetOffset\\(\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*\\)");
+
     private List<Map<String, Object>> imageMatcher(List<Map<String, Object>> images, String[] text, Pattern pat) {
       for (int lnNbr = 0; lnNbr < text.length; lnNbr++) {
         String line = text[lnNbr];
@@ -1625,14 +1922,55 @@ public class SikulixIDE extends JFrame {
           String match = matcher.group(1);
           if (match != null) {
             int start = matcher.start(1);
+            int end = matcher.end(1);
             String imgName = match.substring(1, match.length() - 1);
             final File imgFile = imageExists(imgName);
             if (imgFile != null) {
+              int extStart = start;
+              int extEnd = end;
+              // Look for "Pattern(" prefix immediately before the quoted
+              // filename. If found AND the next char after the closing
+              // quote is ')', extend the span to cover the full
+              // Pattern(...).modifier(...)... chain.
+              if (start >= 8 && "Pattern(".equals(line.substring(start - 8, start))
+                  && end < line.length() && line.charAt(end) == ')') {
+                extStart = start - 8;
+                extEnd = end + 1; // include the ')' that closes Pattern(...)
+                // Greedy: consume each ".name(...)" modifier one by one.
+                while (extEnd < line.length()) {
+                  Matcher mm = CHAIN_MODIFIER.matcher(line);
+                  if (mm.region(extEnd, line.length()).useAnchoringBounds(true).lookingAt()) {
+                    extEnd = mm.end();
+                  } else {
+                    break;
+                  }
+                }
+              }
+              String fullText = line.substring(extStart, extEnd);
               Map<String, Object> options = new HashMap<>();
-              options.put(IButton.TEXT, match);
+              options.put(IButton.TEXT, fullText);
               options.put(IButton.LINE, lnNbr);
-              options.put(IButton.LOFF, start);
+              options.put(IButton.LOFF, extStart);
               options.put(IButton.FILE, imgFile);
+              // Pre-parse modifiers from the chain so doShowThumbs can
+              // re-apply them on the freshly-built EditorImageButton.
+              if (extEnd > end) {
+                Matcher sm = SIMILAR_PARSE.matcher(fullText);
+                if (sm.find()) {
+                  try { options.put("PATTERN_SIMILAR", Double.parseDouble(sm.group(1))); }
+                  catch (NumberFormatException ignore) { }
+                }
+                if (fullText.contains(".exact()")) {
+                  options.put("PATTERN_EXACT", Boolean.TRUE);
+                }
+                Matcher om = OFFSET_PARSE.matcher(fullText);
+                if (om.find()) {
+                  try {
+                    options.put("PATTERN_OFFSET_X", Integer.parseInt(om.group(1)));
+                    options.put("PATTERN_OFFSET_Y", Integer.parseInt(om.group(2)));
+                  } catch (NumberFormatException ignore) { }
+                }
+              }
               images.add(options);
             }
           }
@@ -1787,6 +2125,19 @@ public class SikulixIDE extends JFrame {
     String scriptText = getActiveContext().getPane().getText();
     Lexer lexer = getLexer();
     Map<String, List<Integer>> images = new HashMap<>();
+    // getLexer() returns null when the syntaxhighlight grammar resource for
+    // "python" can't be resolved on the classpath (happens at least on the
+    // Modern Recorder rename flow before the lexers map is populated).
+    // Without this guard, the next call walks the AST with a null Lexer and
+    // throws NPE inside parseforImagesWalk -> the rename action looks
+    // crashed even though the file was already moved on disk and the button
+    // has been re-serialized with the new name. Bail out early — the empty
+    // map is a no-op for the caller (reparseOnRenameImage) and the rename
+    // succeeds visually anyway via the IButton.TEXT update done upstream.
+    if (lexer == null) {
+      log("parseforImages: lexer unavailable for python — skipping text reparse");
+      return images;
+    }
     lineNumber = 0;
     parseforImagesWalk(imageFolder, lexer, scriptText, 0, images);
     trace("parseforImages finished");
@@ -1976,16 +2327,17 @@ public class SikulixIDE extends JFrame {
     return true;
   }
 
-  static final String[] loadScripts = new String[0];
+  private static boolean shouldExecuteOnStart = false;
 
   private List<File> restoreSession() {
     String session_str = prefs.getIdeSession();
     List<File> filesToLoad = new ArrayList<>();
-    if (IDEDesktopSupport.filesToOpen != null && IDEDesktopSupport.filesToOpen.size() > 0) {
-      for (File f : IDEDesktopSupport.filesToOpen) {
-        filesToLoad.add(f);
-      }
-    }
+//TODO IDEDesktopSupport.filesToOpen
+//    if (IDEDesktopSupport.filesToOpen != null && IDEDesktopSupport.filesToOpen.size() > 0) {
+//      for (File f : IDEDesktopSupport.filesToOpen) {
+//        filesToLoad.add(f);
+//      }
+//    }
     if (session_str != null && !session_str.isEmpty()) {
       String[] filenames = session_str.split(";");
       if (filenames.length > 0) {
@@ -1997,21 +2349,64 @@ public class SikulixIDE extends JFrame {
         }
       }
     }
-    //TODO implement load scripts (preload)
-    if (loadScripts.length > 0) {
-      log("Preload given scripts");
+    String[] loadScripts = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
+    int preloadedFromCli = 0;
+    // Diagnostic — surfaces exactly what the CLI parser saw, so a tester
+    // hitting "-e doesn't auto-run" on Windows can paste the message panel
+    // and we know whether -l grabbed -e by mistake (the historical
+    // hasArgs-unlimited bug, fixed in CommandArgs.makeOption).
+    // Routed through Commons.startLog at level 3 (always-print, gates only
+    // sub-3 levels) so the line shows in the IDE message panel without the
+    // tester needing -v.
+    Commons.startLog(3, "CLI -l parsed values: %s",
+        loadScripts == null ? "null" : java.util.Arrays.toString(loadScripts));
+    Commons.startLog(3, "CLI -e present: %s", Commons.hasArg(CommandArgsEnum.EXECUTE.shortname()));
+    if (loadScripts != null && loadScripts.length > 0) {
+      log("Preload given scripts (-l)");
       for (String loadScript : loadScripts) {
-        if (loadScript.isEmpty()) {
+        if (loadScript == null || loadScript.isEmpty()) {
           continue;
         }
         File f = new File(loadScript);
-        if (f.exists() && !filesToLoad.contains(f)) {
-          if (f.getName().endsWith(".py")) {
-            Debug.info("Python script: %s", f.getName());
-          } else {
-            log("Sikuli script: %s", f);
-          }
+        if (!f.exists()) {
+          log("Preload: file does not exist: %s", loadScript);
+          continue;
         }
+        if (filesToLoad.contains(f)) {
+          continue;
+        }
+        if (f.getName().endsWith(".py")) {
+          Debug.info("Python script: %s", f.getName());
+        } else {
+          log("Sikuli script: %s", f);
+        }
+        filesToLoad.add(f);
+        preloadedFromCli++;
+      }
+    }
+    if (Commons.hasArg(CommandArgsEnum.EXECUTE.shortname())) {
+      // Validate -e directly against the CLI args, NOT against the
+      // preloadedFromCli counter that the loop above maintains. The
+      // counter is incremented only AFTER the duplicate check skips
+      // already-loaded files — so when the IDE's session restore had
+      // the same file open from a previous run, the -l file was a
+      // duplicate, the increment was skipped, preloadedFromCli stayed
+      // at 0, and -e silently dropped with "no effect without -l"
+      // even though the user explicitly asked for it on the command
+      // line. (#224 reported by @julienmerconsulting on Windows.)
+      // The user contract is "-e runs the -l file regardless of
+      // whether it was already open" — so the gating predicate is
+      // purely on the CLI args being well-formed and pointing at an
+      // existing file.
+      String[] eArgs = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
+      if (eArgs != null && eArgs.length == 1 && new File(eArgs[0]).exists()) {
+        shouldExecuteOnStart = true;
+      } else if (eArgs == null || eArgs.length == 0) {
+        log("-e (--execute) has no effect without a valid -l file; ignoring");
+      } else if (eArgs.length > 1) {
+        log("-e (--execute) requires exactly one -l file but got %d; ignoring -e", eArgs.length);
+      } else {
+        log("-e (--execute): -l file does not exist on disk: %s; ignoring", eArgs[0]);
       }
     }
     if (filesToLoad.size() > 0) {
@@ -2057,16 +2452,21 @@ public class SikulixIDE extends JFrame {
     chooser.setDialogTitle("Open Workspace");
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
     chooser.setAcceptAllFileFilterUsed(false);
-    // Start in workspace dir or last known location
-    if (currentWorkspaceDir != null) {
+    // Start in current workspace's parent (so user can pick a sibling)
+    // or the shared default-dir resolver (LAST_OPEN_DIR pref → user.dir →
+    // user.home). The previous code only acted on a non-empty pref and
+    // otherwise let JFileChooser fall back to OS default.
+    if (currentWorkspaceDir != null && currentWorkspaceDir.getParentFile() != null) {
       chooser.setCurrentDirectory(currentWorkspaceDir.getParentFile());
     } else {
-      String lastDir = PreferencesUser.get().get("LAST_OPEN_DIR", "");
-      if (!lastDir.isEmpty()) chooser.setCurrentDirectory(new File(lastDir));
+      chooser.setCurrentDirectory(org.sikuli.util.SikulixFileChooser.resolveDefaultDir());
     }
     int result = chooser.showOpenDialog(ideWindow);
     if (result == JFileChooser.APPROVE_OPTION) {
-      loadWorkspace(chooser.getSelectedFile());
+      File picked = chooser.getSelectedFile();
+      // Shared across every chooser in the IDE — see SikulixFileChooser.persistLastDir.
+      org.sikuli.util.SikulixFileChooser.persistLastDir(picked);
+      loadWorkspace(picked);
     }
   }
 
@@ -2097,23 +2497,38 @@ public class SikulixIDE extends JFrame {
       explorer.setWorkspaceName(currentWorkspaceName);
     }
 
-    // Load any .sikuli scripts in the workspace directory
-    File[] sikuliDirs = dir.listFiles(f -> f.isDirectory() && f.getName().endsWith(".sikuli"));
-    if (sikuliDirs != null) {
-      for (File script : sikuliDirs) {
+    // Discover scripts in the workspace directory. Three layouts supported:
+    //   1. dir/foo.sikuli/foo.py        — classic SikuliX bundle
+    //   2. dir/foo/foo.py               — plain folder bundle (modern OculiX
+    //      convention since the recorder writes there)
+    //   3. dir/foo.py                   — single script at the root (the
+    //      user opened a single-script bundle as a "workspace", common
+    //      mistake but still useful UX-wise)
+    int loaded = 0;
+    File[] children = dir.listFiles();
+    if (children != null) {
+      for (File child : children) {
         try {
-          // Check that the .sikuli bundle contains at least one .py file
-          File[] pyFiles = script.listFiles((d, name) -> name.endsWith(".py"));
-          if (pyFiles != null && pyFiles.length > 0) {
-            createFileContext(script);
-          } else {
-            log("Workspace: skipping %s (no .py file found)", script.getName());
+          if (child.isDirectory()) {
+            // Either a .sikuli bundle or a plain folder with a .py inside.
+            File[] pyFiles = child.listFiles((d, name) -> name.endsWith(".py"));
+            if (pyFiles != null && pyFiles.length > 0) {
+              createFileContext(child);
+              loaded++;
+            } else {
+              log("Workspace: skipping folder %s (no .py)", child.getName());
+            }
+          } else if (child.getName().endsWith(".py")) {
+            // Single-script case (3): open the .py directly.
+            createFileContext(child);
+            loaded++;
           }
         } catch (Exception e) {
-          log("Workspace: error loading %s: %s", script.getName(), e.getMessage());
+          log("Workspace: error loading %s: %s", child.getName(), e.getMessage());
         }
       }
     }
+    log("Workspace: %d script(s) loaded from %s", loaded, dir.getAbsolutePath());
 
     refreshWorkspace();
 
@@ -3234,10 +3649,15 @@ public class SikulixIDE extends JFrame {
   private ButtonRun btnRun;
   private ButtonRunViz btnRunSlow;
   private ButtonRecord btnRecord;
+  // Promoted from a local in initToolbar() so the sidebar Tools submenu can
+  // re-trigger the same action — see buildToolsSubmenu(). The new sidebar UI
+  // doesn't render the legacy top toolbar, so without this exposure the
+  // Insert Image action becomes unreachable from the user's IDE chrome.
+  private ButtonInsertImage btnInsertImage;
 
   private JToolBar initToolbar() {
     JToolBar toolbar = new JToolBar();
-    JButton btnInsertImage = new ButtonInsertImage();
+    btnInsertImage = new ButtonInsertImage();
     JButton btnSubregion = new ButtonSubregion();
     JButton btnLocation = new ButtonLocation();
     JButton btnOffset = new ButtonOffset();
@@ -3656,8 +4076,9 @@ public class SikulixIDE extends JFrame {
           }
 
           RunTime.pause(0.1f);
-          clearMessageArea();
           resetErrorMark();
+          String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
+          System.out.println(String.format("──────── Run started @ %s ────────", runStamp));
           doBeforeRun();
 
           long runStart = System.currentTimeMillis();
@@ -3761,6 +4182,16 @@ public class SikulixIDE extends JFrame {
     if (Settings.isWindows() || Settings.isLinux()) {
       messageArea.setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
     }
+
+    // Branded tab title: JetBrains Mono 10, 0.18em letter-spacing, uppercase.
+    // Color comes from UIManager so it follows the active LaF.
+    JLabel tabTitle = new JLabel(_I("paneMessage").toUpperCase(java.util.Locale.ROOT));
+    java.util.Map<java.awt.font.TextAttribute, Object> attrs = new java.util.HashMap<>();
+    attrs.put(java.awt.font.TextAttribute.TRACKING, 0.18f);
+    tabTitle.setFont(new Font("JetBrains Mono", Font.BOLD, 10).deriveFont(attrs));
+    tabTitle.setForeground(UIManager.getColor("Label.disabledForeground"));
+    tabTitle.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+    messageArea.setTabComponentAt(0, tabTitle);
     messageArea.addMouseListener(new MouseListener() {
       @Override
       public void mouseClicked(MouseEvent me) {

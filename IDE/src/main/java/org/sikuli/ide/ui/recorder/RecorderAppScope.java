@@ -10,6 +10,11 @@ import org.sikuli.support.RemotePreflightCheck;
 
 import javax.swing.*;
 import java.util.List;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 class RecorderAppScope {
 

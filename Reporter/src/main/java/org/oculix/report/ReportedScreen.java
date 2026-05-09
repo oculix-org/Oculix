@@ -34,6 +34,9 @@ import java.util.Base64;
  * {@link Screen} and overrides only the subset of methods relevant for
  * reporting. All other methods fall through to {@link Screen}'s original
  * behavior.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class ReportedScreen extends Screen {
 

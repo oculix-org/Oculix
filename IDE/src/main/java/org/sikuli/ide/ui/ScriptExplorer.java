@@ -19,8 +19,11 @@ import java.util.List;
  * Workspace explorer showing open scripts as visual cards.
  * Each card represents a script (.sikuli bundle or temp script).
  * Clicking a card activates the corresponding editor tab.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
-public class ScriptExplorer extends JPanel {
+public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware {
 
   private JPanel cardContainer;
   private JLabel titleLabel;
@@ -37,6 +40,13 @@ public class ScriptExplorer extends JPanel {
     setLayout(new BorderLayout());
     setMinimumSize(new Dimension(160, 0));
     setPreferredSize(new Dimension(200, 0));
+    // Match the sidebar's surface — paper-100 in OculiX Light, ink-800 in
+    // OculiX Dark — so the workspace explorer reads as one continuous brand
+    // surface with the sidebar instead of a stark white pane.
+    setOpaque(true);
+    setBackground(isDarkTheme()
+        ? new Color(0x0A, 0x10, 0x28)         // OX_INK_800
+        : new Color(0xF8, 0xFA, 0xFD));       // paper-100
 
     // Header
     JPanel header = new JPanel(new MigLayout("insets 6 10 6 10, fill", "[grow]", "[]"));
@@ -140,9 +150,9 @@ public class ScriptExplorer extends JPanel {
     private JLabel infoLabel;
     private JLabel statusLabel;
     private boolean active = false;
-    private final Color hoverBg;
-    private final Color activeBg;
-    private final Color normalBg;
+    private Color hoverBg;
+    private Color activeBg;
+    private Color normalBg;
 
     ScriptCard(ScriptInfo info, int index) {
       this.index = index;
@@ -246,6 +256,23 @@ public class ScriptExplorer extends JPanel {
         infoLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
       }
     }
+
+    void refreshTheme() {
+      normalBg = UIManager.getColor("Panel.background");
+      hoverBg = UIManager.getColor("List.selectionInactiveBackground");
+      activeBg = UIManager.getColor("List.selectionBackground");
+      setBackground(active ? activeBg : normalBg);
+      setBorder(BorderFactory.createCompoundBorder(
+          BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1),
+          BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+      if (active) {
+        nameLabel.setForeground(UIManager.getColor("List.selectionForeground"));
+        infoLabel.setForeground(UIManager.getColor("List.selectionForeground"));
+      } else {
+        nameLabel.setForeground(UIManager.getColor("Label.foreground"));
+        infoLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+      }
+    }
   }
 
   // ── ScriptInfo (data class) ──
@@ -273,5 +300,25 @@ public class ScriptExplorer extends JPanel {
       }
       return new ScriptInfo(name, path, imgCount, !isTemp);
     }
+  }
+
+  private static boolean isDarkTheme() {
+    String theme = org.sikuli.basics.PreferencesUser.get().getIdeTheme();
+    return !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(theme);
+  }
+
+  @Override
+  public void beforeThemeChange() { }
+
+  @Override
+  public void afterThemeChange() {
+    setBackground(isDarkTheme()
+        ? new Color(0x0A, 0x10, 0x28)
+        : new Color(0xF8, 0xFA, 0xFD));
+    for (ScriptCard card : cards) {
+      card.refreshTheme();
+    }
+    revalidate();
+    repaint();
   }
 }

@@ -9,6 +9,11 @@ import org.sikuli.script.ScreenImage;
 import javax.swing.*;
 import java.io.File;
 import java.util.List;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 class RecorderImagePicker {
 
@@ -89,8 +94,15 @@ class RecorderImagePicker {
     chooser.setDialogTitle("Select image file");
     chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
         "Image files (*.png, *.jpg, *.jpeg, *.gif)", "png", "jpg", "jpeg", "gif"));
+    // Default directory mirrors SikulixFileChooser.getLastDir — stored pref,
+    // then JAR working dir, then user.home. Without this, JFileChooser falls
+    // back to the OS profile root, which feels random to users mid-Recorder
+    // session.
+    chooser.setCurrentDirectory(org.sikuli.util.SikulixFileChooser.resolveDefaultDir());
     if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
       File f = chooser.getSelectedFile();
+      // Shared resolver — same memory across every chooser in the IDE.
+      org.sikuli.util.SikulixFileChooser.persistLastDir(f);
       try {
         File dest = new File(screenshotDir, f.getName());
         java.nio.file.Files.copy(f.toPath(), dest.toPath(),

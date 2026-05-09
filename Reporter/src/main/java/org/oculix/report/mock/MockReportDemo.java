@@ -32,6 +32,9 @@ import java.util.Random;
  * session. Run with:
  * <pre>mvn -pl Reporter exec:java</pre>
  * Then open {@code Reporter/target/demo-report.html} in a browser.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class MockReportDemo {
 

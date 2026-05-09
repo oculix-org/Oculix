@@ -13,6 +13,9 @@ import java.util.stream.Collectors;
  * heuristic, human-readable explanation of <i>why</i> the test is flaky.
  * Score = flips / (runs - 1). {@link #isFlaky(double)} treats >= 0.3 as
  * flaky (test flips at least once every 3-4 runs).
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class FlakyDetector {
 

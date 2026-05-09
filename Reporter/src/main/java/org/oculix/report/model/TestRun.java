@@ -11,6 +11,9 @@ import java.util.Map;
 /**
  * A test suite run. Top-level container the HtmlRenderer consumes to produce
  * the single-file HTML report.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class TestRun {
     private final String title;

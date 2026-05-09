@@ -32,6 +32,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @ExtendWith(OculixJUnit5Extension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("OculiX Reporter — JUnit 5 integration")
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 class OculixJUnit5IntegrationTest {
 
     @org.junit.jupiter.api.Test

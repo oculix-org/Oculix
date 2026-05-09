@@ -4,6 +4,9 @@ package org.oculix.report.diagnosis;
  * Result of running the diagnosis engine on a test failure. Carries a
  * human-readable label, an actionable hint, a category slug for grouping,
  * and a severity for visual styling.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class Diagnosis {
 

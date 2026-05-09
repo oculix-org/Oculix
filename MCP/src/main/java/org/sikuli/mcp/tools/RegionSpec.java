@@ -20,6 +20,9 @@ import org.sikuli.script.Screen;
  *   <li>{@code screen} — optional, defaults to screen 0</li>
  *   <li>{@code x}, {@code y}, {@code width}, {@code height} — required</li>
  * </ul>
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class RegionSpec {
 

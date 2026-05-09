@@ -14,6 +14,9 @@ import java.util.Base64;
 /**
  * Capture the whole screen or a sub-region, returning a base64 PNG to the
  * MCP client (via an {@code image} content block).
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ScreenshotTool implements Tool {
 

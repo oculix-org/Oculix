@@ -34,6 +34,9 @@ import java.util.Optional;
  * closed when the last one finishes. The HTML lands in
  * {@code target/oculix-report.html} (override via system property
  * {@code oculix.report.out}).
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class OculixJUnit5Extension
     implements BeforeAllCallback, AfterAllCallback,

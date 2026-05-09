@@ -17,6 +17,9 @@ import java.lang.reflect.Method;
  * <p>Entirely reflective so the Reporter jar does not impose a specific
  * Selenium version on callers. If neither API is on the classpath, a
  * clear exception is thrown.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class SeleniumWrap {
 

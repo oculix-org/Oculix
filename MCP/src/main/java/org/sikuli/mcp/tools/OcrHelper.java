@@ -21,6 +21,9 @@ import java.nio.file.Files;
  * PaddleOCR is not reachable.
  *
  * <p>The chosen engine is cached for the lifetime of the server.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class OcrHelper {
 

@@ -17,9 +17,14 @@
       <unpack>true</unpack>
       <unpackOptions>
         <excludes>
-          <exclude>**/win32-x86/**</exclude>
-          <exclude>/nu/pattern/opencv/linux/**</exclude>
-          <exclude>/nu/pattern/opencv/windows/**</exclude>
+          <!-- See API/makeapi-lux.xml for full rationale. -->
+          <exclude>linux-x86-64/**</exclude>
+          <exclude>linux-x86-64-legacy/**</exclude>
+          <exclude>linux-aarch64/**</exclude>
+          <exclude>linux-aarch64-legacy/**</exclude>
+          <exclude>linux-arm/**</exclude>
+          <exclude>win32-x86/**</exclude>
+          <exclude>win32-x86-64/**</exclude>
         </excludes>
       </unpackOptions>
       <excludes>
@@ -37,6 +42,17 @@
       <outputDirectory>/</outputDirectory>
       <useProjectArtifact>false</useProjectArtifact>
       <unpack>true</unpack>
+      <unpackOptions>
+        <excludes>
+          <exclude>linux-x86-64/**</exclude>
+          <exclude>linux-x86-64-legacy/**</exclude>
+          <exclude>linux-aarch64/**</exclude>
+          <exclude>linux-aarch64-legacy/**</exclude>
+          <exclude>linux-arm/**</exclude>
+          <exclude>win32-x86/**</exclude>
+          <exclude>win32-x86-64/**</exclude>
+        </excludes>
+      </unpackOptions>
       <includes>
         <include>io.github.oculix-org:legerix</include>
       </includes>

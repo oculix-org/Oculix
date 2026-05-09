@@ -8,6 +8,9 @@ import javax.swing.*;
 /**
  * Live preview of generated Jython code lines.
  * Phase 1: empty JList placeholder. Renderer and logic added in Phase 5.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderCodePreview extends JList<String> {
 

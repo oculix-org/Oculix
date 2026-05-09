@@ -29,6 +29,9 @@ import java.nio.file.Path;
  * and a {@code WebDriver} obtained via {@link OculixReporter#wrapDriver}
  * for Selenium actions. All Steps land on the correct {@code Test}
  * automatically thanks to the {@code ThreadLocal} in {@code OculixReporter}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class OculixTestNGListener implements ITestListener, ISuiteListener {
 

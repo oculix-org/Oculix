@@ -19,6 +19,9 @@ import java.io.File;
  * Modal dialog for configuring a Wheel action. Shows the captured image
  * with an interactive crosshair for offset selection, direction radio,
  * step count spinner and a live code preview.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderWheelDialog extends JDialog {
 

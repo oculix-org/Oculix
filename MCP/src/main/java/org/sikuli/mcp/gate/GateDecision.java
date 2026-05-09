@@ -5,6 +5,9 @@ package org.sikuli.mcp.gate;
 
 /**
  * Outcome of an {@link ActionGate} evaluation.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class GateDecision {
 

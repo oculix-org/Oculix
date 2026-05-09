@@ -10,6 +10,9 @@ import java.util.Locale;
  * Tiny inline SVG that shows a test's last N outcomes as colored cells —
  * one cell per past run, oldest left, newest right. Missing runs (test
  * not present) render as muted gray.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class Sparkline {
 

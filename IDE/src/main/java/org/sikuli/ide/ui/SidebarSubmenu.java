@@ -10,6 +10,9 @@ import java.awt.event.ActionListener;
 /**
  * A popup menu used for sidebar sub-items (File, Edit, Tools, Help).
  * Displayed when clicking a sidebar navigation item.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class SidebarSubmenu extends JPopupMenu {
 

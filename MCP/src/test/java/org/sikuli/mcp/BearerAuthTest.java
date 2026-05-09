@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Test;
 import org.sikuli.mcp.transport.BearerAuth;
 
 import static org.junit.jupiter.api.Assertions.*;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 class BearerAuthTest {
 

@@ -19,6 +19,9 @@ import com.sun.jna.Pointer;
  * Scope is deliberately tiny: OculiX only needs to invoke two methods of
  * {@code NSRunningApplication}. No attempt is made here to model the full
  * Objective-C type system.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ObjC {
   private ObjC() {}

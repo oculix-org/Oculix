@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.sikuli.mcp.server.SessionContext;
 
 import static org.junit.jupiter.api.Assertions.*;
+/**
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
+ */
 
 class SessionContextTest {
 

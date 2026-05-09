@@ -34,6 +34,9 @@ import java.time.Instant;
  * parallel via TestNG {@code parallel="methods"} or JUnit 5 concurrent
  * execution), but the <i>current</i> {@link Test} is per-thread, so events
  * land on the right test even with parallel execution.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class OculixReporter {
 

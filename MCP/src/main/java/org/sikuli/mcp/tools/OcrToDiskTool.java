@@ -29,6 +29,9 @@ import java.util.List;
  * <p>For a non-confidential workflow where the LLM must read what was
  * captured, keep using {@link ReadTextInRegionTool} — only one of the two
  * is registered at startup, depending on {@code OCULIX_MCP_MODE}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class OcrToDiskTool implements Tool {
 

@@ -12,6 +12,9 @@ import static org.oculix.report.diagnosis.Diagnosis.Severity.WARNING;
  * Catalogue of default rules. Order matters — first match wins, so put
  * the most specific patterns before the generic catch-alls. Categories
  * specific to OculiX (visual recognition) come first.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class DiagnosisRules {
 

@@ -14,6 +14,9 @@ import java.io.File;
  * Modal dialog for configuring a Swipe action over a captured zone.
  * Shows the captured image, 4 direction arrows, and a distance slider.
  * Generates a 2-line Jython snippet using dragDrop().
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderSwipeDialog extends JDialog {
 

@@ -19,6 +19,9 @@ import org.json.JSONObject;
  *
  * <p>Return value of {@link #call} must be a JSON object conforming to the
  * MCP {@code tools/call} result shape: {@code { content: [...], isError: bool }}.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public interface Tool {
 

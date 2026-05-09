@@ -44,6 +44,9 @@ import java.util.Base64;
  * <p>The session bearer itself does not need a dedicated type — it is
  * just a string stored in the session record alongside the session id,
  * with {@link MessageDigest#isEqual} used to compare at the edge.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class BearerAuth {
 

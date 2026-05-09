@@ -159,7 +159,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
       where.y += MAXHEIGHT + 10;
 
       popmenu = new SXDialogPaneImageMenu(where,
-          new String[]{"image"}, options.get(IButton.FILE), this);
+          new String[]{"image", "imgBtn"}, options.get(IButton.FILE), this);
       popmenu.run();
     }
   }
@@ -168,7 +168,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   private void handlePreview() {
     Point where = getLocationOnScreen();
-    popwin = new SXDialogPaneImage(where, new String[]{"image"}, options.get(IButton.FILE), this);
+    popwin = new SXDialogPaneImage(where, new String[]{"image", "imgBtn"}, options.get(IButton.FILE), this);
     popwin.run();
   }
 
@@ -179,140 +179,14 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   @Override
   public void mouseEntered(MouseEvent me) {
-    showPreviewPopup(true);
+    // Step 1 (RaiMan #209): hover surfaces filename only via the Swing
+    // tooltip set in setOptionsAndConfigure(). No custom Pattern() preview
+    // popup — keeps the inline button visually quiet.
   }
 
   @Override
   public void mouseExited(MouseEvent me) {
-    showPreviewPopup(false);
   }
-
-  private JFrame previewPopup;
-  private JLabel previewModifierLabel;
-
-  /**
-   * Recreate the SikuliX 2.0.5 hover preview: a borderless always-on-top
-   * window that shows the captured image at full size with the parsed
-   * Pattern signature underneath. Invoked on mouse-entered, hidden on
-   * mouse-exited. The signature line is re-extracted from the document
-   * every time the popup is shown so it stays accurate when the user
-   * edits chained {@code .similar()} or {@code .targetOffset()} arguments.
-   */
-  private void showPreviewPopup(boolean show) {
-    if (!show) {
-      if (previewPopup != null) {
-        previewPopup.setVisible(false);
-      }
-      return;
-    }
-    if (options == null || options.get(IButton.FILE) == null) {
-      return;
-    }
-    File imgFile = (File) options.get(IButton.FILE);
-    BufferedImage img;
-    try {
-      img = ImageIO.read(imgFile);
-    } catch (IOException e) {
-      return;
-    }
-    if (img == null) {
-      return;
-    }
-    if (previewPopup == null) {
-      previewPopup = new JFrame();
-      previewPopup.setAlwaysOnTop(true);
-      previewPopup.setUndecorated(true);
-      previewPopup.setResizable(false);
-      previewPopup.setFocusableWindowState(false);
-      previewPopup.setBackground(Color.WHITE);
-      Container p = previewPopup.getContentPane();
-      p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-      p.setBackground(Color.WHITE);
-      JLabel imgLbl = new JLabel(new ImageIcon(img));
-      imgLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-      imgLbl.setBorder(BorderFactory.createLineBorder(new Color(0, 128, 128), 1));
-      p.add(imgLbl);
-      previewModifierLabel = new JLabel(" ");
-      previewModifierLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-      previewModifierLabel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
-      previewModifierLabel.setForeground(Color.DARK_GRAY);
-      p.add(previewModifierLabel);
-    }
-    previewModifierLabel.setText(buildSignatureFromContext());
-    previewPopup.pack();
-    Point btn = getLocationOnScreen();
-    Rectangle screen = getGraphicsConfiguration().getBounds();
-    Point at = new Point();
-    if (btn.y - screen.y < screen.height / 2) {
-      at.y = btn.y + getHeight() + 3;
-    } else {
-      at.y = btn.y - 3 - previewPopup.getHeight();
-    }
-    if (btn.x - screen.x < screen.width / 2) {
-      at.x = btn.x;
-    } else {
-      at.x = btn.x - previewPopup.getWidth() + getWidth();
-    }
-    previewPopup.setLocation(at);
-    previewPopup.setVisible(true);
-  }
-
-  /**
-   * Reconstruct the {@code Pattern("name.png").similar(X).targetOffset(X,Y)}
-   * call from the source code surrounding this button, so the hover preview
-   * stays informative when the original Pattern() has chained modifiers.
-   * Falls back to bare {@code Pattern("name.png")} when the button is not
-   * yet attached to a JTextPane (palette / drag preview / detached state).
-   */
-  private String buildSignatureFromContext() {
-    String name = info();
-    String sig = "Pattern(\"" + name + ".png\")";
-    Container ancestor = SwingUtilities.getAncestorOfClass(JTextPane.class, this);
-    if (!(ancestor instanceof JTextPane)) {
-      return sig;
-    }
-    JTextPane pane = (JTextPane) ancestor;
-    javax.swing.text.StyledDocument doc = pane.getStyledDocument();
-    int myOffset = -1;
-    int i = 0;
-    while (i < doc.getLength()) {
-      javax.swing.text.Element el = doc.getCharacterElement(i);
-      Component comp = javax.swing.text.StyleConstants.getComponent(el.getAttributes());
-      if (comp == this) {
-        myOffset = el.getStartOffset();
-        break;
-      }
-      i = Math.max(el.getEndOffset(), i + 1);
-    }
-    if (myOffset < 0) {
-      return sig;
-    }
-    String after;
-    try {
-      javax.swing.text.Element para = doc.getParagraphElement(myOffset);
-      int from = myOffset + 1;
-      int len = Math.max(0, para.getEndOffset() - from);
-      after = doc.getText(from, len);
-    } catch (javax.swing.text.BadLocationException e) {
-      return sig;
-    }
-    StringBuilder sb = new StringBuilder(sig);
-    java.util.regex.Matcher mSim = SIMILAR_PAT.matcher(after);
-    if (mSim.find()) {
-      sb.append(".similar(").append(mSim.group(1)).append(")");
-    }
-    java.util.regex.Matcher mOff = OFFSET_PAT.matcher(after);
-    if (mOff.find()) {
-      sb.append(".targetOffset(")
-          .append(mOff.group(1)).append(",").append(mOff.group(2)).append(")");
-    }
-    return sb.toString();
-  }
-
-  private static final java.util.regex.Pattern SIMILAR_PAT =
-      java.util.regex.Pattern.compile("\\.similar\\s*\\(\\s*([0-9]*\\.?[0-9]+)\\s*\\)");
-  private static final java.util.regex.Pattern OFFSET_PAT =
-      java.util.regex.Pattern.compile("\\.targetOffset\\s*\\(\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*\\)");
 
   @Override
   public void mousePressed(MouseEvent me) {
@@ -368,12 +242,127 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return thumb;
   }
 
+  /**
+   * SikuliX historical default similarity. "As Pattern" pins the button to
+   * this value so the resulting code reads as the canonical
+   * {@code Pattern("name.png")} (no explicit {@code .similar(...)} suffix
+   * since the value matches the API default). The badge always paints once
+   * a button has been promoted, regardless of the similar value, so the
+   * user always sees feedback that the promotion took effect — the prior
+   * choice of 0.85-as-default existed only to force the badge to render
+   * under a stricter "differ from default" rule that has been removed.
+   */
+  private static final double AS_PATTERN_DEFAULT_SIMILAR = 0.7;
+  private static final double DEFAULT_SIMILAR = 0.7;
+
+  /**
+   * Track whether the user has explicitly promoted this image to a Pattern
+   * via the "As Pattern" menu action. When true, {@link #toString()} writes
+   * the Pattern(...).similar(...) form instead of the bare quoted filename,
+   * and {@link #paint(Graphics)} paints the green similarity badge.
+   */
+  private boolean _isPattern = false;
+  private double _similar = DEFAULT_SIMILAR;
+  private boolean _exact = false;
+  private Location _offset = null;
+
+  /**
+   * Promote this plain image button to a Pattern with a fixed non-default
+   * similarity. Visible feedback: green badge ("85") drawn at the
+   * bottom-right corner. Code-level effect: next File ▸ Save serializes
+   * the surrounding call as {@code Pattern("foo.png").similar(0.85)}
+   * instead of {@code "foo.png"}.
+   *
+   * <p>Idempotent — re-clicking "As Pattern" on an already-promoted button
+   * is a no-op.
+   */
+  /**
+   * True once the user has explicitly promoted this image to a Pattern via
+   * the right-click menu or via Optimize Apply. Read by
+   * {@link org.sikuli.support.gui.SXDialogPaneImageMenu} to hide the
+   * "As Pattern" entry from the menu when the promotion already happened —
+   * a stale entry would be confusing dead UI.
+   */
+  public boolean isPromotedToPattern() {
+    return _isPattern;
+  }
+
+  public void promoteToPattern() {
+    if (_isPattern) return;
+    _isPattern = true;
+    _similar = AS_PATTERN_DEFAULT_SIMILAR;
+    rebuildText();
+    setButtonText();
+    repaint();
+  }
+
+  /**
+   * Recompute the IButton.TEXT serialisation from the current pattern
+   * state. Mirrors EditorPatternButton.toString() so both button types
+   * round-trip identically through File ▸ Save.
+   */
+  private void rebuildText() {
+    if (options == null) options = new HashMap<>();
+    if (options.get(IButton.FILE) == null) return;
+    final String name = ((File) options.get(IButton.FILE)).getName();
+    if (!_isPattern && (_offset == null || (_offset.x == 0 && _offset.y == 0))) {
+      options.put(IButton.TEXT, "\"" + name + "\"");
+      return;
+    }
+    StringBuilder sb = new StringBuilder();
+    sb.append("Pattern(\"").append(name).append("\")");
+    if (_exact) {
+      sb.append(".exact()");
+    } else if (_similar > 0 && _similar != DEFAULT_SIMILAR) {
+      sb.append(String.format(java.util.Locale.ENGLISH, ".similar(%.2f)", _similar));
+    }
+    if (_offset != null && (_offset.x != 0 || _offset.y != 0)) {
+      sb.append(".targetOffset(").append(_offset.x).append(",").append(_offset.y).append(")");
+    }
+    options.put(IButton.TEXT, sb.toString());
+  }
+
   @Override
   public void paint(Graphics g) {
     super.paint(g);
     Graphics2D g2d = (Graphics2D) g;
     g2d.setColor(new Color(0, 128, 128, 128));
     g2d.drawRoundRect(3, 3, getWidth() - 7, getHeight() - 7, 5, 5);
+    // The badge always renders once the button has been promoted to a
+    // Pattern, regardless of whether the similar value matches the
+    // historical default 0.70. It serves as the visual marker
+    // "this is a Pattern, not a plain image" — same role as the green
+    // dot in legacy SikuliX. Without this, an As Pattern click that
+    // landed on default 0.70 produced no visible change → users
+    // thought the action did nothing.
+    if (_isPattern) {
+      drawSimilarBadge(g2d);
+    }
+  }
+
+  /**
+   * Bottom-right green badge with the similarity percentage (e.g. "85").
+   * Same visual language as {@link EditorPatternButton#drawDecoration} so
+   * users see a consistent indicator regardless of whether the button was
+   * captured by the recorder (EditorImageButton) or by the legacy capture
+   * path (EditorPatternButton).
+   */
+  private void drawSimilarBadge(Graphics2D g2d) {
+    final String label = String.format("%d", (int) (_similar * 100));
+    g2d.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+        java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    final FontMetrics fm = g2d.getFontMetrics();
+    final int textW = fm.stringWidth(label);
+    final int textH = fm.getAscent();
+    final int padding = 3;
+    final int badgeW = textW + padding * 2;
+    final int badgeH = textH + padding * 2;
+    final int x = getWidth() - badgeW - 1;
+    final int y = getHeight() - badgeH - 1;
+    g2d.setColor(new Color(0, 128, 0, 180));
+    g2d.fillRoundRect(x, y, badgeW, badgeH, 4, 4);
+    g2d.setColor(Color.WHITE);
+    g2d.drawString(label, x + padding, y + padding + textH - 1);
   }
 
   @Override
@@ -401,10 +390,28 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   }
 
   public static void renameImage(String name, Map<String, Object> options) {
-    if (name == null || name.trim().isEmpty()) return;
+    Commons.startLog(3, "renameImage: called name=%s keys=%s", name, options.keySet());
+    if (name == null || name.trim().isEmpty()) {
+      Commons.startLog(3, "renameImage: empty name, skip");
+      return;
+    }
+    // The dialog (SXDialogPaneImage) builds its own options map using the
+    // string "image" as key (see SXDialog.setOptions + the call site at
+    // EditorImageButton:171 which passes new String[]{"image"} as the key
+    // array). EditorImageButton internally uses IButton.FILE = "FILE".
+    // Try both so we work regardless of which caller invoked us.
     File oldFile = (File) options.get("image");
     if (oldFile == null) {
-      Commons.error("renameImage: no source file in options");
+      oldFile = (File) options.get(IButton.FILE);
+    }
+    if (oldFile == null) {
+      Commons.error("renameImage: no source file in options (keys=%s)",
+          options.keySet());
+      return;
+    }
+    Commons.startLog(3, "renameImage: oldFile=%s exists=%s", oldFile, oldFile.exists());
+    if (!oldFile.exists()) {
+      Commons.error("renameImage: source file does not exist on disk: %s", oldFile);
       return;
     }
     String newBaseName = name.trim();
@@ -414,18 +421,50 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
       newBaseName += "." + FilenameUtils.getExtension(oldFile.getName()).toLowerCase();
     }
     File newFile = new File(oldFile.getParentFile(), newBaseName);
-    boolean overwritten = newFile.exists() && !newFile.equals(oldFile);
+    Commons.startLog(3, "renameImage: %s -> %s", oldFile.getName(), newFile.getName());
+    if (newFile.equals(oldFile)) {
+      Commons.startLog(3, "renameImage: same name, skip");
+      return;
+    }
+    boolean overwritten = newFile.exists();
     try {
       java.nio.file.Files.move(oldFile.toPath(), newFile.toPath(),
           java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      Commons.startLog(3, "renameImage: move OK, newFile exists=%s", newFile.exists());
     } catch (IOException e) {
       Commons.error("renameImage: cannot move %s -> %s: %s",
           oldFile, newFile, e.getMessage());
       return;
     }
+    // Update the dialog's own map (caller may inspect it after this returns).
+    options.put(IButton.FILE, newFile);
     options.put("image", newFile);
+    // The dialog stashed the originating EditorImageButton instance in its
+    // options under "imgBtn" — see the construction at EditorImageButton:161
+    // and :171, where the keys array {"image", "imgBtn"} pairs file (parm0)
+    // with this button (parm1) via SXDialog.setOptions naming.
+    // The button's own internal `options` map is a SEPARATE Map from the
+    // dialog's — without mirroring the rename onto it, the next save would
+    // still serialize the old filename and the tooltip would still show
+    // the old name.
+    Object btnObj = options.get("imgBtn");
+    if (btnObj instanceof EditorImageButton) {
+      EditorImageButton btn = (EditorImageButton) btnObj;
+      btn.options.put(IButton.FILE, newFile);
+      // IButton.TEXT carries the textual form ("filename.png" with quotes)
+      // that the button serializes back to the script when the document is
+      // saved. Without this update the next File ▸ Save writes the OLD name
+      // even though the .png on disk is now the NEW name.
+      btn.options.put(IButton.TEXT, "\"" + newFile.getName() + "\"");
+      btn.setButtonText();
+      btn.repaint();
+      Commons.startLog(3, "renameImage: button instance updated (tooltip + serialization)");
+    } else {
+      Commons.startLog(3, "renameImage: no button instance in options.parm1 (kept dialog-only update)");
+    }
     SikulixIDE.get().reparseOnRenameImage(oldFile.getAbsolutePath(),
         newFile.getAbsolutePath(), overwritten);
+    Commons.startLog(3, "renameImage: reparseOnRenameImage called");
   }
 
   //imgBtn.setImage(filename);
@@ -433,25 +472,78 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   }
 
-  //imgBtn.setParameters(
-  //						_screenshot.isExact(), _screenshot.getSimilarity(),
-  //						_screenshot.getNumMatches()));
+  /**
+   * Apply matching parameters from the Optimize / PatternWindow Apply button.
+   * Returns true if any value actually changed (PatternWindow uses this for
+   * its dirty marker). Called by PatternWindow.actionPerformed at line 304.
+   *
+   * <p>Side effects: pins the button as a Pattern (so the badge paints + the
+   * code serialises as Pattern("foo.png").similar(...)), refreshes the
+   * IButton.TEXT serialisation, repaints. {@code numM} is currently ignored —
+   * EditorImageButton has no Pattern instance to attach numMatches to, but
+   * keeping the signature lets PatternWindow stay agnostic of which button
+   * type it edits.
+   */
   public boolean setParameters(boolean exact, double sim, int numM) {
-    return true;
+    boolean dirty = false;
+    if (_exact != exact) {
+      _exact = exact;
+      dirty = true;
+    }
+    if (Math.abs(_similar - sim) > 1e-6) {
+      _similar = sim;
+      dirty = true;
+    }
+    if (dirty || !_isPattern) {
+      _isPattern = true;
+      rebuildText();
+      setButtonText();
+      repaint();
+      dirty = true;
+    }
+    return dirty;
   }
 
-  //imgBtn.setTargetOffset(_tarOffsetPane.getTargetOffset()))
+  /**
+   * Apply target offset from PatternWindow's TargetOffset tab. Like
+   * setParameters, this also pins the button as a Pattern so the resulting
+   * code is Pattern("foo.png").targetOffset(x,y).
+   */
   public boolean setTargetOffset(Location offset) {
-    return true;
+    boolean dirty;
+    if (offset == null) {
+      dirty = (_offset != null);
+      _offset = null;
+    } else if (_offset == null) {
+      _offset = new Location(offset.x, offset.y);
+      dirty = true;
+    } else {
+      dirty = (_offset.x != offset.x || _offset.y != offset.y);
+      _offset = new Location(offset.x, offset.y);
+    }
+    if (dirty) {
+      _isPattern = true;
+      rebuildText();
+      repaint();
+    }
+    return dirty;
   }
 
-  //imgBtn.getWindow()
   public PatternWindow getWindow() {
     return null;
   }
 
-  //imgBtn.resetParameters()
+  /**
+   * Reset to a plain image (no Pattern wrap). Used by PatternWindow's
+   * cancel/reset path so the user can back out of an unwanted promotion.
+   */
   public void resetParameters() {
-
+    _isPattern = false;
+    _exact = false;
+    _similar = DEFAULT_SIMILAR;
+    _offset = null;
+    rebuildText();
+    setButtonText();
+    repaint();
   }
 }

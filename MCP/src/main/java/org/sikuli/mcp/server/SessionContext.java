@@ -18,6 +18,9 @@ import java.util.UUID;
  * <p>{@code SessionContext} is immutable. {@link #withLlm(JSONObject)}
  * returns a new instance that preserves the existing {@code sessionId}
  * — it mutates only the optional LLM metadata provided per request.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class SessionContext {
 

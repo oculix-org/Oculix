@@ -7,6 +7,9 @@ import java.util.List;
  * (error message + stack trace concatenated). Returns the first match,
  * or {@code null} if no rule fires — callers should treat null as
  * "unclassified".
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class DiagnosisEngine {
 

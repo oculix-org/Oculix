@@ -27,6 +27,9 @@ import java.time.Instant;
  * <p>This is the tool that makes the bank pitch defensible: the SHA-256
  * in the audit trail proves what was captured, the local file holds the
  * evidence, and the frontier LLM never sees any bank-internal pixel.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ScreenshotToDiskTool implements Tool {
 

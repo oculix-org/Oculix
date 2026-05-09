@@ -9,6 +9,9 @@ import org.sikuli.script.*;
 
 /**
  * Find a reference image on screen and left-click its centre.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public final class ClickImageTool implements Tool {
 

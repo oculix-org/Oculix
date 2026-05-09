@@ -17,6 +17,9 @@ import java.util.concurrent.*;
  * All state transitions are validated against VALID_TRANSITIONS.
  * UI callbacks are dispatched on the EDT via SwingUtilities.invokeLater.
  * Watchdog timers auto-return to IDLE on timeout.
+ * @author Julien Mer (julienmerconsulting)
+ * @author Claude (Anthropic)
+ * @since 3.0.3
  */
 public class RecorderWorkflow {
 
