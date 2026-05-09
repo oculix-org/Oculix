@@ -123,6 +123,14 @@ LOCALE_MAP: dict[str, str] = {
     "uk":    "uk",
     "zh_CN": "zh-CN",
     "zh_TW": "zh-TW",
+    # Indian-subcontinent languages — added as a courtesy for the
+    # significant Indian QA / DevOps community even though most users
+    # there default to English UI. Gujarati (gu) and Marathi (mr)
+    # could be added in a future wave; Tamil (ta) already covered by
+    # RaiMan's hand-translated IDE_ta_IN.properties (preserved as-is).
+    "hi":    "hi",     # Hindi
+    "bn":    "bn",     # Bengali
+    "te":    "te",     # Telugu
 }
 
 SOURCE_LOCALE = "en_US"
