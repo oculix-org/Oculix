@@ -381,8 +381,10 @@ public class OculixSidebar extends JPanel {
       prefs.store();
       org.sikuli.support.ide.SikuliIDEI18N.setLocale(newLocale);
       // Update the picker label to the freshly-selected locale so the
-      // user sees feedback even before restart.
-      if (languagePicker != null) languagePicker.setLocale(newLocale);
+      // user sees feedback even before restart. setSelectedLocale (not
+      // setLocale) — the latter is inherited from java.awt.Component
+      // and renaming avoids a weak-access override compile error.
+      if (languagePicker != null) languagePicker.setSelectedLocale(newLocale);
       // Light-touch live refresh: re-translate the section headers + the
       // status panel labels we control directly. Menus and deeper widgets
       // need a restart, hence the toast below.
@@ -814,7 +816,7 @@ public class OculixSidebar extends JPanel {
       });
     }
 
-    void setLocale(java.util.Locale loc) {
+    void setSelectedLocale(java.util.Locale loc) {
       this.current = loc;
       repaint();
     }
