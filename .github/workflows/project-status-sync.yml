@@ -45,6 +45,7 @@ jobs:
               *" status:in-review "*)  echo "👀 In Review" ;;
               *" status:in-progress "*) echo "In Progress" ;;
               *" status:up-next "*)    echo "🎯 Up Next" ;;
+              *" status:needs-info "*) echo "🔍 Needs Info" ;;
               *" status:backlog "*)    echo "📋 Backlog" ;;
               *" help wanted "*)       echo "🤝 Help Wanted" ;;
               *)                       echo "" ;;

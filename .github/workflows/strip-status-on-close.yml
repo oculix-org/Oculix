@@ -1,0 +1,37 @@
+name: Strip status labels on close
+
+# When an issue is closed, remove every `status:*` label so the issue
+# stops carrying transient workflow state into the closed history. The
+# Project v2 board (managed by project-status-sync.yml) becomes the
+# single source of truth for closed-state status (✅ Done). Labels are
+# kept for category / area / priority — only `status:*` are wiped.
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  strip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const stale = context.payload.issue.labels
+              .map(l => l.name)
+              .filter(n => n.startsWith('status:'));
+            for (const name of stale) {
+              try {
+                await github.rest.issues.removeLabel({
+                  ...context.repo,
+                  issue_number: context.payload.issue.number,
+                  name,
+                });
+                core.info(`removed ${name}`);
+              } catch (e) {
+                core.warning(`could not remove ${name}: ${e.message}`);
+              }
+            }

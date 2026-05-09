@@ -5,8 +5,79 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 Versions follow [SemVer](https://semver.org/) with `-rcN` / `-betaN` / `-alphaN` suffixes for pre-releases.
 
 > Each `## [vX.Y.Z]` section is consumed verbatim by `.github/workflows/release-rc.yml`
-> and published as the GitHub Release body for the matching tag. Keep entries
-> reader-friendly — they ship as the public release notes.
+> (RC tags) and `.github/workflows/release.yml` (stable tags) and published as the
+> GitHub Release body for the matching tag. Keep entries reader-friendly — they
+> ship as the public release notes.
+
+---
+
+## [v3.0.3] - 2026-05-09
+
+![status](https://img.shields.io/badge/release-stable-brightgreen)
+![maven](https://img.shields.io/badge/maven_central-published-blue)
+![track](https://img.shields.io/badge/upgrade-drop--in_from_3.0.x-orange)
+
+> **Major evolution release** — visual rebrand, full multilingual typing,
+> slimmer fat-jars, MCP server matures. Drop-in upgrade from 3.0.x.
+
+### What's new for users
+
+- 🌏 **Universal typing** — write `region.type("你好")`, `region.type("こんにちは")`, `region.type("привет")` and it just works. ASCII path unchanged, non-ASCII routed automatically through clipboard. Asian-language and accented-Latin automation now first-class.
+
+- 🎨 **Polished IDE** — full visual rebrand with dark/light theme system, Welcome tab, sidebar redesign, theme-aware console + workspace explorer. The IDE now looks and feels like a 2026 tool.
+
+- 📦 **Lighter footprint** — fat-jars trimmed by **~50 MB on Linux** and **~114 MB on Windows**. Faster downloads, faster CI, lower bandwidth bill. Same API, same behavior.
+
+- 🚀 **CLI auto-run** — launch the IDE with a script preloaded and auto-executed: `java -jar oculixide.jar -l my-script.sikuli -e`. Cross-platform (Linux + WSL + Windows).
+
+- 🤖 **MCP server matured** — auditable visual-control server with Ed25519-signed action journal, ready for regulated environments (finance, health, defense). Plug any MCP-compatible AI agent on top of OculiX as its visual layer.
+
+- 🦎 **Build banner** — every `mvn` / `mvnd` invocation greets you with the OculiX gecko. Personality at the build level. Easter egg, but also a discreet brand marker.
+
+### Maven coordinates
+
+```xml
+<dependency>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculixapi</artifactId>
+    <version>3.0.3</version>
+</dependency>
+```
+
+API, IDE, and MCP modules all available on Maven Central.
+
+### Upgrading from 3.0.x
+
+Drop-in. No breaking API changes. Bump the version in your pom and rebuild.
+
+### Known issues / not in this release
+
+We ship `3.0.3` knowing some things are still pending — preferring honesty over polish:
+
+- **Android device picker** (#229) — when multiple emulators / devices are connected via ADB, the selection prompt is missing. Workaround: stop other devices, or manually export `ANDROID_SERIAL`. Targeted for `3.0.4`.
+
+- **GNOME 3+ system tray icons** — IDE tray indicator (#223) not yet implemented. Linux KDE/XFCE/MATE/Cinnamon would already work; planned for `OculiX 4.0`. The Shift+Alt+C kill switch and the IDE message panel remain the canonical "is my script alive?" surfaces in the meantime.
+
+- **CLI args parser** (#226) — internal duplication between `Commons.hasArg` and the Apache Commons CLI `Options` API. No user-facing impact, but the cleanup is on the V4 tech-debt list.
+
+- **Visual Intelligence** (#160, #170-#179) — the natural-language `AItype("the red button below the menu")` API and the embedded ML pipeline are roadmap, not 3.0.x. They live on the [`OculiX 4.0`](https://github.com/oculix-org/Oculix/milestone/5) and [`OculiX 5.0 — Game Changers`](https://github.com/oculix-org/Oculix/milestone/6) milestones.
+
+Full open backlog: [oculix-org/Oculix/issues](https://github.com/oculix-org/Oculix/issues). Bug reports and field feedback drive the next cycle — open an issue, a fork, or a PR.
+
+### Contributors
+
+This release was made possible by:
+
+- [@julienmerconsulting](https://github.com/julienmerconsulting) — release lead
+- [@RaiMan](https://github.com/RaiMan) — `ScreenUnion` removal, Java 8 cleanup
+- [@kelvinkirima014](https://github.com/kelvinkirima014) — foundational EDT fix
+- [@adriancostin6](https://github.com/adriancostin6), [@blackball](https://github.com/blackball), [@micves](https://github.com/micves), [@roboraptor](https://github.com/roboraptor) — bug reports and field validation
+- [Claude](https://claude.com) (Anthropic) — pair-programming partner
+- And the testers who pulled every RC and stuck around 🦎
+
+### Detailed changelog
+
+Full per-RC technical breakdown is preserved in the [v3.0.3-rc5](#v303-rc5---2026-05-09) section below. This stable release aggregates rc1 through rc5.
 
 ---
 
