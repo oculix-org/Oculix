@@ -214,25 +214,19 @@ public class WelcomeTab extends JPanel {
     if (locale.getCountry() != null && !locale.getCountry().isEmpty()) {
       localeTag = localeTag + "_" + locale.getCountry();
     }
+    // Open the dedicated translation_issue.yml form template (defined in
+    // .github/ISSUE_TEMPLATE/) instead of a free-form issue. The form's
+    // 'locale' and 'oculix-version' inputs are pre-populated via query
+    // params using their YAML 'id' values, so the user only has to type
+    // the actual correction(s).
     String title = "[i18n] Translation issue in " + localeTag;
-    String body =
-        "**Locale:** `" + localeTag + "`\n" +
-        "**OculiX version:** `" + Commons.getSXVersionShort() + "`\n\n" +
-        "**Affected key(s):**\n" +
-        "```\n<paste the key, e.g. welcomeBtnNewScript>\n```\n\n" +
-        "**Current value:**\n" +
-        "```\n<paste what OculiX currently shows>\n```\n\n" +
-        "**Suggested value:**\n" +
-        "```\n<your improved translation>\n```\n\n" +
-        "**Context (optional):**\n" +
-        "_e.g. label in the sidebar, button on the Welcome tab, error popup, ..._\n\n" +
-        "Thanks for helping make OculiX better in your language! 🦎";
     String base = "https://github.com/oculix-org/Oculix/issues/new";
     java.nio.charset.Charset utf8 = java.nio.charset.StandardCharsets.UTF_8;
     return base
-        + "?labels=" + java.net.URLEncoder.encode("i18n-Languages", utf8)
-        + "&title="  + java.net.URLEncoder.encode(title, utf8)
-        + "&body="   + java.net.URLEncoder.encode(body, utf8);
+        + "?template=" + java.net.URLEncoder.encode("translation_issue.yml", utf8)
+        + "&title="          + java.net.URLEncoder.encode(title, utf8)
+        + "&locale="         + java.net.URLEncoder.encode(localeTag, utf8)
+        + "&oculix-version=" + java.net.URLEncoder.encode(Commons.getSXVersionShort(), utf8);
   }
 
   // ── Background haze paint ────────────────────────────────────────
