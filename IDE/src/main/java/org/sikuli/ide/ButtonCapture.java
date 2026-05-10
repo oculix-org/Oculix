@@ -69,7 +69,7 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
     givenName = SikulixIDE.get().getImageNameFromLine();
 
     RunTime.pause(delay);
-    OverlayCapturePrompt.capturePrompt(this, "Select an image");
+    OverlayCapturePrompt.capturePrompt(this, SikulixIDE._I("captureOverlayPrompt"));
 
 //TODO capture on Android
 //    defaultScreen = SikulixIDE.getDefaultScreen();

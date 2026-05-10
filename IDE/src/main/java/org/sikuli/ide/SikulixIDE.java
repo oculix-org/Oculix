@@ -595,10 +595,10 @@ public class SikulixIDE extends JFrame {
     newHeader.setEnabled(false);
     newHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(newHeader);
-    sub.addItem("\uD83D\uDCC4  Script",
+    sub.addItem("\uD83D\uDCC4  " + _I("cmdScript"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
         e -> { createEmptyScriptContext(); });
-    sub.addItem("\uD83D\uDCC1  Workspace", null,
+    sub.addItem("\uD83D\uDCC1  " + _I("cmdWorkspace"), null,
         e -> openNewWorkspaceDialog());
 
     // ── Ouvrir ──
@@ -606,10 +606,10 @@ public class SikulixIDE extends JFrame {
     openHeader.setEnabled(false);
     openHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(openHeader);
-    sub.addItem("\uD83D\uDCC4  Script",
+    sub.addItem("\uD83D\uDCC4  " + _I("cmdScript"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
         e -> { File f = selectFileToOpen(); if (f != null) createFileContext(f); });
-    sub.addItem("\uD83D\uDCC1  Workspace", null,
+    sub.addItem("\uD83D\uDCC1  " + _I("cmdWorkspace"), null,
         e -> openExistingWorkspace());
 
     sub.addSeparator();
@@ -655,7 +655,7 @@ public class SikulixIDE extends JFrame {
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.ALT_DOWN_MASK | scMask),
         e -> btnRunSlow.runCurrentScript()));
     sub.addSeparator();
-    scriptDependentItems.add(sub.addItem("\u25B6  Run selection",
+    scriptDependentItems.add(sub.addItem("\u25B6  " + _I("menuRunRunSelection"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> getCurrentCodePane().runSelection()));
     return sub;
@@ -663,7 +663,7 @@ public class SikulixIDE extends JFrame {
 
   private SidebarSubmenu buildToolsSubmenu() {
     SidebarSubmenu sub = new SidebarSubmenu();
-    scriptDependentItems.add(sub.addItem("\uD83D\uDCF7  Capture", null,
+    scriptDependentItems.add(sub.addItem("\uD83D\uDCF7  " + _I("menuToolCapture"), null,
         e -> btnCapture.captureWithAutoDelay()));
     // Ins\u00E9rer image \u2014 picks a PNG/JPG from disk, copies it to the script
     // bundle and inserts the matching code. Same action class as the legacy
@@ -671,9 +671,9 @@ public class SikulixIDE extends JFrame {
     // scriptDependentItems \u2192 no NPE on getActiveContext().getPane().
     scriptDependentItems.add(sub.addItem("\uD83D\uDDBC\uFE0F  " + _I("btnInsertImageLabel"), null,
         e -> btnInsertImage.actionPerformed(e)));
-    scriptDependentItems.add(sub.addItem("\uD83D\uDD34  Record", null,
+    scriptDependentItems.add(sub.addItem("\uD83D\uDD34  " + _I("menuToolRecord"), null,
         e -> btnRecord.actionPerformed(e)));
-    scriptDependentItems.add(sub.addItem("\uD83D\uDFE2  Modern Recorder (beta)", null,
+    scriptDependentItems.add(sub.addItem("\uD83D\uDFE2  " + _I("menuToolModernRecorder"), null,
         e -> {
           org.sikuli.ide.ui.recorder.RecorderConfigDialog config =
               new org.sikuli.ide.ui.recorder.RecorderConfigDialog(SikulixIDE.this);
@@ -2449,7 +2449,7 @@ public class SikulixIDE extends JFrame {
 
   private void openExistingWorkspace() {
     JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Open Workspace");
+    chooser.setDialogTitle(_I("workspaceOpenDialogTitle"));
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
     chooser.setAcceptAllFileFilterUsed(false);
     // Start in current workspace's parent (so user can pick a sibling)
@@ -2924,13 +2924,13 @@ public class SikulixIDE extends JFrame {
     _editMenu.add(createMenuItem(_I("menuEditCopy"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C, scMask),
             new EditAction(EditAction.COPY)));
-    _editMenu.add(createMenuItem("Copy line",
+    _editMenu.add(createMenuItem(_I("menuEditCopyLine"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C, scMask | InputEvent.SHIFT_DOWN_MASK),
             new EditAction(EditAction.COPY)));
     _editMenu.add(createMenuItem(_I("menuEditCut"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_X, scMask),
             new EditAction(EditAction.CUT)));
-    _editMenu.add(createMenuItem("Cut line",
+    _editMenu.add(createMenuItem(_I("menuEditCutLine"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_X, scMask | InputEvent.SHIFT_DOWN_MASK),
             new EditAction(EditAction.CUT)));
     _editMenu.add(createMenuItem(_I("menuEditPaste"),

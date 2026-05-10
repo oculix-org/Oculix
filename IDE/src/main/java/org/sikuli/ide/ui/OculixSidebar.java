@@ -852,16 +852,16 @@ public class OculixSidebar extends JPanel {
 
       // Region grouping — keeps the top-level popup short and lets
       // users scan by language family instead of a flat 25-row list.
-      addRegionSubmenu(menu, itemFont, "🇪🇺  Europe (Latin)",
+      addRegionSubmenu(menu, itemFont, "🇪🇺  " + _I("languageRegionLatinEurope"),
           "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR",
           "sv", "da", "ca");
-      addRegionSubmenu(menu, itemFont, "🇪🇺  Europe (Slavic / Other)",
+      addRegionSubmenu(menu, itemFont, "🇪🇺  " + _I("languageRegionSlavicEurope"),
           "pl", "ru", "uk", "bg", "tr");
-      addRegionSubmenu(menu, itemFont, "🌍  Middle East",
+      addRegionSubmenu(menu, itemFont, "🌍  " + _I("languageRegionMiddleEast"),
           "he", "ar");
-      addRegionSubmenu(menu, itemFont, "🌏  East Asia",
+      addRegionSubmenu(menu, itemFont, "🌏  " + _I("languageRegionEastAsia"),
           "ja", "ko", "zh", "zh_CN", "zh_TW");
-      addRegionSubmenu(menu, itemFont, "🇮🇳  Indian subcontinent",
+      addRegionSubmenu(menu, itemFont, "🇮🇳  " + _I("languageRegionIndianSubcontinent"),
           "hi", "bn", "te", "ta", "ta_IN");
 
       // Allow selecting any AVAILABLE locale that wasn't covered above

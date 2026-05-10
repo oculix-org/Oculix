@@ -182,23 +182,23 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 
   private void popTabMenu() {
     try {
-      add(createMenuItem("About", new PopTabAction(PopTabAction.ABOUT)));
+      add(createMenuItem(SikulixIDE._I("popTabAbout"), new PopTabAction(PopTabAction.ABOUT)));
       createMenuSeperator();
-      add(createMenuItem("Set Type", new PopTabAction(PopTabAction.SET_TYPE)));
-      add(createMenuItem("Insert Path", new PopTabAction(PopTabAction.INSERT_PATH)));
+      add(createMenuItem(SikulixIDE._I("popTabSetType"), new PopTabAction(PopTabAction.SET_TYPE)));
+      add(createMenuItem(SikulixIDE._I("popTabInsertPath"), new PopTabAction(PopTabAction.INSERT_PATH)));
       createMenuSeperator();
-      add(createMenuItem("Move Tab", new PopTabAction(PopTabAction.MOVE_TAB)));
-      add(createMenuItem("Duplicate", new PopTabAction(PopTabAction.DUPLICATE)));
-      add(createMenuItem("Open", new PopTabAction(PopTabAction.OPEN)));
-      add(createMenuItem("Open left", new PopTabAction(PopTabAction.OPENL)));
+      add(createMenuItem(SikulixIDE._I("popTabMoveTab"), new PopTabAction(PopTabAction.MOVE_TAB)));
+      add(createMenuItem(SikulixIDE._I("popTabDuplicate"), new PopTabAction(PopTabAction.DUPLICATE)));
+      add(createMenuItem(SikulixIDE._I("popTabOpen"), new PopTabAction(PopTabAction.OPEN)));
+      add(createMenuItem(SikulixIDE._I("popTabOpenLeft"), new PopTabAction(PopTabAction.OPENL)));
       createMenuSeperator();
-      add(createMenuItem("Save", new PopTabAction(PopTabAction.SAVE)));
-      add(createMenuItem("SaveAs", new PopTabAction(PopTabAction.SAVE_AS)));
+      add(createMenuItem(SikulixIDE._I("popTabSave"), new PopTabAction(PopTabAction.SAVE)));
+      add(createMenuItem(SikulixIDE._I("popTabSaveAs"), new PopTabAction(PopTabAction.SAVE_AS)));
       createMenuSeperator();
-      add(createMenuItem("Run", new PopTabAction(PopTabAction.RUN)));
-      add(createMenuItem("Run Slowly", new PopTabAction(PopTabAction.RUN_SLOW)));
+      add(createMenuItem(SikulixIDE._I("popTabRun"), new PopTabAction(PopTabAction.RUN)));
+      add(createMenuItem(SikulixIDE._I("popTabRunSlow"), new PopTabAction(PopTabAction.RUN_SLOW)));
       createMenuSeperator();
-      add(createMenuItem("Reset", new PopTabAction(PopTabAction.RESET)));
+      add(createMenuItem(SikulixIDE._I("popTabReset"), new PopTabAction(PopTabAction.RESET)));
 
     } catch (NoSuchMethodException ex) {
       validMenu = false;
@@ -372,7 +372,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 
     private void resetMenuAfterMoveTab() {
       setMenuText(menus.get(MOVE_TAB), "Move Tab");
-      setMenuText(menus.get(OPENL), "Open left");
+      setMenuText(menus.get(OPENL), SikulixIDE._I("popTabOpenLeft"));
       refTab.resetLastClosed();
     }
 
