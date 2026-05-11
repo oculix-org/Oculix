@@ -3032,34 +3032,55 @@ public class Region extends Element {
     }
     if (shouldCheckLastSeen) {
       Region r = Region.create(img.getLastSeen());
-      if (this.contains(r)) {
-        // OculiX: skip lastSeen optimization if the cached region is smaller than the
-        // template — this happens when Modes 2/5 produced a scaled match (region reflects
-        // on-screen size after scale, but template is still original size). Without this
-        // guard, Finder.isValid() throws "image to search is larger than image to search in".
-        java.awt.Dimension imgSize = img.getSize();
-        if (r.w < imgSize.width || r.h < imgSize.height) {
-          log(logLevel, "checkLastSeen: skipping (cached region %dx%d smaller than template %dx%d)",
-              r.w, r.h, imgSize.width, imgSize.height);
+      // OculiX: if the cached region is smaller than the template, it's the
+      // footprint of a Mode 2/5 scaled match (e.g. 40x40 for an 80x80 template
+      // at scale=0.5 on a retina display). Searching exactly that subregion
+      // would either crash Finder.isValid() ("image to search larger than image
+      // to search in") or skip the optimization on every find on HiDPI — both
+      // were regressions vs. SikuliX1. Restore the SikuliX1-era behavior by
+      // expanding the search rect to at least the template size, centered on
+      // the cached match, so the cascade can re-locate the scaled object via
+      // Modes 2/5 within the expanded area. Mouse/click coordinates are still
+      // taken from the returned Match (scale-correct), so hover precision is
+      // preserved.
+      java.awt.Dimension imgSize = img.getSize();
+      if (r.w < imgSize.width || r.h < imgSize.height) {
+        int cx = r.x + r.w / 2;
+        int cy = r.y + r.h / 2;
+        int ew = Math.max(r.w, imgSize.width);
+        int eh = Math.max(r.h, imgSize.height);
+        Region expanded = Region.create(cx - ew / 2, cy - eh / 2, ew, eh);
+        // Clamp to this region's bounds so getSub() succeeds.
+        expanded = expanded.intersection(this);
+        if (expanded != null && expanded.w >= imgSize.width && expanded.h >= imgSize.height) {
+          log(logLevel, "checkLastSeen: expanding scaled cache %dx%d -> %dx%d for template %dx%d",
+              r.w, r.h, expanded.w, expanded.h, imgSize.width, imgSize.height);
+          r = expanded;
         } else {
-          Finder f = new Finder(base.getSub(r.getRect()), r);
-          if (Debug.shouldHighlight()) {
-            if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
-              highlight(2, "#000255000");
-            }
-          }
-
-          if (ptn == null) {
-            f.find(new Pattern(img).similar(score));
-          } else {
-            f.find(new Pattern(ptn).similar(score));
-          }
-          if (f.hasNext()) {
-            log(logLevel, "checkLastSeen: still there");
-            return f;
-          }
-          log(logLevel, "checkLastSeen: not there");
+          // Expansion didn't fit (edge of region) — fall through to full search.
+          log(logLevel, "checkLastSeen: skipping (scaled cache %dx%d cannot expand to fit template %dx%d in region)",
+              r.w, r.h, imgSize.width, imgSize.height);
+          return new Finder(base, this);
         }
+      }
+      if (this.contains(r)) {
+        Finder f = new Finder(base.getSub(r.getRect()), r);
+        if (Debug.shouldHighlight()) {
+          if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
+            highlight(2, "#000255000");
+          }
+        }
+
+        if (ptn == null) {
+          f.find(new Pattern(img).similar(score));
+        } else {
+          f.find(new Pattern(ptn).similar(score));
+        }
+        if (f.hasNext()) {
+          log(logLevel, "checkLastSeen: still there");
+          return f;
+        }
+        log(logLevel, "checkLastSeen: not there");
       }
     }
     return new Finder(base, this);
