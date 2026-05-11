@@ -90,8 +90,16 @@ public class JythonSupport implements IRunnerSupport {
       Debug.log("Jython: not found on classpath");
       return;
     }
-    //TODO RunTime.get().exportLib()
-    //RunTime.get().exportLib();
+    // Refresh the bundled Python lib in the user's profile if the build stamp
+    // has changed since the last extraction. The version-gate inside
+    // org.sikuli.script.support.RunTime.exportLib() compares the marker file
+    // (e.g. 3.0.4_<stamp>_MadeForSikuliX64<W|M|L>.txt) against the current
+    // OculiX build; on mismatch it wipes everything except site-packages and
+    // re-extracts /Lib from the jar. No-op when stamps match, so no startup
+    // cost on a stable install. Without this, end-users who upgraded over a
+    // pre-#235 OculiX kept a Sikuli.py calling Screen.all() (removed by #235)
+    // and crashed at IDE startup until they manually wiped the file.
+    org.sikuli.script.support.RunTime.get().exportLib();
     try {
       interpreter = new PythonInterpreter();
       cPyException = Class.forName("org.python.core.PyException");
