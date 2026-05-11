@@ -24,10 +24,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * verify the full pipeline: extension hooks fire → facade keeps state →
  * HtmlRenderer writes the report.
  *
- * <p>One deliberately failing test is included to demonstrate the FAILED
- * outcome path and the stack-trace rendering. Surefire is configured with
- * {@code testFailureIgnore=true} in this module's pom so the Maven build
- * still exits green.
+ * <p>One test simulates a FAILED outcome to demonstrate the failure
+ * rendering path in the HTML report (see {@link #simulatedFailedTest()}).
+ * Rather than actually throwing — which would surface as an ERROR in the
+ * {@code mvn install} console output (#271) — it injects a FAILED step
+ * directly through the model API. The "worst wins" rule in {@link
+ * org.oculix.report.model.Test#addStep(org.oculix.report.model.Step)}
+ * promotes the whole test to FAILED in the HTML report, exactly as a
+ * real {@code FindFailed} would.
  */
 @ExtendWith(OculixJUnit5Extension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -61,11 +65,22 @@ class OculixJUnit5IntegrationTest {
     @org.junit.jupiter.api.Test
     @Order(2)
     @DisplayName("failed: simulated FindFailed on dashboard.png")
-    void failedTest() {
+    void simulatedFailedTest() {
         addFakeStep("oculix.click", "menu.png", Outcome.PASSED, null, null);
-        // Deliberately throw — TestWatcher.testFailed fires, extension maps
-        // to Outcome.FAILED, HtmlRenderer shows the stack trace inline.
-        throw new AssertionError("FindFailed: can not find dashboard.png after 5.0s (min similarity 0.70)");
+        // Inject a FAILED step directly through the model API so the HTML
+        // demo shows a FAILED test row with stack trace, without actually
+        // throwing — which would surface as ERROR in `mvn install` output
+        // (#271). The Test.addStep "worst wins" rule promotes the test
+        // outcome to FAILED on its own.
+        String fakeStack = String.join("\n",
+            "org.sikuli.script.FindFailed: can not find dashboard.png after 5.0s",
+            "\tat org.sikuli.script.Region.wait(Region.java:1234)",
+            "\tat com.example.demo.LoginFlow.openDashboard(LoginFlow.java:42)");
+        addFakeStep("oculix.click", "dashboard.png", Outcome.FAILED,
+            "FindFailed: can not find dashboard.png after 5.0s (min similarity 0.70)",
+            fakeStack);
+        assertEquals(Outcome.FAILED, OculixReporter.currentTest().outcome(),
+            "addStep(FAILED) should promote the whole test to FAILED");
     }
 
     @org.junit.jupiter.api.Test
