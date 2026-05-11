@@ -75,7 +75,15 @@ public class Screen extends Region implements IScreen, EventObserver {
       throw new SikuliXception(String.format("SikuliX: Init: running in headless environment"));
     }
     getGlobalRobot();
-    MouseDevice.start();
+    // macOS Accessibility preflight (originally introduced by @nishantsir57 in PR #234,
+    // cherry-picked as 397e9f7c into the integration branch). MouseDevice.start()
+    // performs a mouse-move dance that detects when Accessibility permission is
+    // denied — and on macOS, terminates the script early instead of letting it
+    // hang silently in keyboard-only flows. Gating to runningMac() avoids the
+    // cosmetic mouse-jump on Linux/Windows where the check is a no-op terminate-wise.
+    if (Commons.runningMac()) {
+      MouseDevice.start();
+    }
     log(logLevel, "initScreens: ending");
   }
 
