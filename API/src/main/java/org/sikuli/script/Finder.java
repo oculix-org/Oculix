@@ -914,12 +914,10 @@ public class Finder implements Iterator<Match> {
         Imgproc.GaussianBlur(findWhere, whereBlur, new Size(3, 3), 0);
         mResult = doFindMatch(whatBlur, whereBlur, findInput);
         mMinMax = Core.minMaxLoc(mResult);
-        double tolerantScore = originalScore * 0.9;
-        if (mMinMax.maxVal > tolerantScore) {
-          findInput.setSimilarity(tolerantScore);
+        if (mMinMax.maxVal > originalScore) {
           findResult = new FindResult2(mResult, findInput);
           log.trace("OculiX Mode 3 tolerant: match %%%.4f (threshold=%%%.4f) %d msec",
-              mMinMax.maxVal * 100, tolerantScore * 100, new Date().getTime() - begin_lap);
+              mMinMax.maxVal * 100, originalScore * 100, new Date().getTime() - begin_lap);
         }
         whatBlur.release();
         whereBlur.release();
@@ -936,12 +934,10 @@ public class Finder implements Iterator<Match> {
           Mat mResultGray = Commons.getNewMat();
           Imgproc.matchTemplate(whereGray, whatGray, mResultGray, Imgproc.TM_CCOEFF_NORMED);
           mMinMax = Core.minMaxLoc(mResultGray);
-          double smartScore = originalScore * 0.85;
-          if (mMinMax.maxVal > smartScore) {
-            findInput.setSimilarity(smartScore);
+          if (mMinMax.maxVal > originalScore) {
             findResult = new FindResult2(mResultGray, findInput);
             log.trace("OculiX Mode 4 smart: match %%%.4f (threshold=%%%.4f) %d msec",
-                mMinMax.maxVal * 100, smartScore * 100, new Date().getTime() - begin_lap);
+                mMinMax.maxVal * 100, originalScore * 100, new Date().getTime() - begin_lap);
           }
         } catch (Exception e) {
           log.trace("OculiX Mode 4 smart: grayscale conversion error: %s", e.getMessage());
@@ -952,7 +948,6 @@ public class Finder implements Iterator<Match> {
       // --- MODE 5: multi-scale brute-force (last resort) ---
       if (findResult == null && !findInput.isFindAll() && !findInput.hasMask()) {
         double[] commonScales = {1.25, 1.5, 1.75, 2.0, 0.8, 0.67, 0.5};
-        double multiScaleScore = originalScore * 0.9;
         begin_lap = new Date().getTime();
         for (double scale : commonScales) {
           Mat mScaled = new Mat();
@@ -964,8 +959,7 @@ public class Finder implements Iterator<Match> {
           }
           mResult = doFindMatch(mScaled, findWhere, findInput);
           mMinMax = Core.minMaxLoc(mResult);
-          if (mMinMax.maxVal > multiScaleScore) {
-            findInput.setSimilarity(multiScaleScore);
+          if (mMinMax.maxVal > originalScore) {
             findResult = new FindResult2(mResult, findInput);
             log.trace("OculiX Mode 5 multi-scale: match %%%.4f (scale=%.2f) %d msec",
                 mMinMax.maxVal * 100, scale, new Date().getTime() - begin_lap);
