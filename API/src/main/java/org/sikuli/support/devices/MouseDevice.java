@@ -11,6 +11,12 @@ public class MouseDevice extends Devices {
 
   private static TYPE deviceType = TYPE.MOUSE;
 
+  private static boolean isStarted = false;
+
+  public static boolean isStarted() {
+    return isStarted;
+  }
+
   private static boolean usable = true;
 
   public static boolean isUsable() {
@@ -42,6 +48,9 @@ public class MouseDevice extends Devices {
   private static boolean notUseable = false;
 
   public static void start() {
+    if (isStarted()) {
+      return;
+    }
     log(deviceType, 3, "checking usability");
     Point lnow = at();
     float mmd = Settings.MoveMouseDelay;
@@ -64,6 +73,7 @@ public class MouseDevice extends Devices {
         RunTime.terminate(999, "Mouse.init: Mouse not useable (blocked) - Screenshots might not work either!");
       }
     }
+    isStarted = true;
   }
 
   public static Point at() {

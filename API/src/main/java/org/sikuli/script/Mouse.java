@@ -60,7 +60,11 @@ public class Mouse {
       mouse.device = new Device(mouse);
       mouse.device.isMouse = true;
       mouse.device.lastPos = null;
-      MouseDevice.start();
+      //TODO for now: Fallback if called before Screen.initScreens
+      // MouseDevice.start() avoids double run
+      if (Commons.runningMac()) {
+        MouseDevice.start();
+      }
     }
   }
 
