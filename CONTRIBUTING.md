@@ -214,6 +214,24 @@ mvn clean install -DskipTests
 
 The first build pulls Apertix from Maven Central and takes 2-5 minutes. Subsequent builds are fast.
 
+### Git hooks — pair-programming credit (one-time per clone)
+
+OculiX uses a `prepare-commit-msg` hook that auto-appends a `Co-authored-by:` trailer when a commit is recorded under the Claude Code author (`noreply@anthropic.com`). This way contributors who pair with Claude get GitHub credit on the contributor graph alongside the AI.
+
+After cloning, enable the project hooks and declare your identity:
+
+```bash
+git config core.hooksPath .githooks
+git config oculix.coauthor "Your Name <you@example.com>"
+```
+
+- The first line points git at the tracked `.githooks/` directory instead of `.git/hooks/`.
+- The second line sets the value the hook will inject. Use the same `Name <email>` you commit under directly.
+- If `oculix.coauthor` is unset, the hook is a no-op (safe default).
+- The trailer is only added when the recorded author is Claude — your direct commits stay untouched.
+
+If you don't pair with Claude on this repo, you can skip this section entirely — no commit you author yourself will be affected by the hook.
+
 ### Running the IDE from source
 
 ```bash

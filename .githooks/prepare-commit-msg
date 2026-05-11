@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Auto-credit the human pair-programmer as Co-author on Claude-authored commits.
+#
+# Each human contributor configures their identity once per clone:
+#   git config oculix.coauthor "Your Name <you@example.com>"
+#
+# When git's recorded author is Claude (noreply@anthropic.com), this hook
+# appends a `Co-authored-by:` trailer with the value above so GitHub credits
+# both authors on the contributor graph.
+#
+# If `oculix.coauthor` is unset, no trailer is added (safe default).
+# If the trailer is already present in the message, it is not duplicated.
+
+set -e
+
+COMMIT_MSG_FILE=$1
+
+AUTHOR_EMAIL=$(git var GIT_AUTHOR_IDENT | sed -n 's/.*<\([^>]*\)>.*/\1/p')
+COAUTHOR=$(git config --get oculix.coauthor 2>/dev/null || true)
+
+if [ "$AUTHOR_EMAIL" = "noreply@anthropic.com" ] && [ -n "$COAUTHOR" ]; then
+  if ! grep -qF "Co-authored-by: $COAUTHOR" "$COMMIT_MSG_FILE"; then
+    printf "\nCo-authored-by: %s\n" "$COAUTHOR" >> "$COMMIT_MSG_FILE"
+  fi
+fi
