@@ -1,0 +1,104 @@
+name: Epic / tracking issue
+description: A multi-issue body of work that needs scope, milestones, and a checklist of sub-issues
+title: "[Epic]: "
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Epics are for **scoped, finite** bodies of work that span more than one PR — features that have multiple phases, multi-OS rollouts, major refactors, or release-driven coordination.
+
+        Examples from the project's history:
+        - [#210](https://github.com/oculix-org/Oculix/issues/210) — i18n native review (21 sub-issues, one per locale)
+        - The Reporter module rollout — Phases 1-5 across multiple PRs
+        - Apertix / Legerix native bundling — coordinated across API/IDE assembly + multi-OS CI
+
+        If your work is a single PR's worth of effort, use a regular bug / feature template instead — epics shouldn't be inflated into making small work feel bureaucratic.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One paragraph — what is this epic delivering and why now?
+      placeholder: |
+        e.g. "Add 8 new Indian-subcontinent locales (hi, bn, te, ta, mr, gu, pa, ur) to the IDE bundle, each with native-speaker review. Triggered by SourceForge analytics showing combined ~15 % download share from these regions in Q1 2026."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope
+      description: Concrete deliverables. Bullet list.
+      placeholder: |
+        - 8 new .properties files staged on claude/i18n-phase4
+        - Native-speaker review for each (1 issue per locale)
+        - Bundle promotion from staging → live once reviewed
+        - Release notes entry crediting reviewers
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: Explicitly not-doing list, to keep scope creep visible.
+      placeholder: |
+        - Right-to-left UI layout (Urdu would need this, deferred)
+        - Font fallback work (separate epic if needed)
+        - In-IDE language switcher UI redesign
+
+  - type: textarea
+    id: subissues
+    attributes:
+      label: Sub-issues checklist
+      description: |
+        Markdown checklist of the issues that compose this epic. Use `- [ ] #NNN` to link existing issues — GitHub auto-renders them with status. Add as you create them.
+      placeholder: |
+        - [ ] #NNN — हिन्दी / hi native review
+        - [ ] #NNN — বাংলা / bn native review
+        - [ ] #NNN — తెలుగు / te native review
+        - [ ] (...)
+      render: markdown
+    validations:
+      required: true
+
+  - type: input
+    id: target
+    attributes:
+      label: Target release
+      description: Which OculiX release should this epic close in?
+      placeholder: "e.g. v3.0.4 / v3.1.0 / no firm target"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Current status
+      options:
+        - Planning (scope being defined)
+        - In progress (sub-issues being worked)
+        - Validation (sub-issues mostly merged, awaiting confirmation)
+        - Blocked (waiting on external dependency)
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Known risks / open questions
+      description: What could derail this epic? Where do we need external help / review?
+      placeholder: |
+        e.g. "Native reviewers needed for te / mr / pa — no contributors in the org speak those. Recruitment via Discussions or maybe LinkedIn."
+
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+      description: How will we know the epic is done?
+      placeholder: |
+        e.g. "All 8 locales merged to live bundle, release notes credit all reviewers, and at least one bug report comes in *in that language* on the new bundles (proves they're actually being used)."
+    validations:
+      required: true
