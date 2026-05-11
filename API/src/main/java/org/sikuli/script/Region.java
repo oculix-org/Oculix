@@ -2890,23 +2890,33 @@ public class Region extends Element {
     if (shouldCheckLastSeen) {
       Region r = Region.create(img.getLastSeen());
       if (this.contains(r)) {
-        Finder f = new Finder(base.getSub(r.getRect()), r);
-        if (Debug.shouldHighlight()) {
-          if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
-            highlight(2, "#000255000");
-          }
-        }
-
-        if (ptn == null) {
-          f.find(new Pattern(img).similar(score));
+        // OculiX: skip lastSeen optimization if the cached region is smaller than the
+        // template — this happens when Modes 2/5 produced a scaled match (region reflects
+        // on-screen size after scale, but template is still original size). Without this
+        // guard, Finder.isValid() throws "image to search is larger than image to search in".
+        java.awt.Dimension imgSize = img.getSize();
+        if (r.w < imgSize.width || r.h < imgSize.height) {
+          log(logLevel, "checkLastSeen: skipping (cached region %dx%d smaller than template %dx%d)",
+              r.w, r.h, imgSize.width, imgSize.height);
         } else {
-          f.find(new Pattern(ptn).similar(score));
+          Finder f = new Finder(base.getSub(r.getRect()), r);
+          if (Debug.shouldHighlight()) {
+            if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
+              highlight(2, "#000255000");
+            }
+          }
+
+          if (ptn == null) {
+            f.find(new Pattern(img).similar(score));
+          } else {
+            f.find(new Pattern(ptn).similar(score));
+          }
+          if (f.hasNext()) {
+            log(logLevel, "checkLastSeen: still there");
+            return f;
+          }
+          log(logLevel, "checkLastSeen: not there");
         }
-        if (f.hasNext()) {
-          log(logLevel, "checkLastSeen: still there");
-          return f;
-        }
-        log(logLevel, "checkLastSeen: not there");
       }
     }
     return new Finder(base, this);
