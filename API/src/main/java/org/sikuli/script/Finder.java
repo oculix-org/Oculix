@@ -895,7 +895,7 @@ public class Finder implements Iterator<Match> {
             mResult = doFindMatch(scaledTarget, findWhere, findInput);
             mMinMax = Core.minMaxLoc(mResult);
             if (mMinMax.maxVal > findInput.getScore()) {
-              findResult = new FindResult2(mResult, findInput);
+              findResult = new FindResult2(mResult, findInput, scaledTarget.clone());
               log.trace("OculiX Mode 2 DPI-aware: match %%%.4f (ratio=%.4f) %d msec",
                   mMinMax.maxVal * 100, dpiRatio, new Date().getTime() - begin_lap);
             }
@@ -960,7 +960,7 @@ public class Finder implements Iterator<Match> {
           mResult = doFindMatch(mScaled, findWhere, findInput);
           mMinMax = Core.minMaxLoc(mResult);
           if (mMinMax.maxVal > originalScore) {
-            findResult = new FindResult2(mResult, findInput);
+            findResult = new FindResult2(mResult, findInput, mScaled.clone());
             log.trace("OculiX Mode 5 multi-scale: match %%%.4f (scale=%.2f) %d msec",
                 mMinMax.maxVal * 100, scale, new Date().getTime() - begin_lap);
             mScaled.release();
@@ -1576,6 +1576,9 @@ public class Finder implements Iterator<Match> {
     private int offY = 0;
     private Mat result = null;
     private List<Match> matches = new ArrayList<>();
+    // OculiX: when set, overrides findInput.getTarget() for Match dimensions
+    // (used by Modes 2 and 5 which match against a scaled template)
+    private Mat actualTemplate = null;
 
     private FindResult2() {
     }
@@ -1588,6 +1591,12 @@ public class Finder implements Iterator<Match> {
     public FindResult2(Mat result, FindInput2 findInput) {
       this.result = result;
       this.findInput = findInput;
+    }
+
+    public FindResult2(Mat result, FindInput2 findInput, Mat actualTemplate) {
+      this.result = result;
+      this.findInput = findInput;
+      this.actualTemplate = actualTemplate;
     }
 
     public FindResult2(Mat result, FindInput2 target, int[] off) {
@@ -1630,8 +1639,9 @@ public class Finder implements Iterator<Match> {
         targetScore = findInput.getScore();
         baseW = result.width();
         baseH = result.height();
-        targetW = findInput.getTarget().width();
-        targetH = findInput.getTarget().height();
+        Mat templateForDims = (actualTemplate != null) ? actualTemplate : findInput.getTarget();
+        targetW = templateForDims.width();
+        targetH = templateForDims.height();
         marginX = (int) (targetW * 0.8);
         marginY = (int) (targetH * 0.8);
         matchCount = 0;
