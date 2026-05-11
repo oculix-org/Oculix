@@ -26,6 +26,8 @@ import javax.swing.text.ParagraphView;
 import javax.swing.text.html.*;
 
 import org.sikuli.basics.Debug;
+import org.sikuli.support.ide.Runner;
+import org.sikuli.support.runner.IRunner;
 //
 // A simple Java Console for your application (Swing version)
 // Requires Java 1.1.5 or higher
@@ -289,6 +291,17 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
       reader[1] = new Thread(EditorConsolePane.this);
       reader[1].setDaemon(true);
       reader[1].start();
+
+      // Now that System.out / System.err point at the Messages pane,
+      // forward the same streams into each script runner so embedded
+      // interpreters (notably Jython's PythonInterpreter, which captured
+      // the original System.out at construction time before this redirect
+      // ran) emit `print` / `puts` into the Messages pane too (#272).
+      // Passing null/null asks AbstractRunner to fall back to the current
+      // System.out / System.err — i.e. the pipes installed just above.
+      for (IRunner srunner : Runner.getRunners()) {
+        srunner.redirect(null, null);
+      }
     } catch (IOException e1) {
       Debug.log(-1, "Redirecting System IO failed", e1.getMessage());
     }

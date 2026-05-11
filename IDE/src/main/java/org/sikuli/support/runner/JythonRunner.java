@@ -214,18 +214,33 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
   //<editor-fold desc="20 redirect">
   private static boolean redirected = false;
 
+  /**
+   * Pipe Jython's {@code sys.stdout} / {@code sys.stderr} to the streams the
+   * IDE has already wired to its Messages pane (#272).
+   *
+   * <p>Without this, Jython captures the JVM's {@code System.out} once at
+   * interpreter construction time — which happens before
+   * {@code EditorConsolePane.initRedirect()} runs {@code System.setOut(piped)}.
+   * Result: {@code print "..."} statements write to the original terminal
+   * stdout instead of the Messages pane, while {@code Debug.on(3)} (which
+   * routes through Java's {@code System.out} at call time) lands correctly
+   * in the Messages pane. Mac surfaces this loudly because GUI apps there
+   * keep their terminal-attached stdout visible.
+   *
+   * <p>Mirrors the API-side {@code JythonRunner.doRedirect} used in CLI mode.
+   * The redirect is synchronized + idempotent because the {@code PythonInterpreter}
+   * is a process-wide singleton — we want exactly one retarget of its streams,
+   * not one per script run.
+   */
   @Override
   protected boolean doRedirect(PrintStream stdout, PrintStream stderr) {
-    //TODO extra redirect for interpreter needed? for what?
-    // Since we have a static interpreter, we have to synchronize class wide
-//    synchronized (JythonRunner.class) {
-//      if (!redirected) {
-//        redirected = true;
-//        return jythonSupport.interpreterRedirect(stdout, stderr);
-//      }
-//      return true;
-//    }
-    return true;
+    synchronized (JythonRunner.class) {
+      if (!redirected) {
+        redirected = true;
+        return jythonSupport.interpreterRedirect(stdout, stderr);
+      }
+      return true;
+    }
   }
   //</editor-fold>
 
