@@ -29,7 +29,7 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
   </div>
   <pre class="oculix-code-body"><span class="com"># Ouvre l'app, exporte le rapport du jour, sauvegarde — chaque matin à 8h.</span>
 <span class="kw">from</span> oculix <span class="kw">import</span> <span class="fn">click</span>, <span class="fn">type</span>, <span class="fn">wait</span>
-
+{'\n'}
 <span class="fn">click</span>(<span class="str">"file_menu.png"</span>)
 <span class="fn">click</span>(<span class="str">"export_to_csv.png"</span>)
 <span class="fn">wait</span>(<span class="str">"save_dialog.png"</span>, timeout=<span class="str">10</span>)
