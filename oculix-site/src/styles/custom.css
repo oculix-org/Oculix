@@ -1,4 +1,6 @@
-/* OculiX theme — gecko purple + cyan on deep navy */
+/* ─────────────────────────────────────────────────────────────
+   OculiX theme — gecko purple + cyan on deep navy
+   ───────────────────────────────────────────────────────────── */
 
 :root {
   --oculix-purple: #a855f7;
@@ -31,10 +33,66 @@
   --sl-color-accent-high: #5b21b6;
 }
 
-/* Hero gecko glow on landing */
+/* ─────────────────────────────────────────────────────────────
+   D. Background polish — orbs + grain + mesh
+   ───────────────────────────────────────────────────────────── */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -2;
+  background:
+    radial-gradient(600px at 15% 20%, rgba(168, 85, 247, 0.12), transparent 70%),
+    radial-gradient(500px at 85% 30%, rgba(34, 211, 238, 0.10), transparent 70%),
+    radial-gradient(700px at 50% 90%, rgba(168, 85, 247, 0.08), transparent 70%);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root[data-theme='light'] body::after { opacity: 0.02; }
+
+/* ─────────────────────────────────────────────────────────────
+   A. Hero — animated gecko glow + CTA
+   ───────────────────────────────────────────────────────────── */
+
+@keyframes oculix-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.45))
+            drop-shadow(0 0 60px rgba(34, 211, 238, 0.25));
+  }
+  50% {
+    filter: drop-shadow(0 0 50px rgba(34, 211, 238, 0.55))
+            drop-shadow(0 0 90px rgba(168, 85, 247, 0.35));
+  }
+}
+
 .hero img {
-  filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.35))
-          drop-shadow(0 0 60px rgba(34, 211, 238, 0.2));
+  animation: oculix-pulse 4s ease-in-out infinite;
+}
+
+.hero h1 {
+  background: linear-gradient(135deg, var(--oculix-purple-bright) 0%, var(--oculix-cyan-bright) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.hero .tagline {
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: var(--sl-color-gray-2);
 }
 
 /* CTAs */
@@ -43,38 +101,105 @@
   border: none;
   color: white;
   font-weight: 600;
+  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sl-link-button[data-variant='primary']:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
   filter: brightness(1.1);
 }
 
-/* Subtle gecko-spot accent under headings */
+/* Heading rules */
 .sl-markdown-content h2 {
   border-bottom: 1px solid var(--sl-color-gray-5);
   padding-bottom: 0.3em;
+  margin-top: 3rem;
 }
 
-/* Stats grid on landing */
+/* ─────────────────────────────────────────────────────────────
+   A bis. Code window mockup in hero zone
+   ───────────────────────────────────────────────────────────── */
+
+.oculix-code-window {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(168, 85, 247, 0.15),
+              0 0 0 1px rgba(34, 211, 238, 0.05);
+  margin: 2rem 0;
+  font-family: var(--sl-font-mono, 'JetBrains Mono', monospace);
+}
+
+.oculix-code-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.oculix-code-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.oculix-code-dot.r { background: #ef4444; }
+.oculix-code-dot.y { background: #eab308; }
+.oculix-code-dot.g { background: #22c55e; }
+
+.oculix-code-title {
+  margin-left: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--sl-color-gray-3);
+  font-family: var(--sl-font, system-ui);
+}
+
+.oculix-code-body {
+  padding: 1rem 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: #e2e8f0;
+  overflow-x: auto;
+}
+
+.oculix-code-body .kw { color: #c084fc; }
+.oculix-code-body .fn { color: #67e8f9; }
+.oculix-code-body .str { color: #a3e635; }
+.oculix-code-body .com { color: #64748b; font-style: italic; }
+
+/* ─────────────────────────────────────────────────────────────
+   Stats grid
+   ───────────────────────────────────────────────────────────── */
+
 .oculix-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
-  margin: 2rem 0;
+  margin: 2.5rem 0;
 }
 
 .oculix-stat {
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(34, 211, 238, 0.05));
   border: 1px solid rgba(168, 85, 247, 0.25);
   border-radius: 12px;
-  padding: 1.25rem;
+  padding: 1.5rem 1.25rem;
   text-align: center;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.oculix-stat:hover {
+  transform: translateY(-3px);
+  border-color: rgba(34, 211, 238, 0.5);
 }
 
 .oculix-stat-value {
   display: block;
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 2.25rem;
+  font-weight: 800;
   background: linear-gradient(135deg, var(--oculix-purple-bright), var(--oculix-cyan-bright));
   -webkit-background-clip: text;
   background-clip: text;
@@ -86,5 +211,210 @@
   display: block;
   font-size: 0.85rem;
   color: var(--sl-color-gray-2);
-  margin-top: 0.3rem;
+  margin-top: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   C. Comparison table
+   ───────────────────────────────────────────────────────────── */
+
+.oculix-compare {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 2rem 0;
+  font-size: 0.95rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.oculix-compare th,
+.oculix-compare td {
+  padding: 0.85rem 1rem;
+  text-align: center;
+  border-bottom: 1px solid var(--sl-color-gray-5);
+}
+
+.oculix-compare th:first-child,
+.oculix-compare td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.oculix-compare thead th {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.15), rgba(168, 85, 247, 0.05));
+  font-weight: 700;
+  color: var(--sl-color-white);
+}
+
+.oculix-compare thead th.oculix-col {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.35), rgba(34, 211, 238, 0.2));
+  color: white;
+}
+
+.oculix-compare tbody tr:last-child td { border-bottom: none; }
+.oculix-compare tbody tr:hover { background: rgba(168, 85, 247, 0.04); }
+
+.oculix-yes { color: #22d3ee; font-weight: 700; }
+.oculix-no  { color: #64748b; }
+.oculix-meh { color: #eab308; }
+
+/* ─────────────────────────────────────────────────────────────
+   B. Adopters grid
+   ───────────────────────────────────────────────────────────── */
+
+.oculix-adopters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin: 2rem 0 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.3), transparent);
+}
+
+.oculix-adopter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--sl-color-gray-3);
+  border-radius: 8px;
+  text-align: center;
+  transition: color 0.2s ease, background 0.2s ease;
+  cursor: default;
+}
+
+.oculix-adopter:hover {
+  color: var(--oculix-cyan-bright);
+  background: rgba(34, 211, 238, 0.06);
+}
+
+.oculix-adopter-disclaimer {
+  font-size: 0.8rem;
+  color: var(--sl-color-gray-4);
+  font-style: italic;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   E. Footer
+   ───────────────────────────────────────────────────────────── */
+
+.oculix-footer {
+  margin-top: 4rem;
+  padding: 3rem 1.5rem 2rem;
+  border-top: 1px solid var(--sl-color-gray-5);
+  background: linear-gradient(180deg, transparent, rgba(168, 85, 247, 0.04));
+}
+
+.oculix-footer-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.4fr repeat(4, 1fr);
+  gap: 2rem;
+}
+
+@media (max-width: 800px) {
+  .oculix-footer-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.oculix-footer-brand img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+}
+
+.oculix-footer-brand-name {
+  font-weight: 800;
+  font-size: 1.2rem;
+  margin-top: 0.5rem;
+  background: linear-gradient(135deg, var(--oculix-purple-bright), var(--oculix-cyan-bright));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.oculix-footer-tagline {
+  font-size: 0.85rem;
+  color: var(--sl-color-gray-3);
+  margin-top: 0.5rem;
+  max-width: 220px;
+}
+
+.oculix-footer-col h4 {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sl-color-gray-2);
+  margin: 0 0 0.85rem;
+}
+
+.oculix-footer-col ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.oculix-footer-col a {
+  color: var(--sl-color-gray-3);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.15s ease;
+}
+
+.oculix-footer-col a:hover {
+  color: var(--oculix-cyan-bright);
+}
+
+.oculix-footer-bottom {
+  max-width: 1100px;
+  margin: 2.5rem auto 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--sl-color-gray-5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--sl-color-gray-4);
+}
+
+.oculix-footer-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.oculix-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-2);
+  text-decoration: none;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.oculix-badge:hover {
+  border-color: var(--oculix-purple);
+  color: var(--oculix-purple-bright);
 }

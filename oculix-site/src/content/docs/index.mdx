@@ -20,6 +20,24 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
+<div class="oculix-code-window">
+  <div class="oculix-code-header">
+    <span class="oculix-code-dot r"></span>
+    <span class="oculix-code-dot y"></span>
+    <span class="oculix-code-dot g"></span>
+    <span class="oculix-code-title">login_test.py — OculiX</span>
+  </div>
+  <pre class="oculix-code-body"><span class="com"># Open the app, log in, and verify the home screen — by looking at it.</span>
+<span class="kw">from</span> oculix <span class="kw">import</span> <span class="fn">Screen</span>, <span class="fn">find</span>, <span class="fn">click</span>, <span class="fn">type</span>, <span class="fn">exists</span>
+
+<span class="fn">click</span>(<span class="str">"login_button.png"</span>)
+<span class="fn">type</span>(<span class="str">"username_field.png"</span>, <span class="str">"alice"</span>)
+<span class="fn">type</span>(<span class="str">"password_field.png"</span>, <span class="str">"hunter2"</span>)
+<span class="fn">click</span>(<span class="str">"submit.png"</span>)
+
+<span class="kw">assert</span> <span class="fn">exists</span>(<span class="str">"welcome_alice.png"</span>, timeout=<span class="str">5</span>), <span class="str">"Login failed"</span></pre>
+</div>
+
 ## Trusted in production
 
 <div class="oculix-stats">
@@ -67,6 +85,30 @@ Forked from the long-standing SikuliX project and re-engineered around an embedd
     Open source for everyone. Commercial support and compliance contracts available for regulated industries.
   </Card>
 </CardGrid>
+
+## Adopted by teams at
+
+<div class="oculix-adopters">
+  <div class="oculix-adopter">IBM</div>
+  <div class="oculix-adopter">Qualcomm</div>
+  <div class="oculix-adopter">Tencent</div>
+  <div class="oculix-adopter">Alibaba</div>
+  <div class="oculix-adopter">Kakao</div>
+  <div class="oculix-adopter">Deutsche Bank</div>
+  <div class="oculix-adopter">PepsiCo</div>
+  <div class="oculix-adopter">Dassault Systèmes</div>
+  <div class="oculix-adopter">Kaspersky</div>
+  <div class="oculix-adopter">Synopsys</div>
+  <div class="oculix-adopter">Neo4j</div>
+  <div class="oculix-adopter">Zscaler</div>
+  <div class="oculix-adopter">Jack Henry</div>
+  <div class="oculix-adopter">RSA Security</div>
+  <div class="oculix-adopter">Bill.com</div>
+  <div class="oculix-adopter">University of Alberta</div>
+</div>
+<p class="oculix-adopter-disclaimer">
+  Organizations with verified OculiX downloads on Maven Central. Names listed for informational purposes only — no endorsement, partnership, or affiliation is implied. See the full <a href="/showcase/">adoption page</a>.
+</p>
 
 ## Where to next?
 
