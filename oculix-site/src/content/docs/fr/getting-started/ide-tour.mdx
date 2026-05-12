@@ -1,0 +1,174 @@
+---
+title: Visite de l'IDE
+description: Une visite guidée de l'IDE OculiX — Workspace, Script Explorer, Modern Recorder, Welcome tab.
+---
+
+import { Image } from 'astro:assets';
+import splash from '../../../assets/screenshots/oculix-ide-splash.png';
+import welcome from '../../../assets/screenshots/welcome.png';
+import scriptOpen from '../../../assets/screenshots/script-open.png';
+import recorder from '../../../assets/screenshots/recorder.png';
+
+L'IDE OculiX est le visage du projet. C'est là où vous enregistrez, éditez et exécutez les scripts. Cette page parcourt chaque panneau et son rôle.
+
+## Lancement
+
+```bash
+java -jar oculixide-3.0.3.jar
+```
+
+Ou double-cliquez le JAR. Au lancement, vous voyez brièvement le splash :
+
+<Image src={splash} alt="Splash screen OculiX IDE 3.0.3 avec la mascotte gecko — starting on Java 25" />
+
+Puis la fenêtre principale s'ouvre sur le **Welcome tab**.
+
+## Layout
+
+<Image src={welcome} alt="L'IDE OculiX complet au premier lancement — sidebar gauche avec workspace et groupes Script/Tools/Status/Last run/Help, Welcome tab au centre avec la citation SikuliX et le panneau 'What OculiX adds', console Message en bas, sélecteur de thème" />
+
+Cinq zones distinctes :
+
+| Zone           | Rôle                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------- |
+| **Sidebar gauche** | Infos projet, menus Script / Tools, panneau Status live, Last run, sélecteur de thème |
+| **Workspace**  | Onglets des scripts ouverts, avec le chemin du fichier dans la barre de titre          |
+| **Éditeur**    | La vraie zone d'édition de script, avec miniatures d'images inline                      |
+| **Message**    | La console du bas — logs debug / info / erreur                                          |
+| **Status bar** | Version, version Java, état du moteur OCR, position du curseur                          |
+
+## Welcome tab
+
+Au premier lancement (ou quand vous fermez tous les onglets d'éditeur), OculiX ouvre le **Welcome tab** :
+
+- Un pitch court repris de la description originale de SikuliX par RaiMan — *« automates anything you see on the screen »*
+- Un panneau **What OculiX adds** listant les ajouts distinctifs du projet (VNC remote screens, Modern Recorder, OCR & OpenCV embarqués)
+- Des boutons pour **New script** (Ctrl+N), **Open script** (Ctrl+O), **New workspace** (Ctrl+Shift+N), **Open workspace** (Ctrl+Shift+O)
+- Un footer avec `v3.0.3`, `MIT`, `fork of SikuliX1`, et des liens rapides vers Docs, Release notes, et signalement de souci de traduction
+
+Le Welcome tab gère proprement les contextes manquants (pas de NPE sur workspace vide, pas de soucis de ratio d'image).
+
+## Workspace
+
+Un **workspace** est un dossier qui contient vos scripts. OculiX se souvient du dernier workspace et le rouvre au lancement.
+
+- **File → New Workspace…** crée un workspace vide.
+- **File → Open Workspace…** pointe OculiX sur un dossier existant de bundles `.sikuli`.
+- **File → Rename Workspace…** le renomme sur le disque et met les cartes à jour.
+- Le panneau workspace se rafraîchit automatiquement quand vous créez, renommez ou supprimez un script depuis le système de fichiers.
+
+Chaque script apparaît comme une carte avec son nom, son nombre d'images, et son statut (`idle`, `running`, `error`). Cliquez pour l'ouvrir.
+
+## Éditeur de script avec miniatures inline
+
+<Image src={scriptOpen} alt="L'IDE OculiX affichant ExampleScript.py avec deux lignes — img = (miniature d'un cercle rouge) et match = click(img). L'image est rendue inline dans le code." />
+
+C'est une des fonctionnalités signature d'OculiX. Les images capturées vivent **inline dans le code** :
+
+```python
+img = (miniature rendue ici)
+match = click(img)
+```
+
+Quand vous cliquez une miniature, l'IDE vous laisse re-capturer ou remplacer l'image. Le fichier image vit dans le bundle `.sikuli` à côté du script — vous pouvez le renommer, versionner ou partager comme n'importe quel asset.
+
+L'éditeur supporte :
+
+- Coloration syntaxique (thème-aware, dark et light)
+- Miniatures inline pour chaque référence d'image capturée
+- `Cmd/Ctrl + R` pour exécuter
+- `Cmd/Ctrl + S` pour sauvegarder
+- **Shift + Alt + C** pour tuer un script en cours — même un bloqué dans une boucle `while True`
+
+## Sidebar — panneaux d'infos live
+
+La sidebar gauche est plus qu'un menu. Elle fait remonter des infos live sur l'état courant :
+
+### Bloc projet
+
+Le bloc projet affiche le **nom du script courant**, son **chemin** (tronqué pour tenir), et des stats rapides — nombre d'images et statut runtime (`idle` / `running` / `error`).
+
+### Menus Script / Tools / Help
+
+Trois menus déroulants plats :
+
+- **Script** — File, Edit, Run
+- **Tools** — Modern Recorder, OCR settings, VNC connect, ADB connect
+- **Help** — Welcome tab, About, Open docs
+
+### Panneau Status
+
+État du moteur en temps réel :
+
+- **PaddleOCR** — `offline` / `online`. Point vert quand le serveur localhost:5000 répond.
+- **Tesseract** — `built-in`. Toujours vert (il est dans le JAR).
+- **Java** — la version de la JVM qui fait actuellement tourner OculiX.
+
+### Last run
+
+Heure, durée et statut de sortie de la dernière exécution. `— Not run yet` avant le premier run.
+
+### Sélecteur de thème
+
+Une pilule en bas : **DARK** / **LIGHT**. Le choix persiste entre les lancements.
+
+## Modern Recorder
+
+Le Recorder est la façon la plus simple de construire un script si vous n'en avez jamais écrit. Ouvrez-le depuis **Tools → Modern Recorder**.
+
+<Image src={recorder} alt="La modale Modern Recorder d'OculiX avec des sections pour Application (Launch App / Close App), Image actions (Click, DblClick, RClick, Drag&Drop, Swipe, Wheel, Wait), Text actions (T.Click, T.Wait, T.Exists), Keyboard (Type, Key Combo, Pause), une preview Generated Code, et les boutons Insert & Close / Clear." />
+
+Le Recorder est organisé en cinq sections :
+
+| Section          | Boutons                                                  |
+| ---------------- | -------------------------------------------------------- |
+| **Application**  | Launch App · Close App · Scope actions to this app       |
+| **Image actions**| Click · DblClick · RClick · Drag&Drop · Swipe · Wheel · Wait |
+| **Text actions** | T.Click · T.Wait · T.Exists (pilotés par OCR)            |
+| **Keyboard**     | Type · Key Combo · Pause                                  |
+| **Generated code** | Preview live des lignes Python en cours de construction |
+
+Vous choisissez un bouton, capturez ou parcourez pour l'image (pour les actions image) ou tapez le texte (pour les actions texte), et la ligne correspondante s'ajoute dans la boîte **Generated code**. Quand vous cliquez **Insert & Close**, les images sont copiées dans le bundle `.sikuli` actif et les lignes générées sont insérées au curseur dans l'éditeur.
+
+Le Recorder maintient aussi une **bibliothèque d'images** pour que vous réutilisiez la même capture à travers les actions sans re-capturer à chaque fois.
+
+## Console Message
+
+Le panneau du bas est un log unifié :
+
+- **info** pour la sortie normale (les `print` arrivent ici)
+- **debug** pour les internes d'OculiX quand `Settings.DebugLogs = True`
+- **error** pour les stack traces et `FindFailed`
+- Les logs de démarrage incluent les flags CLI parsés, la version JVM et la version Jython
+- Clic droit → **Clear** / **Copy** / **Save log…**
+
+La console est thème-aware : les couleurs changent avec le thème de l'IDE.
+
+## Menu File — en bref
+
+| Élément           | Raccourci            | Action                                    |
+| ----------------- | -------------------- | ----------------------------------------- |
+| New Script        | Ctrl/Cmd + N         | Crée un nouveau bundle `.sikuli`          |
+| Open Script…      | Ctrl/Cmd + O         | Ouvre un bundle existant                  |
+| New Workspace…    | Ctrl/Cmd + Shift + N | Crée un workspace vide                    |
+| Open Workspace…   | Ctrl/Cmd + Shift + O | Ouvre un workspace existant               |
+| Save              | Ctrl/Cmd + S         | Sauvegarde le script courant              |
+| Save As…          |                      | Sauvegarde sous un nouveau nom            |
+| Exit              | Ctrl/Cmd + Q         | Ferme l'IDE (sauvegarde la session)       |
+
+## Menu Run
+
+- **Run** (▶) — exécute le script courant
+- **Run Slow Motion** — visualise chaque match avec un highlight bref avant le clic
+- **Stop** — arrête le script
+- **Kill switch** (`Shift + Alt + C`) — abort d'urgence, disponible partout
+
+## Récupération
+
+Si l'IDE crashe en cours d'édition, votre travail n'est pas perdu. OculiX écrit un auto-save sous `~/.OculiX/recovery/` toutes les quelques secondes et le restaure au prochain lancement via le Welcome tab.
+
+## Pour la suite
+
+- [Écrire votre premier script étape par étape](/fr/getting-started/first-script/)
+- [Le guide complet de la reconnaissance visuelle](/fr/guides/visual-matching/)
+- [La référence CLI](/fr/reference/cli/) — exécuter des scripts sans l'IDE
