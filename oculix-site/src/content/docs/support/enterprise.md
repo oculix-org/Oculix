@@ -3,7 +3,7 @@ title: Enterprise support
 description: SLAs, vendor-of-record contracts, and compliance support for OculiX.
 ---
 
-OculiX is free and open source under Apache 2.0. For organizations that need more than a GitHub issue tracker, we offer:
+OculiX is free and open source under MIT. For organizations that need more than a GitHub issue tracker, we offer:
 
 - **Vendor-of-record contracts** for procurement, legal, and compliance (FedRAMP, HIPAA, SOC 2, BaFin, SOX).
 - **Priority bug fixes** and direct access to the maintainer.
