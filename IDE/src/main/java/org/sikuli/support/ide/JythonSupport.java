@@ -17,6 +17,7 @@ import org.sikuli.script.ImagePath;
 import org.sikuli.script.SikuliXception;
 import org.sikuli.script.SikulixForJython;
 import org.sikuli.support.Commons;
+//import org.sikuli.script.support.RunTime;
 import org.sikuli.support.RunTime;
 
 import java.io.File;
@@ -90,8 +91,10 @@ public class JythonSupport implements IRunnerSupport {
       Debug.log("Jython: not found on classpath");
       return;
     }
+
     //TODO RunTime.get().exportLib()
     //RunTime.get().exportLib();
+
     try {
       interpreter = new PythonInterpreter();
       cPyException = Class.forName("org.python.core.PyException");

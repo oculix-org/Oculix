@@ -19,12 +19,12 @@ import inspect
 import org.sikuli.script.SX as Do
 
 #Debug.log(3, "Jython: sikuli: Sikuli: RunTime, Setting, Debug")
-import org.sikuli.script.support.RunTime as JRunTime
+import org.sikuli.support.RunTime as JRunTime
 
 class RunTime(JRunTime):
   pass
 
-RUNTIME = RunTime.get()
+#TODO RUNTIME = RunTime.get()
 
 import org.sikuli.basics.Settings as Settings
 
@@ -148,7 +148,7 @@ import SikuliImporter
 from org.sikuli.script import Sikulix
 
 #Debug.log(3, "Jython: sikuli: Sikuli: import Runner")
-import org.sikuli.script.support.Runner as Runner
+#TODO import org.sikuli.script.support.Runner as Runner
 
 import org.sikuli.script.runnerSupport.JythonSupport as JythonHelper
 
@@ -166,54 +166,54 @@ def load(jar):
 def prepareRobot():
   return JythonHelper.get().prepareRobot()
 
-def show():
-  RUNTIME.show()
+#TODO def show():
+#  RUNTIME.show()
 
 ##
-# public for options handling (property file)
+#TODO public for options handling (property file)
 ##
 
-def makeOpts():
-  return RUNTIME.makeOpts()
-
-def loadOpts(filePath):
-  return RUNTIME.loadOpts(filePath)
-
-def getOpts(props):
-  return RUNTIME.getOpts(props)
-
-def hasOpts(props):
-  return RUNTIME.hasOpts(props)
-
-def setOpts(props, adict):
-  return RUNTIME.setOpts(props, adict)
-
-def delOpts(props):
-  return RUNTIME.delOpts(props)
-
-def saveOpts(props, filePath = None):
-  if not filePath:
-    return RUNTIME.saveOpts(props)
-  else:
-    return RUNTIME.saveOpts(props, filePath)
-
-def hasOpt(props, key):
-  return RUNTIME.hasOpt(props, key)
-
-def getOpt(props, key, deflt = ""):
-  return RUNTIME.getOpt(props, key, deflt)
-
-def getOptNum(props, key, deflt = 0):
-  return RUNTIME.getOptNum(props, key, deflt)
-
-def setOpt(props, key, value):
-  return RUNTIME.setOpt(props, key, value)
-
-def setOptNum(props, key, value):
-  return RUNTIME.setOptNum(props, key, value)
-
-def delOpt(props, key):
-  return RUNTIME.delOpt(props, key)
+# def makeOpts():
+#   return RUNTIME.makeOpts()
+#
+# def loadOpts(filePath):
+#   return RUNTIME.loadOpts(filePath)
+#
+# def getOpts(props):
+#   return RUNTIME.getOpts(props)
+#
+# def hasOpts(props):
+#   return RUNTIME.hasOpts(props)
+#
+# def setOpts(props, adict):
+#   return RUNTIME.setOpts(props, adict)
+#
+# def delOpts(props):
+#   return RUNTIME.delOpts(props)
+#
+# def saveOpts(props, filePath = None):
+#   if not filePath:
+#     return RUNTIME.saveOpts(props)
+#   else:
+#     return RUNTIME.saveOpts(props, filePath)
+#
+# def hasOpt(props, key):
+#   return RUNTIME.hasOpt(props, key)
+#
+# def getOpt(props, key, deflt = ""):
+#   return RUNTIME.getOpt(props, key, deflt)
+#
+# def getOptNum(props, key, deflt = 0):
+#   return RUNTIME.getOptNum(props, key, deflt)
+#
+# def setOpt(props, key, value):
+#   return RUNTIME.setOpt(props, key, value)
+#
+# def setOptNum(props, key, value):
+#   return RUNTIME.setOptNum(props, key, value)
+#
+# def delOpt(props, key):
+#   return RUNTIME.delOpt(props, key)
 
 ##
 # some support for handling unicode and strings
@@ -610,11 +610,11 @@ def run(cmd):
 # @param script The given script path.
 # @args the parameters for the called script (sys.argv)
 # @return returns the scripts return code given with exit(n)
-def runScript(script, *args):
-  return Runner.runScript(unicd(script), args, None)
+#TODO def runScript(script, *args):
+#  return Runner.runScript(unicd(script), args, None)
 
-def getLastReturnCode():
-  return RUNTIME.getLastScriptRunReturnCode()
+#TODO def getLastReturnCode():
+#  return RUNTIME.getLastScriptRunReturnCode()
 
 ##
 # helper functions, that can be used when sorting lists of regions

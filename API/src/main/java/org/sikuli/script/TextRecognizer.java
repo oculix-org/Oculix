@@ -14,7 +14,7 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
-import org.sikuli.script.runners.ProcessRunner;
+import org.sikuli.support.runner.ProcessRunner;
 import org.sikuli.support.Commons;
 import org.sikuli.support.RunTime;
 

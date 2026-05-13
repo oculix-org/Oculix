@@ -11,7 +11,7 @@ import org.reflections8.util.ClasspathHelper;
 import org.sikuli.basics.Debug;
 import org.sikuli.script.ImagePath;
 import org.sikuli.support.runner.AbstractRunner;
-import org.sikuli.script.runners.InvalidRunner;
+import org.sikuli.support.runner.InvalidRunner;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.IRunner.EffectiveRunner;
 
@@ -24,7 +24,6 @@ public class Runner {
 
   static final String me = "Runner: ";
   static final int lvl = 3;
-  static final RunTime runTime = RunTime.get();
 
   // <editor-fold desc="00 runner handling">
   private static List<IRunner> runners = new LinkedList<>();
