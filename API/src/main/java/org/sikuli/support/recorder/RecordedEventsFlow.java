@@ -257,15 +257,21 @@ public class RecordedEventsFlow {
   private List<IRecordedAction> handleMouseEvent(Long time, NativeMouseEvent event) {
     List<IRecordedAction> actions = new ArrayList<>();
 
+    // When `event` is the LAST recorded mouse event of the session, getNextEvent()
+    // returns null (no event has a timestamp strictly greater than `time`). The
+    // original code dereferenced the entry unconditionally, producing the NPE
+    // reported in issue #286 on the minimal "record → 1 click → stop" scenario.
+    // We treat a null `nextEvent` as "isolated event, finalize as-is": not a
+    // drag (no following move), not a double-click candidate (no following press).
     Map.Entry<Long, NativeInputEvent> nextEventEntry = getNextEvent(time);
-    Long nextTime = nextEventEntry.getKey();
-    NativeInputEvent nextEvent = nextEventEntry.getValue();
+    Long nextTime = nextEventEntry != null ? nextEventEntry.getKey() : null;
+    NativeInputEvent nextEvent = nextEventEntry != null ? nextEventEntry.getValue() : null;
 
     if (NativeMouseEvent.NATIVE_MOUSE_PRESSED == event.getID()) {
       if (pressedTime == null) {
         pressedTime = time;
       }
-      if (NativeMouseEvent.NATIVE_MOUSE_DRAGGED == nextEvent.getID()) {
+      if (nextEvent != null && NativeMouseEvent.NATIVE_MOUSE_DRAGGED == nextEvent.getID()) {
         dragStartTime = time;
         dragStartEvent = event;
       } else {
@@ -285,8 +291,14 @@ public class RecordedEventsFlow {
       } else {
         clickCount++;
 
-        if ((nextEvent.getID() != NativeMouseEvent.NATIVE_MOUSE_PRESSED || time - DOUBLE_CLICK_TIME > nextTime
-            || clickCount >= 2))
+        // Finalize the click when there is no follow-up event (last release of
+        // the session), or when the next event is not a press, or when the
+        // double-click time window has elapsed, or when we already have two
+        // clicks queued.
+        if (nextEvent == null
+            || nextEvent.getID() != NativeMouseEvent.NATIVE_MOUSE_PRESSED
+            || time - DOUBLE_CLICK_TIME > nextTime
+            || clickCount >= 2) {
           try {
             actions.addAll(handleMouseRelease(time, event));
           } finally {
@@ -295,6 +307,7 @@ public class RecordedEventsFlow {
             dragStartTime = null;
             dragStartEvent = null;
           }
+        }
       }
     } else if (NativeMouseEvent.NATIVE_MOUSE_WHEEL == event.getID()) {
       actions.addAll(this.handleMouseWheel(time, (NativeMouseWheelEvent) event));
