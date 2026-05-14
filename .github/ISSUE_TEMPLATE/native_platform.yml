@@ -1,0 +1,138 @@
+name: Native / platform issue
+description: OculiX fails to load native libraries (OpenCV, Tesseract, JNA), crashes at startup on a specific OS / distro, or behaves differently across architectures
+title: "[Platform]: "
+labels: ["bug", "platform"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Native library and platform-specific failures need more environment data than a regular bug report.
+
+        Before submitting:
+        - Confirm the issue on a fresh install / fresh Docker container if possible
+        - Include the **exact** distro / OS version (cat /etc/os-release on Linux, `sw_vers` on macOS, `winver` on Windows)
+        - Include `ldd --version` on Linux if it's a "library not found" or `GLIBC_x.xx not found` error
+        - Search [#15](https://github.com/oculix-org/Oculix/issues/15) (OpenCV glibc tier picker) and [#211](https://github.com/oculix-org/Oculix/issues/211) (Tesseract Legerix bundling) for context — many platform issues are downstream of these
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence — what fails, and at what point?
+      placeholder: e.g. "OculiX crashes at startup on Ubuntu 22.04 with GLIBC_2.38 not found in libopencv_java4100.so"
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error output
+      description: Full stack trace, console output, or crash dump. Don't trim.
+      placeholder: |
+        java.lang.UnsatisfiedLinkError: /tmp/libopencv_java4100.so: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.38' not found
+        ...
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system family
+      options:
+        - Linux (apt — Ubuntu / Debian / Mint)
+        - Linux (dnf — Fedora / RHEL / Rocky / Alma)
+        - Linux (other — Alpine / Arch / Gentoo / NixOS)
+        - macOS (Apple Silicon — M1/M2/M3/M4)
+        - macOS (Intel)
+        - Windows 11
+        - Windows 10
+        - Windows (WSL2)
+        - Android (ADB)
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: Exact OS version
+      description: |
+        Linux: `cat /etc/os-release` first line (PRETTY_NAME).
+        macOS: `sw_vers` output.
+        Windows: `winver` dialog version (e.g. 23H2 build 22631.3447).
+      placeholder: "e.g. Ubuntu 24.04.1 LTS / macOS 14.4.1 (23E224) / Windows 11 23H2 22631.3447"
+    validations:
+      required: true
+
+  - type: input
+    id: arch
+    attributes:
+      label: Architecture
+      description: Output of `uname -m` on Linux/macOS, `echo %PROCESSOR_ARCHITECTURE%` on Windows
+      placeholder: "e.g. x86_64 / aarch64 / arm64 / AMD64"
+    validations:
+      required: true
+
+  - type: input
+    id: glibc
+    attributes:
+      label: glibc version (Linux only)
+      description: First line of `ldd --version`. Leave blank if macOS/Windows.
+      placeholder: "e.g. ldd (Ubuntu GLIBC 2.39-0ubuntu8.5) 2.39"
+
+  - type: input
+    id: java
+    attributes:
+      label: Java distribution and version
+      description: Output of `java --version` — the **JVM vendor** matters (Temurin, Zulu, Oracle, Liberica, Corretto, etc.)
+      placeholder: |
+        e.g. openjdk 17.0.10 2026-01-20
+             OpenJDK Runtime Environment Temurin-17.0.10+7 (build 17.0.10+7)
+    validations:
+      required: true
+
+  - type: input
+    id: oculix
+    attributes:
+      label: OculiX version / artifact
+      description: Exact JAR name or Maven coordinates. Native library tier matters — was it the `complete-*` fat-jar or the slim API?
+      placeholder: "e.g. oculixide-3.0.3-complete-lux.jar (Linux fat-jar)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: native_stack
+    attributes:
+      label: Suspected native stack
+      description: Which native dependency family appears in the failure?
+      options:
+        - OpenCV (libopencv_java*.so / .dylib / .dll)
+        - Tesseract (libtesseract / libleptonica via Legerix)
+        - Java AWT / Robot / Image capture
+        - VNC native (TigerVNC / libvncclient)
+        - JNA / WinUtil / MacUtil (via JNA)
+        - Multiple / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: load_log
+    attributes:
+      label: Native library load trace (Debug.on(3))
+      description: |
+        Run a minimal script with `Debug.on(3)` at the top. The `[OculiX] OpenCV loaded from ...` and `[OculiX] Tesseract loaded via Legerix ...` lines tell us which native tier was selected.
+      render: shell
+
+  - type: textarea
+    id: dockerfile
+    attributes:
+      label: Dockerfile / repro environment (optional)
+      description: |
+        If reproducible in a container, paste the Dockerfile so we can lock the regression test against your exact environment. Examples we've already adopted: @adriancostin6's [#211 Dockerfile](https://github.com/oculix-org/Oculix/issues/211) is now the canonical Ubuntu 24 OCR check.
+      render: dockerfile
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Multi-GPU? Headless? Rosetta translation layer? Air-gapped network? Anything unusual about the host.

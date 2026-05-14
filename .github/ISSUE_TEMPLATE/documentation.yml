@@ -1,0 +1,78 @@
+name: Documentation issue
+description: A README, wiki, JavaDoc, code comment, or CHANGELOG is incorrect, out-of-date, confusing, or missing
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Doc fixes are some of the lowest-friction, highest-leverage contributions. If you've already drafted the fix, **just open a PR directly** — no need to file an issue first for typos / link rot / one-line clarifications.
+
+        File an issue here when:
+        - The doc is misleading and a fix needs discussion first
+        - You spotted a missing section but aren't sure what should go there
+        - A SikuliX-era doc link is broken and we need to track the migration
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where is the issue?
+      multiple: true
+      options:
+        - README.md (project root)
+        - CONTRIBUTING.md
+        - CODE_OF_CONDUCT.md
+        - SECURITY.md
+        - CHANGELOG.md
+        - Wiki page
+        - GitHub Discussions reference content
+        - In-code JavaDoc
+        - In-code comment (non-JavaDoc)
+        - Issue templates / PR template
+        - Module-level README (API / IDE / MCP / Reporter / etc.)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: link
+    attributes:
+      label: Direct link / file path
+      description: Permalink to the line or section, or path:line if local.
+      placeholder: "e.g. https://github.com/oculix-org/Oculix/blob/master/README.md#L42 or API/README.md L18"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong / what's missing
+      description: Quote the offending passage (or note "missing") and explain the problem.
+      placeholder: |
+        e.g. "README shows `mvn install` to build, but Apertix native libs require `-am` so it actually fails on a fresh clone. Should be `mvn install -am`."
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix (optional)
+      description: Draft the corrected wording if you have one. Markdown welcome. If you'd rather open a PR with the fix, you can skip this and link the PR.
+      render: markdown
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How blocking is it for a new user?
+      options:
+        - Blocks first-run / first-PR (people hit it and bounce)
+        - Confusing but recoverable (people work around it)
+        - Cosmetic / nice-to-fix (typo, awkward phrasing)
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots of confusing UI text, links to discussions where the confusion came up, etc.

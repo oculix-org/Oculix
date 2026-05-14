@@ -70,7 +70,7 @@ Security-sensitive bugs go through [SECURITY.md](SECURITY.md) — same idea, 48h
 
 ## Requesting a feature
 
-Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md). The template is simple on purpose. If your idea is big enough to warrant an RFC, look at [#10](https://github.com/oculix-org/Oculix/issues/10) (Python 3 runtime replacement) — that's the level of context we love but absolutely don't require.
+Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml). The template is simple on purpose. If your idea is big enough to warrant an RFC, look at [#10](https://github.com/oculix-org/Oculix/issues/10) (Python 3 runtime replacement) — that's the level of context we love but absolutely don't require.
 
 What we'll push back on:
 

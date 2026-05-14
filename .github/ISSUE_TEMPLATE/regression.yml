@@ -1,0 +1,128 @@
+name: Regression
+description: Something that used to work in a previous OculiX release has broken
+title: "[Regression]: "
+labels: ["bug", "regression"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for catching a regression — these are the most actionable bugs we get because the "last known good" version pinpoints the suspect range.
+
+        Before submitting:
+        - Confirm you can still trigger it on the **latest** OculiX release / RC
+        - Confirm the previous version you remember it working in
+        - Search [existing issues](https://github.com/oculix-org/Oculix/issues?q=is%3Aissue) for an existing report on the same regression
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence — what behavior changed?
+      placeholder: e.g. "Pattern.similar(0.7) is silently accepting 0.65 matches since 3.0.3-rc5"
+    validations:
+      required: true
+
+  - type: input
+    id: last_good
+    attributes:
+      label: Last known good version
+      description: The most recent OculiX (or SikuliX1, if applicable) version where this behavior was correct.
+      placeholder: "e.g. 3.0.2 or 3.0.3-rc3 — be as specific as you can"
+    validations:
+      required: true
+
+  - type: input
+    id: first_bad
+    attributes:
+      label: First known bad version
+      description: The earliest OculiX version you can confirm the regression on.
+      placeholder: "e.g. 3.0.3-rc4 or 3.0.3 stable"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps + a minimal script if applicable.
+      placeholder: |
+        1. Launch oculixide-3.0.3-stable on a 200 % HiDPI display
+        2. Run the attached script with Debug.on(3)
+        3. Note the `Mode 3 tolerant: match %65 (threshold=%63)` log line
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: script
+    attributes:
+      label: Minimal reproducer (script)
+      description: Smallest snippet that triggers the regression. Ideally identical between good and bad versions.
+      render: python
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior (matches the good version)
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior (current bad version)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon — M1/M2/M3/M4)
+        - macOS (Intel)
+        - Ubuntu / Debian
+        - Fedora / RHEL
+        - Other Linux
+        - Android (ADB)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: java
+    attributes:
+      label: Java version (current run)
+      placeholder: "e.g. openjdk 17.0.10 2026-01-20"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: suspect_pr
+    attributes:
+      label: Suspected change (if you have a guess)
+      description: Optional — if you've already bisected or have a candidate PR/commit in mind, pick the closest area.
+      options:
+        - "Not sure / didn't investigate"
+        - "Finder / image matching pipeline"
+        - "Region / Match dimensions"
+        - "Native libraries (OpenCV / Tesseract / glibc)"
+        - "IDE editor / capture / recorder"
+        - "Script runners (Jython / JRuby / Python)"
+        - "Build / Maven / packaging"
+        - "Other"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / console output
+      description: Debug.on(3) output on both the good and bad versions is gold for tracing.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else — screenshots, scripts that depend on the broken behavior, prior issue numbers.
