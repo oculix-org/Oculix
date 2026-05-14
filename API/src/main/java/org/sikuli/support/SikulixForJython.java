@@ -1,14 +1,13 @@
 /*
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
-package org.sikuli.script;
+package org.sikuli.support;
 
 import java.io.File;
 import java.net.URL;
 
-import org.sikuli.support.ide.JythonSupport;
-import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
+import org.sikuli.script.SikuliXception;
+import org.sikuli.support.runnerSupport.JythonSupport;
 
 /**
  * Can be used in pure Jython environments to add the Sikuli Python API to sys.path<br>
@@ -42,6 +41,8 @@ public class SikulixForJython {
     if (null == fSikuliStuff) {
       URL uSikuliStuff = RunTime.resourceLocation(libSikuli);
       if (uSikuliStuff == null) {
+        //runTime.dumpClassPath();
+        //helper.terminate(999, "no suitable sikulix...jar on classpath");
         throw new SikuliXception(String.format("fatal: " + "Jython: " + "no suitable sikulix...jar on classpath"));
       }
       fpSikuliStuff = Commons.getLibFolder().getAbsolutePath();
@@ -51,7 +52,7 @@ public class SikulixForJython {
         if (!helper.hasSysPath(fpSikuliStuff)) {
           //helper.terminate(999, "not possible to add to Jython::sys.path: %s", fpSikuliStuff);
           throw new SikuliXception(String.format("fatal: " + "Jython: " +
-                  "not possible to add to Jython::sys.path: %s", fpSikuliStuff));
+              "not possible to add to Jython::sys.path: %s", fpSikuliStuff));
         }
         helper.log(lvl, "added as Jython::sys.path[0]:\n%s", fpSikuliStuff);
       } else {

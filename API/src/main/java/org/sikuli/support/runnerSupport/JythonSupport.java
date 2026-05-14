@@ -1,7 +1,11 @@
 /*
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
-package org.sikuli.support.ide;
+//TODO checked this API version against IDE version --- seemed to be identical :-)
+// in case of needed again
+// activ now is the IDE version
+
+package org.sikuli.support.runnerSupport;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -15,9 +19,8 @@ import org.sikuli.support.FileManager;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.ImagePath;
 import org.sikuli.script.SikuliXception;
-import org.sikuli.script.SikulixForJython;
+import org.sikuli.support.SikulixForJython;
 import org.sikuli.support.Commons;
-//import org.sikuli.script.support.RunTime;
 import org.sikuli.support.RunTime;
 
 import java.io.File;
@@ -33,7 +36,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class JythonSupport implements IRunnerSupport {
+public class JythonSupport implements org.sikuli.support.runnerSupport.IRunnerSupport {
 
   //<editor-fold defaultstate="collapsed" desc="00 logging">
   private static final String me = "Jython: ";
@@ -58,8 +61,6 @@ public class JythonSupport implements IRunnerSupport {
   private static JythonSupport instance = null;
 
   private static PythonInterpreter interpreter = null;
-
-//  private static RunTime runTime;
 
   private JythonSupport() {
   }
@@ -92,8 +93,7 @@ public class JythonSupport implements IRunnerSupport {
       return;
     }
 
-    //TODO RunTime.get().exportLib()
-    //RunTime.get().exportLib();
+    //TODO check exported needed?
 
     try {
       interpreter = new PythonInterpreter();
@@ -108,10 +108,6 @@ public class JythonSupport implements IRunnerSupport {
     }
     Commons.setJythonReady();
     //instance.log(lvl, "init: success");
-  }
-
-  public static boolean isReady() {
-    return interpreter != null;
   }
 
   /**
@@ -154,34 +150,6 @@ public class JythonSupport implements IRunnerSupport {
     return true;
   }
   //</editor-fold>
-
-  public void exportLib() {
-    File fLib = Commons.getLibFolder();
-    FilenameFilter filterSitePackages = null;
-    if (fLib.exists()) {
-      FileManager.deleteFileOrFolder(fLib, new FileManager.FileFilter() {
-        @Override
-        public boolean accept(File entry) {
-          if (entry.getPath().contains("site-packages")) {
-            return false;
-          }
-          return true;
-        }
-      });
-    } else {
-        fLib.mkdirs();
-        if (!fLib.exists()) {
-          throw new SikuliXception("LibExport: folder not available: " + fLib.toString());
-        }
-      filterSitePackages = (dir, name) -> {
-        if (dir.getPath().contains("site-packages")) {
-          return false;
-        }
-        return true;
-      };
-    }
-    RunTime.extractResourcesToFolder("Lib", Commons.getLibFolder(), filterSitePackages);
-  }
 
   //<editor-fold desc="05 Jython reflection">
   static Class cPyMethod = null;
@@ -1115,7 +1083,6 @@ public class JythonSupport implements IRunnerSupport {
     return true;
   }
 
-  @Override
   public boolean runObserveCallback(Object[] args) {
     SXPyFunction func = new SXPyFunction(args[0]);
     boolean success = true;
@@ -1234,4 +1201,36 @@ public class JythonSupport implements IRunnerSupport {
     return jython;
   }
 
+  //TODO obsolete?
+  public static boolean isReady() {
+    return interpreter != null;
+  }
+
+  public void exportLib() {
+    File fLib = Commons.getLibFolder();
+    FilenameFilter filterSitePackages = null;
+    if (fLib.exists()) {
+      FileManager.deleteFileOrFolder(fLib, new FileManager.FileFilter() {
+        @Override
+        public boolean accept(File entry) {
+          if (entry.getPath().contains("site-packages")) {
+            return false;
+          }
+          return true;
+        }
+      });
+    } else {
+      fLib.mkdirs();
+      if (!fLib.exists()) {
+        throw new SikuliXception("LibExport: folder not available: " + fLib.toString());
+      }
+      filterSitePackages = (dir, name) -> {
+        if (dir.getPath().contains("site-packages")) {
+          return false;
+        }
+        return true;
+      };
+    }
+    RunTime.extractResourcesToFolder("Lib", Commons.getLibFolder(), filterSitePackages);
+  }
 }

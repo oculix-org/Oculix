@@ -2,7 +2,7 @@
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
 
-package org.sikuli.support.ide;
+package org.sikuli.support.runner;
 
 import org.apache.commons.io.FilenameUtils;
 import org.reflections8.Reflections;
@@ -10,11 +10,8 @@ import org.reflections8.scanners.SubTypesScanner;
 import org.reflections8.util.ClasspathHelper;
 import org.sikuli.basics.Debug;
 import org.sikuli.script.ImagePath;
-import org.sikuli.support.runner.AbstractRunner;
-import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.IRunner.EffectiveRunner;
 import org.sikuli.support.Commons;
-import org.sikuli.support.runner.InvalidRunner;
 
 import java.io.File;
 import java.io.IOException;

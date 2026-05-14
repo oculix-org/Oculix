@@ -8,7 +8,7 @@ import org.sikuli.basics.Debug;
 import org.sikuli.support.FileManager;
 import org.sikuli.script.Sikulix;
 import org.sikuli.script.*;
-import org.sikuli.support.ide.Runner;
+import org.sikuli.support.runner.Runner;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.devices.RobotDesktop;
 

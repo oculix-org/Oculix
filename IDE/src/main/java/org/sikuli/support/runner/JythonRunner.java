@@ -5,7 +5,7 @@ package org.sikuli.support.runner;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.ide.SikulixIDE;
-import org.sikuli.support.ide.JythonSupport;
+import org.sikuli.support.runnerSupport.JythonSupport;
 import org.sikuli.script.Sikulix;
 import org.sikuli.support.Commons;
 import static org.sikuli.util.CommandArgsEnum.*;

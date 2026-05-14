@@ -17,7 +17,6 @@ import javax.script.ScriptEngine;
 import org.sikuli.basics.Debug;
 import org.sikuli.script.ImagePath;
 import org.sikuli.support.Commons;
-import org.sikuli.support.ide.Runner;
 
 /**
  * EXPERIMENTAL --- NOT official API<br>

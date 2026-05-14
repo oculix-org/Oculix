@@ -2,7 +2,7 @@
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
 
-package org.sikuli.support.ide;
+package org.sikuli.support.runnerSupport;
 
 import java.io.File;
 import java.io.PrintStream;
@@ -21,7 +21,7 @@ import org.sikuli.basics.Debug;
 import org.sikuli.support.FileManager;
 import org.sikuli.support.Commons;
 
-public class JRubySupport implements IRunnerSupport {
+public class JRubySupport implements org.sikuli.support.runnerSupport.IRunnerSupport {
 
   //<editor-fold defaultstate="collapsed" desc="00 initialization">
   private static final String me = "JRuby: ";
