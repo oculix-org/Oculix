@@ -77,7 +77,8 @@ public class ScreenImage {
     if (!rect.contains(sub)) {
       return this;
     }
-    BufferedImage img = bimg.getSubimage(sub.x - x, sub.y - y, sub.width, sub.height);
+    BufferedImage imgSub = bimg.getSubimage(sub.x - x, sub.y - y, sub.width, sub.height);
+    BufferedImage img = Commons.deepCopySameType(imgSub);
     return new ScreenImage(sub, img);
   }
 

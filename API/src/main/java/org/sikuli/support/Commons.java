@@ -1834,6 +1834,14 @@ public static boolean loadLib(String libName) {
     return mats;
   }
 
+  public static BufferedImage deepCopySameType(BufferedImage src) {
+    BufferedImage dst = new BufferedImage(src.getWidth(), src.getHeight(), src.getType());
+    Graphics2D g = dst.createGraphics();
+    try { g.drawImage(src, 0, 0, null); }
+    finally { g.dispose(); }
+    return dst;
+  }
+
   public static Mat makeMat(BufferedImage bImg) {
     return makeMat(bImg, true);
   }
