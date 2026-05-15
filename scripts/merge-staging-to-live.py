@@ -30,9 +30,19 @@ For each staging file (translation/IDE_<locale>.properties):
 
 Usage
 -----
+    # Default mode — additive merge from translation/ staging into live
     python scripts/merge-staging-to-live.py            # all locales
     python scripts/merge-staging-to-live.py --only de  # one locale
     python scripts/merge-staging-to-live.py --dry-run  # preview
+
+    # Native-review mode — fully overwrite a single locale's live bundle
+    # with content from a complete reviewed .properties file (UTF-8).
+    # The existing header comment block is preserved; every key=value is
+    # replaced with the reviewed content. Use this after a native speaker
+    # has validated an entire locale on a GitHub i18n-Languages issue.
+    python scripts/merge-staging-to-live.py \
+        --only zh_CN \
+        --from-native-review .claude/peixuana-zh_CN-final.txt
 """
 
 from __future__ import annotations
@@ -147,6 +157,67 @@ def merge_locale(locale_suffix: str, dry_run: bool) -> tuple[int, int]:
     return len(missing), skipped
 
 
+def overwrite_locale_from_native_review(locale_suffix: str,
+                                        native_review_path: Path,
+                                        dry_run: bool) -> int:
+    """Replace the live bundle entirely with content from a complete
+    native-reviewed .properties file (UTF-8).
+
+    Preserves the existing live bundle's header comment block (copyright +
+    metadata) and replaces every key=value entry with the reviewed content,
+    re-encoded as Java legacy ASCII for runtime portability.
+
+    Returns the total number of keys promoted from the native review.
+    """
+    live = LIVE_DIR / f"IDE_{locale_suffix}.properties"
+
+    if not native_review_path.exists():
+        print(f"ERROR: native review file not found: {native_review_path}",
+              file=sys.stderr)
+        return 0
+
+    review_keys = parse_properties_keys(native_review_path)
+    if not review_keys:
+        print(f"ERROR: no key=value entries parsed from {native_review_path}",
+              file=sys.stderr)
+        return 0
+
+    # Preserve the existing header (everything before the first key=value line)
+    header_lines: list[str] = []
+    if live.exists():
+        for line in live.read_text(encoding="utf-8").splitlines():
+            if _KV_RE.match(line):
+                break
+            header_lines.append(line)
+
+    if not header_lines:
+        header_lines = [
+            "#",
+            "# Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license",
+            "#",
+            f"# IDE_{locale_suffix}.properties — native-speaker reviewed bundle",
+            "# Promoted by merge-staging-to-live.py --from-native-review",
+            "#",
+            "",
+        ]
+
+    if dry_run:
+        print(f"  [{locale_suffix:>6}] DRY-RUN would overwrite live bundle with "
+              f"{len(review_keys)} native-reviewed keys")
+        return 0
+
+    body_lines = [f"{k}={java_encode(v)}" for k, v in review_keys.items()]
+    new_content = "\n".join(header_lines).rstrip("\n") + "\n\n" + \
+                  "\n".join(body_lines) + "\n"
+
+    live.parent.mkdir(parents=True, exist_ok=True)
+    live.write_text(new_content, encoding="utf-8")
+    print(f"  [{locale_suffix:>6}] OVERWROTE live bundle with "
+          f"{len(review_keys)} native-reviewed keys "
+          f"(source: {native_review_path.name})")
+    return len(review_keys)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -156,6 +227,13 @@ def main() -> int:
     parser.add_argument("--dry-run",
                         action="store_true",
                         help="Preview what would change without writing files")
+    parser.add_argument("--from-native-review",
+                        default=None,
+                        metavar="PATH",
+                        help="Path to a complete native-reviewed .properties file "
+                             "(UTF-8). When set, the live bundle is REPLACED with "
+                             "this content (preserving the existing header comment "
+                             "block). Requires --only <single-locale>.")
     args = parser.parse_args()
 
     if not STAGING_DIR.is_dir():
@@ -178,6 +256,22 @@ def main() -> int:
     else:
         targets = available
 
+    # Native-review overwrite path — requires exactly one locale via --only
+    if args.from_native_review:
+        if not args.only or len(targets) != 1:
+            print("ERROR: --from-native-review requires exactly one locale via --only",
+                  file=sys.stderr)
+            return 2
+        locale = targets[0]
+        native_review_path = Path(args.from_native_review)
+        print(f"Overwriting live bundle for {locale} from native-reviewed file "
+              f"{native_review_path}\n")
+        total = overwrite_locale_from_native_review(locale, native_review_path, args.dry_run)
+        suffix = " (dry-run)" if args.dry_run else ""
+        print(f"\nDone — {total} keys promoted from native review{suffix}")
+        return 0
+
+    # Default path — additive staging → live merge
     print(f"Merging {len(targets)} locale(s) from {STAGING_DIR}/ into {LIVE_DIR}/\n")
 
     total_added = 0
