@@ -9,6 +9,7 @@ import org.sikuli.android.ADBScreen;
 import org.sikuli.basics.*;
 import org.sikuli.natives.WinUtil;
 import org.sikuli.script.*;
+import org.sikuli.support.Commons;
 import org.sikuli.support.FileManager;
 import org.sikuli.support.Observing;
 import org.sikuli.support.devices.RobotDesktop;
