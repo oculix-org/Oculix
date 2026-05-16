@@ -2,11 +2,7 @@
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
 
-//TODO not checked this API version against IDE version :-)
-// in case of needed again
-// activ now is the IDE version
-
-package org.sikuli.support.runnerSupport;
+package org.sikuli.script.runnerSupport;
 
 import java.io.File;
 import java.io.PrintStream;
