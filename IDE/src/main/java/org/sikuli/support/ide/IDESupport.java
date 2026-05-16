@@ -80,7 +80,7 @@ public class IDESupport {
   public static void initRunners() {
     synchronized (IDE_RUNNERS) {
       if (IDE_RUNNERS.isEmpty()) {
-        List<IRunner> runners = Runner.getRunners();
+        List<IRunner> runners = org.sikuli.support.runner.Runner.getRunners();
         for (Class<?> runnerClass : IDE_RUNNER_CLASSES) {
           for (IRunner runner : runners) {
             if (runnerClass.equals(runner.getClass())) {

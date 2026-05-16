@@ -14,9 +14,9 @@ import org.sikuli.support.FileManager;
 import org.sikuli.support.Observing;
 import org.sikuli.support.devices.RobotDesktop;
 import org.sikuli.support.devices.ScreenDevice;
-import org.sikuli.script.runnerSupport.JythonSupport;
-import org.sikuli.script.runners.ProcessRunner;
+import org.sikuli.support.runner.ProcessRunner;
 import org.sikuli.support.runner.IRunner;
+import org.sikuli.support.runner.Runner;
 import org.sikuli.support.runner.IRunner.EffectiveRunner;
 import org.sikuli.util.CommandArgs;
 import org.sikuli.util.CommandArgsEnum;
@@ -37,6 +37,8 @@ import java.security.CodeSource;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import static org.sikuli.support.RunTime.getResourceList;
 
 /**
  * INTERNAL USE --- NOT official API<br>
@@ -105,100 +107,99 @@ public class RunTime {
     RunTime.get(Type.API);
   }
 
-  public static void start(RunTime.Type type, String[] args) {
-    if (Type.API.equals(type)) {
-      startAsIDE = false;
-      if (args.length == 1 && "buildDate".equals(args[0])) {
-        System.out.println(Commons.getSxBuildStamp());
-        System.exit(0);
-      }
-
-//TODO place to test something in the API context
-      if (args.length == 1 && "test".equals(args[0])) {
-
-        SikulixEvaluate.test();
-
-        System.exit(0);
-      }
-    }
-
-    List<String> finalArgs = evalArgsStart(args);
-
-    if (shouldRunPythonServer()) {
-      SikulixAPI.runPy4jServer();
-    }
-
-    File runningJar = getRunningJar(type);
-    RunTime.startLog(1, "Running: %s", runningJar);
-
-    File fAppData = Commons.getAppDataPath();
-    RunTime.startLog(1, "AppData: %s", fAppData);
-
-    String classPath = ExtensionManager.makeClassPath(runningJar);
-    if (runningJar.getName().endsWith(".jar")) {
-      FileManager.writeStringToFile(runningJar.getAbsolutePath(),
-          new File(Commons.getAppDataPath(), "SikulixStore/lastUsedJar.txt"));
-    } else {
-      return;
-    }
-
-    List<String> cmd = new ArrayList<>();
-    System.getProperty("java.home");
-    if (get().runningWindows) {
-      cmd.add(System.getProperty("java.home") + "\\bin\\java.exe");
-    } else {
-      cmd.add(System.getProperty("java.home") + "/bin/java");
-    }
-    if (get().isJava9()) {
-      /*
-      Suppress Java 9+ warnings
-      --add-opens
-      java.desktop/javax.swing.plaf.basic=ALL-UNNAMED
-      --add-opens
-      java.base/sun.nio.ch=ALL-UNNAMED
-      --add-opens
-      java.base/java.io=ALL-UNNAMED
-      -Dnashorn.args=--no-deprecation-warning
-      */
-      cmd.add("--add-opens");
-      cmd.add("java.desktop/javax.swing.plaf.basic=ALL-UNNAMED");
-      cmd.add("--add-opens");
-      cmd.add("java.base/sun.nio.ch=ALL-UNNAMED");
-      cmd.add("--add-opens");
-      cmd.add("java.base/java.io=ALL-UNNAMED");
-    }
-
-    cmd.add("-Dfile.encoding=UTF-8");
-    if (startAsIDE) {
-      cmd.add("-Dsikuli.IDE_should_run");
-    } else {
-      cmd.add("-Dsikuli.API_should_run");
-    }
-    if (!classPath.isEmpty()) {
-      cmd.add("-cp");
-      cmd.add(classPath);
-    }
-    if (startAsIDE) {
-      cmd.add("org.sikuli.ide.SikulixIDE");
-    } else {
-      cmd.add("org.sikuli.script.support.SikulixAPI");
-    }
-    cmd.addAll(finalArgs);
-
-    RunTime.startLog(3, "*********************** leaving start");
-    //TODO detach IDE: for what does it make sense?
-/*
-    if (shouldDetach()) {
-      ProcessRunner.detach(cmd);
-      System.exit(0);
-    } else {
-      int exitCode = ProcessRunner.runBlocking(cmd);
-      System.exit(exitCode);
-    }
-*/
-    int exitCode = ProcessRunner.runBlocking(cmd);
-    System.exit(exitCode);
-  }
+  //TODO public static void start(RunTime.Type type, String[] args) {
+//    if (Type.API.equals(type)) {
+//      startAsIDE = false;
+//      if (args.length == 1 && "buildDate".equals(args[0])) {
+//        System.out.println(Commons.getSxBuildStamp());
+//        System.exit(0);
+//      }
+//
+//      if (args.length == 1 && "test".equals(args[0])) {
+//
+//        SikulixEvaluate.test();
+//
+//        System.exit(0);
+//      }
+//    }
+//
+//    List<String> finalArgs = evalArgsStart(args);
+//
+//    if (shouldRunPythonServer()) {
+//      SikulixAPI.runPy4jServer();
+//    }
+//
+//    File runningJar = getRunningJar(type);
+//    RunTime.startLog(1, "Running: %s", runningJar);
+//
+//    File fAppData = Commons.getAppDataPath();
+//    RunTime.startLog(1, "AppData: %s", fAppData);
+//
+//    String classPath = ExtensionManager.makeClassPath(runningJar);
+//    if (runningJar.getName().endsWith(".jar")) {
+//      FileManager.writeStringToFile(runningJar.getAbsolutePath(),
+//          new File(Commons.getAppDataPath(), "SikulixStore/lastUsedJar.txt"));
+//    } else {
+//      return;
+//    }
+//
+//    List<String> cmd = new ArrayList<>();
+//    System.getProperty("java.home");
+//    if (get().runningWindows) {
+//      cmd.add(System.getProperty("java.home") + "\\bin\\java.exe");
+//    } else {
+//      cmd.add(System.getProperty("java.home") + "/bin/java");
+//    }
+//    if (get().isJava9()) {
+//      /*
+//      Suppress Java 9+ warnings
+//      --add-opens
+//      java.desktop/javax.swing.plaf.basic=ALL-UNNAMED
+//      --add-opens
+//      java.base/sun.nio.ch=ALL-UNNAMED
+//      --add-opens
+//      java.base/java.io=ALL-UNNAMED
+//      -Dnashorn.args=--no-deprecation-warning
+//      */
+//      cmd.add("--add-opens");
+//      cmd.add("java.desktop/javax.swing.plaf.basic=ALL-UNNAMED");
+//      cmd.add("--add-opens");
+//      cmd.add("java.base/sun.nio.ch=ALL-UNNAMED");
+//      cmd.add("--add-opens");
+//      cmd.add("java.base/java.io=ALL-UNNAMED");
+//    }
+//
+//    cmd.add("-Dfile.encoding=UTF-8");
+//    if (startAsIDE) {
+//      cmd.add("-Dsikuli.IDE_should_run");
+//    } else {
+//      cmd.add("-Dsikuli.API_should_run");
+//    }
+//    if (!classPath.isEmpty()) {
+//      cmd.add("-cp");
+//      cmd.add(classPath);
+//    }
+//    if (startAsIDE) {
+//      cmd.add("org.sikuli.ide.SikulixIDE");
+//    } else {
+//      cmd.add("org.sikuli.script.support.SikulixAPI");
+//    }
+//    cmd.addAll(finalArgs);
+//
+//    RunTime.startLog(3, "*********************** leaving start");
+//    //TODO detach IDE: for what does it make sense?
+///*
+//    if (shouldDetach()) {
+//      ProcessRunner.detach(cmd);
+//      System.exit(0);
+//    } else {
+//      int exitCode = ProcessRunner.runBlocking(cmd);
+//      System.exit(exitCode);
+//    }
+//*/
+//    int exitCode = ProcessRunner.runBlocking(cmd);
+//    System.exit(exitCode);
+//  }
 
   private static File getRunningJar(Type type) {
     File jarFile = null;
@@ -1121,7 +1122,7 @@ public class RunTime {
 */
     runType = typ;
     if (Debug.getDebugLevel() == minLvl) {
-      show();
+      Commons.show();
     }
     log(4, "global init: leaving");
   }
@@ -1420,7 +1421,7 @@ public class RunTime {
 //        throw new SikuliXception("problem copying " + fJawtDll);
 //      }
     }
-    log(lvl, "libsExport: " + libMsg + " %s (%s - %s)", fLibsFolder, getVersionShort(), Commons.getSxBuildStamp());
+    //log(lvl, "libsExport: " + libMsg + " %s (%s - %s)", fLibsFolder, getVersionShort(), Commons.getSxBuildStamp());
     areLibsExported = true;
   }
 //</editor-fold>
@@ -1695,7 +1696,8 @@ public class RunTime {
   /**
    * print out some basic information about the current runtime environment
    */
-  public void show() {
+  //TODO public void show() {
+  /*
     if (sxOptions.hasOptions()) {
       sxOptions.dumpOptions();
     }
@@ -1721,6 +1723,7 @@ public class RunTime {
     }
     logp("***** show environment end");
   }
+  /*
 
   public boolean testSwitch() {
     if (0 == (new Date().getTime() / 10000) % 2) {
