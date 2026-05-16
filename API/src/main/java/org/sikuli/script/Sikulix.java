@@ -27,7 +27,7 @@ public static void main(String[] args) throws FindFailed {
     for (String arg : args) {
       if ("-s".equals(arg)) {
         try {
-          Class<?> cServer = Class.forName("org.sikuli.script.runners.ServerRunner");
+          Class<?> cServer = Class.forName("org.sikuli.support.runner.ServerRunner");
           cServer.getMethod("run").invoke(null);
           System.exit(0);
         } catch (Exception e) {

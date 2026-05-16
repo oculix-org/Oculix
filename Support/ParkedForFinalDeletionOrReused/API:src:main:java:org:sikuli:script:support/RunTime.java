@@ -14,7 +14,7 @@ import org.sikuli.support.Observing;
 import org.sikuli.support.devices.RobotDesktop;
 import org.sikuli.support.devices.ScreenDevice;
 import org.sikuli.script.runnerSupport.JythonSupport;
-import org.sikuli.script.runners.ProcessRunner;
+import org.sikuli.support.runner.ProcessRunner;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.IRunner.EffectiveRunner;
 import org.sikuli.util.CommandArgs;
@@ -115,7 +115,7 @@ public class RunTime {
 //TODO place to test something in the API context
       if (args.length == 1 && "test".equals(args[0])) {
 
-        SikulixEvaluate.test();
+        //TODO SikulixEvaluate.test();
 
         System.exit(0);
       }
@@ -124,7 +124,7 @@ public class RunTime {
     List<String> finalArgs = evalArgsStart(args);
 
     if (shouldRunPythonServer()) {
-      SikulixAPI.runPy4jServer();
+      //TODOP SikulixAPI.runPy4jServer();
     }
 
     File runningJar = getRunningJar(type);

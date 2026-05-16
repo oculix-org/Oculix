@@ -50,7 +50,6 @@ import io.undertow.util.StatusCodes;
 import io.undertow.util.URLUtils;
 import org.sikuli.support.Commons;
 import org.sikuli.support.RunTime;
-import org.sikuli.support.ide.Runner;
 import org.sikuli.util.CommandArgsEnum;
 
 /**

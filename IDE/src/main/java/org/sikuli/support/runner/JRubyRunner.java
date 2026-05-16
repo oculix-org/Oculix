@@ -6,7 +6,6 @@ package org.sikuli.support.runner;
 import org.apache.commons.io.FileUtils;
 import org.sikuli.basics.Debug;
 import org.sikuli.support.ide.JRubySupport;
-import org.sikuli.support.ide.Runner;
 
 import java.io.*;
 import java.util.regex.Matcher;

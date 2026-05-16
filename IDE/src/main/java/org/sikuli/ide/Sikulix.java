@@ -9,22 +9,19 @@ import org.sikuli.support.FileManager;
 import org.sikuli.support.runner.SikulixServer;
 import org.sikuli.script.SikuliXception;
 import org.sikuli.support.runner.IRunner;
-import org.sikuli.support.ide.Runner;
+import org.sikuli.support.runner.Runner;
 import org.sikuli.support.Commons;
 import org.sikuli.support.RunTime;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.ide.SikuliIDEI18N;
 
-import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLaf;
 import org.sikuli.ide.theme.OculixDarkLaf;
 import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.ide.theme.OculixLightLaf;
-import com.formdev.flatlaf.FlatLightLaf;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.lang.reflect.Method;
 
 import static org.sikuli.util.CommandArgsEnum.*;
 
