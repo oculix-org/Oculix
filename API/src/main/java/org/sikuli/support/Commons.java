@@ -28,6 +28,8 @@ import java.lang.reflect.Method;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.*;
 import java.util.List;
@@ -143,6 +145,8 @@ public class Commons {
         runShutdownHook();
       }
     });
+
+    cleanStaleTempDirs();
 
     // Load OpenCV native library eagerly when Commons is initialized.
     // Any class (Pattern, ScreenImage, PatternValidator, Finder, ...) that calls
@@ -1457,6 +1461,28 @@ public static void loadOpenCV() {
     return extracted > 0 ? target : null;
   }
 
+  private static void cleanStaleTempDirs() {
+    File tmpDir = getTempFolder();
+    if (tmpDir == null) {
+        tmpDir = new File(System.getProperty("java.io.tmpdir"));
+    }
+    File[] staleDirs = tmpDir.listFiles(file ->
+        file.isDirectory() && file.getName().startsWith("oculix-opencv-"));
+    if (staleDirs == null) return;
+    long dayElapsedMillis = 24L * 60 * 60 * 1000;
+    long cutoff = System.currentTimeMillis() - dayElapsedMillis;
+    for (File dir : staleDirs) {
+      if (dir.lastModified() < cutoff) {
+        try {
+          Debug.log("Removing stale OpenCV temp directory: %s", dir.toString());
+          FileUtils.deleteDirectory(dir);
+        } catch (IOException e) {
+          Debug.error("cleanStaleTempDirs: failed to delete %s: %s", dir, e.getMessage());
+        }
+      }
+    }
+  }
+
   /**
    * Extract a classpath resource to the temp folder and System.load() it.
    * Returns true on success. Caller is responsible for setting libOpenCVloaded
@@ -1473,11 +1499,12 @@ public static void loadOpenCV() {
         System.err.println("[OculiX] jar resource not found on classpath: " + resourcePath);
         return false;
       }
-      File tempDir = getTempFolder();
-      if (tempDir == null) {
-        tempDir = new File(System.getProperty("java.io.tmpdir"));
-      }
-      File tempLib = new File(tempDir, fileName);
+      String pid = String.valueOf(ProcessHandle.current().pid());
+      Path tempDir = Files.createTempDirectory("oculix-opencv-" + pid + "-");
+      File tempLib = tempDir.resolve("libopencv_java4100.so").toFile();
+      tempDir.toFile().deleteOnExit();  // 2nd: delete folder
+      tempLib.deleteOnExit();           // 1st: delete file
+      Debug.log("Creating OpenCV temp lib: %s", tempLib.toString());
       try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempLib)) {
         byte[] buf = new byte[8192];
         int len;
