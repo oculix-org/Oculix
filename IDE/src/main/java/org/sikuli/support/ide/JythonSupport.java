@@ -5,7 +5,7 @@
 // in case of needed again
 // activ now is the IDE version
 
-package org.sikuli.support.runnerSupport;
+package org.sikuli.support.ide;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -15,13 +15,13 @@ import org.python.core.PyList;
 import org.python.core.PySystemState;
 import org.python.util.PythonInterpreter;
 import org.sikuli.basics.Debug;
-import org.sikuli.support.FileManager;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.ImagePath;
 import org.sikuli.script.SikuliXception;
-import org.sikuli.support.SikulixForJython;
 import org.sikuli.support.Commons;
+import org.sikuli.support.FileManager;
 import org.sikuli.support.RunTime;
+import org.sikuli.support.SikulixForJython;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class JythonSupport implements org.sikuli.support.runnerSupport.IRunnerSupport {
+public class JythonSupport implements IRunnerSupport {
 
   //<editor-fold defaultstate="collapsed" desc="00 logging">
   private static final String me = "Jython: ";
@@ -867,11 +867,11 @@ public class JythonSupport implements org.sikuli.support.runnerSupport.IRunnerSu
         }
       } else if (errorType == PY_SYNTAX) {
         Pattern pLineS = Pattern.compile(", (\\d+), (\\d+),");
-        java.util.regex.Matcher mLine = pLineS.matcher(err);
+        Matcher mLine = pLineS.matcher(err);
         if (mLine.find()) {
           log(lvl + 2, "SyntaxError error line: " + mLine.group(1));
           Pattern pText = Pattern.compile("\\((.*?)\\(");
-          java.util.regex.Matcher mText = pText.matcher(err);
+          Matcher mText = pText.matcher(err);
           mText.find();
           errorText = mText.group(1) == null ? errorText : mText.group(1);
           log(lvl + 2, "SyntaxError: " + errorText);

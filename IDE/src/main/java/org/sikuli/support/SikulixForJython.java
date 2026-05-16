@@ -7,7 +7,7 @@ import java.io.File;
 import java.net.URL;
 
 import org.sikuli.script.SikuliXception;
-import org.sikuli.support.runnerSupport.JythonSupport;
+import org.sikuli.support.ide.JythonSupport;
 
 /**
  * Can be used in pure Jython environments to add the Sikuli Python API to sys.path<br>

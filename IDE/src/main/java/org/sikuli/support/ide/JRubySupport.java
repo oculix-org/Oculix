@@ -2,26 +2,27 @@
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
 
-package org.sikuli.support.runnerSupport;
+package org.sikuli.support.ide;
+
+import org.jruby.RubyInstanceConfig;
+import org.jruby.embed.LocalContextScope;
+import org.jruby.embed.ScriptingContainer;
+import org.sikuli.basics.Debug;
+import org.sikuli.support.Commons;
+import org.sikuli.support.FileManager;
 
 import java.io.File;
 import java.io.PrintStream;
 import java.io.Reader;
-import java.lang.reflect.*;
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.jruby.RubyInstanceConfig;
-import org.jruby.embed.LocalContextScope;
-import org.jruby.embed.ScriptingContainer;
-import org.sikuli.basics.Debug;
-import org.sikuli.support.FileManager;
-import org.sikuli.support.Commons;
-
-public class JRubySupport implements org.sikuli.support.runnerSupport.IRunnerSupport {
+public class JRubySupport implements IRunnerSupport {
 
   //<editor-fold defaultstate="collapsed" desc="00 initialization">
   private static final String me = "JRuby: ";
