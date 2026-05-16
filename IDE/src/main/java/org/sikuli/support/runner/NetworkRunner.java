@@ -13,6 +13,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.sikuli.support.FileManager;
 import org.sikuli.script.ImagePath;
+import org.sikuli.support.ide.Runner;
 
 public class NetworkRunner extends AbstractRunner {
 

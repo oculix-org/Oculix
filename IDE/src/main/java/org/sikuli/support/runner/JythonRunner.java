@@ -91,7 +91,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       jythonSupport.addSitePackages();
       jythonSupport.showSysPath();
       jythonSupport.interpreterExecString("import sys");
-      jythonSupport.interpreterExecString("import org.sikuli.support.runner.Runner as Runner");
+      jythonSupport.interpreterExecString("import org.sikuli.support.ide.Runner as Runner");
       String interpreterVersion = jythonSupport.interpreterEval("sys.version.split(\"(\")[0]\n").toString();
       if (interpreterVersion.isEmpty()) {
         interpreterVersion = "could not be evaluated";
