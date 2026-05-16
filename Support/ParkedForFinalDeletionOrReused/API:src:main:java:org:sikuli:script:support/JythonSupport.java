@@ -1,7 +1,12 @@
 /*
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
-package org.sikuli.script.runnerSupport;
+
+//TODO checked this API version against IDE version --- seemed to be identical :-)
+// in case of needed again
+// activ now is the IDE version
+
+package org.sikuli.support.runnerSupport;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -14,10 +19,13 @@ import org.sikuli.basics.Debug;
 import org.sikuli.support.FileManager;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.ImagePath;
-import org.sikuli.script.SikulixForJython;
+import org.sikuli.script.SikuliXception;
+import org.sikuli.support.SikulixForJython;
 import org.sikuli.support.Commons;
+import org.sikuli.support.RunTime;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Field;
@@ -85,7 +93,9 @@ public class JythonSupport implements IRunnerSupport {
       Debug.log("Jython: not found on classpath");
       return;
     }
-    Commons.shouldExport();
+
+    //TODO check exported needed?
+
     try {
       interpreter = new PythonInterpreter();
       cPyException = Class.forName("org.python.core.PyException");
@@ -321,6 +331,7 @@ public class JythonSupport implements IRunnerSupport {
   }
 
   public void executeScriptHeader(List<String> codeBefore) {
+//    Debug.on(4);
     for (String line : SCRIPT_HEADER) {
       log(lvl + 1, "executeScriptHeader: %s", line);
       interpreterExecString(line);
@@ -336,10 +347,11 @@ public class JythonSupport implements IRunnerSupport {
    * The header commands, that are executed before every script
    */
   private static String[] SCRIPT_HEADER = new String[]{
-          "# -*- coding: utf-8 -*- ",
-          "import org.sikuli.script.SikulixForJython",
-          "from sikuli import *",
-          "use() #resetROI()"
+      "# -*- coding: utf-8 -*- ",
+      "import time; start = time.time()",
+      "from sikuli import *",
+      "try:\n  resetBeforeScriptStart()\nexcept:\n  pass",
+      "Debug.log(3, 'Jython: BeforeScript: %s (%f)',  SCREEN, time.time()-start)",
   };
   //</editor-fold>
 
@@ -707,13 +719,14 @@ public class JythonSupport implements IRunnerSupport {
   //<editor-fold desc="18 RobotFramework support">
   public boolean prepareRobot() {
     if (Commons.isRunningFromJar()) {
-      File fLibRobot = new File(Commons.getLibFolder(), "robot");
+      final File libFolder = Commons.getLibFolder();
+      File fLibRobot = new File(libFolder, "robot");
       if (!fLibRobot.exists()) {
         log(-1, "prepareRobot: not available: %s", fLibRobot);
         return false;
       }
-      if (!hasSysPath(Commons.getLibFolder().getAbsolutePath())) {
-        insertSysPath(Commons.getLibFolder());
+      if (!hasSysPath(libFolder.getAbsolutePath())) {
+        insertSysPath(libFolder);
       }
     }
     if (!hasSysPath(new File(Settings.BundlePath).getParent())) {
@@ -1116,4 +1129,110 @@ public class JythonSupport implements IRunnerSupport {
     return true;
   }
   //</editor-fold>
+
+  /**
+   * the foo.py files in the given source folder are compiled to JVM-ByteCode-classfiles foo$py.class
+   * and stored in the target folder (thus securing your code against changes).<br>
+   * A folder structure is preserved. All files not ending as .py will be copied also.
+   * The target folder might then be packed to a jar using buildJarFromFolder.<br>
+   * Be aware: you will get no feedback about any compile problems,
+   * so make sure your code compiles error free. Currently there is no support for running such a jar,
+   * it can only be used with load()/import, but you might provide a simple script that does load()/import
+   * and then runs something based on available functions in the jar code.
+   *
+   * @param fpSource absolute path to a folder/folder-tree containing the stuff to be copied/compiled
+   * @param fpTarget the folder that will contain the copied/compiled stuff (folder is first deleted)
+   * @return false if anything goes wrong, true means should have worked
+   */
+  public static boolean compileJythonFolder(String fpSource, String fpTarget) {
+    JythonSupport jython = JythonSupport.get();
+    if (jython != null) {
+      File fTarget = new File(fpTarget);
+      FileManager.deleteFileOrFolder(fTarget);
+      fTarget.mkdirs();
+      if (!fTarget.exists()) {
+        Debug.log(-1, "compileJythonFolder: target folder not available\n%", fTarget);
+        return false;
+      }
+      File fSource = new File(fpSource);
+      if (!fSource.exists()) {
+        Debug.log(-1, "compileJythonFolder: source folder not available\n", fSource);
+        return false;
+      }
+      if (fTarget.equals(fSource)) {
+        Debug.log(-1, "compileJythonFolder: target folder cannot be the same as the source folder");
+        return false;
+      }
+      FileManager.xcopy(fSource, fTarget);
+      if (!jython.interpreterExecString("import compileall")) {
+        return false;
+      }
+      jython = doCompileJythonFolder(jython, fTarget);
+      FileManager.traverseFolder(fTarget, new CompileJythonFilter(jython));
+    }
+    return false;
+  }
+
+  private static class CompileJythonFilter extends FileManager.FileFilter{
+
+    JythonSupport jython = null;
+
+    CompileJythonFilter(JythonSupport jython) {
+      this.jython = jython;
+    }
+
+    public boolean accept(File entry) {
+      if (jython != null && entry.isDirectory()) {
+        jython = doCompileJythonFolder(jython, entry);
+      }
+      return false;
+    }
+  }
+
+  private static JythonSupport doCompileJythonFolder(JythonSupport jython, File fSource) {
+    String fpSource = FileManager.slashify(fSource.getAbsolutePath(), false);
+    if (!jython.interpreterExecString(String.format("compileall.compile_dir(\"%s\","
+        + "maxlevels = 0, quiet = 1)", fpSource))) {
+      return null;
+    }
+    for (File aFile : fSource.listFiles()) {
+      if (aFile.getName().endsWith(".py")) {
+        aFile.delete();
+      }
+    }
+    return jython;
+  }
+
+  //TODO obsolete?
+  public static boolean isReady() {
+    return interpreter != null;
+  }
+
+  public void exportLib() {
+    File fLib = Commons.getLibFolder();
+    FilenameFilter filterSitePackages = null;
+    if (fLib.exists()) {
+      FileManager.deleteFileOrFolder(fLib, new FileManager.FileFilter() {
+        @Override
+        public boolean accept(File entry) {
+          if (entry.getPath().contains("site-packages")) {
+            return false;
+          }
+          return true;
+        }
+      });
+    } else {
+      fLib.mkdirs();
+      if (!fLib.exists()) {
+        throw new SikuliXception("LibExport: folder not available: " + fLib.toString());
+      }
+      filterSitePackages = (dir, name) -> {
+        if (dir.getPath().contains("site-packages")) {
+          return false;
+        }
+        return true;
+      };
+    }
+    RunTime.extractResourcesToFolder("Lib", Commons.getLibFolder(), filterSitePackages);
+  }
 }

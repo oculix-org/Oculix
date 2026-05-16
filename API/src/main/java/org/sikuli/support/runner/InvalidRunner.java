@@ -5,7 +5,6 @@
 package org.sikuli.support.runner;
 
 import org.sikuli.basics.Debug;
-import org.sikuli.support.ide.Runner;
 
 import java.io.File;
 

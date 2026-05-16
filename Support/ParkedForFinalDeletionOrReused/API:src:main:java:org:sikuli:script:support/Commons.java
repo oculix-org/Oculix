@@ -705,7 +705,7 @@ public class Commons {
 
   //<editor-fold desc="15 file handling">
   public static List<String> getContentList(String res) {
-    return getContentList(res, RunTime.class);
+    return getContentList(res, Commons.class);
   }
 
   public static List<String> getContentList(String resFolder, Class classReference) {
