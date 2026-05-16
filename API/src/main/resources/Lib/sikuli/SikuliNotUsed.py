@@ -148,9 +148,9 @@ import SikuliImporter
 from org.sikuli.script import Sikulix
 
 #Debug.log(3, "Jython: sikuli: Sikuli: import Runner")
-#TODO import org.sikuli.script.support.Runner as Runner
+#import org.sikuli.script.support.Runner as Runner
 
-import org.sikuli.script.runnerSupport.JythonSupport as JythonHelper
+import org.sikuli.support.ide.JythonSupport as JythonHelper
 
 def load(jar):
   """
