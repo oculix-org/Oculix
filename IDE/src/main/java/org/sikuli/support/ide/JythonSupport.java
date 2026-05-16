@@ -17,7 +17,6 @@ import org.sikuli.script.ImagePath;
 import org.sikuli.script.SikuliXception;
 import org.sikuli.script.SikulixForJython;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -99,7 +98,8 @@ public class JythonSupport implements IRunnerSupport {
     // cost on a stable install. Without this, end-users who upgraded over a
     // pre-#235 OculiX kept a Sikuli.py calling Screen.all() (removed by #235)
     // and crashed at IDE startup until they manually wiped the file.
-    org.sikuli.script.support.RunTime.get().exportLib();
+    exportLib();
+
     try {
       interpreter = new PythonInterpreter();
       cPyException = Class.forName("org.python.core.PyException");
@@ -160,32 +160,46 @@ public class JythonSupport implements IRunnerSupport {
   }
   //</editor-fold>
 
-  public void exportLib() {
-    File fLib = Commons.getLibFolder();
-    FilenameFilter filterSitePackages = null;
-    if (fLib.exists()) {
-      FileManager.deleteFileOrFolder(fLib, new FileManager.FileFilter() {
-        @Override
-        public boolean accept(File entry) {
-          if (entry.getPath().contains("site-packages")) {
-            return false;
-          }
-          return true;
-        }
-      });
-    } else {
-        fLib.mkdirs();
-        if (!fLib.exists()) {
-          throw new SikuliXception("LibExport: folder not available: " + fLib.toString());
-        }
-      filterSitePackages = (dir, name) -> {
-        if (dir.getPath().contains("site-packages")) {
-          return false;
-        }
-        return true;
-      };
+  private static boolean isLibExported = false;
+
+  public static void exportLib() {
+    if (isLibExported) {
+      return;
     }
-    RunTime.extractResourcesToFolder("Lib", Commons.getLibFolder(), filterSitePackages);
+    File fSikulixLib = Commons.getLibFolder();
+
+    if (fSikulixLib.exists()) {
+      if (!Commons.hasVersionFile(fSikulixLib)) {
+        FileManager.deleteFileOrFolder(fSikulixLib, new FileManager.FileFilter() {
+          @Override
+          public boolean accept(File entry) {
+            if (entry.getPath().contains("site-packages")) {
+              return false;
+            }
+            return true;
+          }
+        });
+        Commons.extractResourcesToFolder("Lib", fSikulixLib, new FilenameFilter() {
+          @Override
+          public boolean accept(File dir, String name) {
+            if (dir.getPath().contains("site-packages")) {
+              return false;
+            }
+            return true;
+          }
+        });
+        Commons.makeVersionFile(fSikulixLib);
+      }
+    }
+    if (!fSikulixLib.exists()) {
+      fSikulixLib.mkdir();
+      if (!fSikulixLib.exists()) {
+        throw new SikuliXception("LibExport: folder not available: " + fSikulixLib.toString());
+      }
+      Commons.extractResourcesToFolder("Lib", fSikulixLib, null);
+      Commons.makeVersionFile(fSikulixLib);
+    }
+    isLibExported = true;
   }
 
   //<editor-fold desc="05 Jython reflection">
