@@ -29,6 +29,74 @@ public class ADBClient {
   public static String adbExec;
   private static String adbFilePath = "adb";
 
+  /**
+   * Holistic adb resolution across Windows / macOS / Linux.
+   * Order of resolution (first match wins):
+   *   1. System PATH         — covers WinGet, brew, apt, Android Studio installs
+   *   2. ANDROID_HOME / ANDROID_SDK_ROOT env vars + /platform-tools/adb
+   *   3. Common per-OS install locations (~/Library/Android/sdk/..., ~/Android/Sdk/...)
+   * Returns absolute path to the executable, or null if not found.
+   */
+  private static String findAdbHolistically() {
+    String adbName = Commons.runningWindows() ? "adb.exe" : "adb";
+
+    // 1. System PATH
+    String pathEnv = System.getenv("PATH");
+    if (pathEnv != null) {
+      for (String dir : pathEnv.split(File.pathSeparator)) {
+        if (dir == null || dir.isEmpty()) continue;
+        File candidate = new File(dir, adbName);
+        if (candidate.isFile() && candidate.canExecute()) {
+          return candidate.getAbsolutePath();
+        }
+      }
+    }
+
+    // 2. ANDROID_HOME / ANDROID_SDK_ROOT
+    String[] sdkVars = {"ANDROID_HOME", "ANDROID_SDK_ROOT"};
+    for (String var : sdkVars) {
+      String sdk = System.getenv(var);
+      if (sdk != null && !sdk.isEmpty()) {
+        File candidate = new File(sdk, "platform-tools/" + adbName);
+        if (candidate.isFile()) {
+          return candidate.getAbsolutePath();
+        }
+      }
+    }
+
+    // 3. Common per-OS install locations
+    String home = System.getProperty("user.home");
+    if (home != null) {
+      String[] commonLocations;
+      if (Commons.runningWindows()) {
+        commonLocations = new String[]{
+            home + "/AppData/Local/Android/Sdk/platform-tools/" + adbName,
+            home + "/AppData/Local/Microsoft/WinGet/Packages/Google.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbwe/platform-tools/" + adbName,
+        };
+      } else if (Commons.runningMac()) {
+        commonLocations = new String[]{
+            home + "/Library/Android/sdk/platform-tools/" + adbName,
+            "/usr/local/bin/" + adbName,
+            "/opt/homebrew/bin/" + adbName,
+        };
+      } else {
+        commonLocations = new String[]{
+            home + "/Android/Sdk/platform-tools/" + adbName,
+            "/usr/bin/" + adbName,
+            "/usr/local/bin/" + adbName,
+        };
+      }
+      for (String loc : commonLocations) {
+        File candidate = new File(loc);
+        if (candidate.isFile()) {
+          return candidate.getAbsolutePath();
+        }
+      }
+    }
+
+    return null;
+  }
+
   private static void init(String adbWhereIs) {
     //getConnection(true);
     String adbPath;
@@ -38,21 +106,30 @@ public class ADBClient {
         if (Commons.runningWindows()) {
           adbExec += ".exe";
         }
-        File fAdbPath = new File(Commons.getExtensionsFolder(), "android/" + adbExec);
-        adbFilePath = fAdbPath.getAbsolutePath();
-        if (!fAdbPath.exists()) {
-          adbPath = System.getenv("sikulixadb");
-          if (adbPath == null) {
-            adbPath = System.getProperty("sikulixadb");
+
+        // First: holistic auto-detection (PATH, ANDROID_HOME, common per-OS locations)
+        String autoDetected = findAdbHolistically();
+        if (autoDetected != null) {
+          adbFilePath = autoDetected;
+          Debug.log(3, "ADBClient: adb auto-detected: %s", adbFilePath);
+        } else {
+          // Fallback: legacy SikuliX resolution chain
+          File fAdbPath = new File(Commons.getExtensionsFolder(), "android/" + adbExec);
+          adbFilePath = fAdbPath.getAbsolutePath();
+          if (!fAdbPath.exists()) {
+            adbPath = System.getenv("sikulixadb");
+            if (adbPath == null) {
+              adbPath = System.getProperty("sikulixadb");
+            }
+            if (adbPath == null) {
+              adbPath = Commons.getWorkDir().getAbsolutePath();
+            }
+            File adbFile = new File(adbPath, adbExec);
+            if (!adbFile.exists()) {
+              adbFile = new File(adbPath);
+            }
+            adbFilePath = adbFile.getAbsolutePath();
           }
-          if (adbPath == null) {
-            adbPath = Commons.getWorkDir().getAbsolutePath();
-          }
-          File adbFile = new File(adbPath, adbExec);
-          if (!adbFile.exists()) {
-            adbFile = new File(adbPath);
-          }
-          adbFilePath = adbFile.getAbsolutePath();
         }
       } else {
         adbFilePath = adbWhereIs;
