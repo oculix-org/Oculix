@@ -2,7 +2,7 @@
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
 
-package org.sikuli.script.runnerSupport;
+package org.sikuli.support.runnerSupport;
 
 import java.io.File;
 import java.io.PrintStream;
@@ -36,6 +36,9 @@ public class JRubySupport implements IRunnerSupport {
   public static JRubySupport get() {
     if (null == instance) {
       instance = new JRubySupport();
+      //RunTime.get().exportLib();
+      Commons.getLibFolder().mkdirs();
+      Commons.copyResourceToFile("/Lib/sikulix.rb", Commons.class, Commons.getLibFolder());
       instance.interpreterInitialization();
     }
     return instance;

@@ -5,7 +5,7 @@ package org.sikuli.support.runner;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.ide.SikulixIDE;
-import org.sikuli.support.ide.JythonSupport;
+import org.sikuli.support.runnerSupport.JythonSupport;
 import org.sikuli.script.Sikulix;
 import org.sikuli.support.Commons;
 import static org.sikuli.util.CommandArgsEnum.*;
@@ -91,7 +91,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       jythonSupport.addSitePackages();
       jythonSupport.showSysPath();
       jythonSupport.interpreterExecString("import sys");
-      jythonSupport.interpreterExecString("import org.sikuli.support.ide.Runner as Runner");
+      jythonSupport.interpreterExecString("import org.sikuli.support.runner.Runner as Runner");
       String interpreterVersion = jythonSupport.interpreterEval("sys.version.split(\"(\")[0]\n").toString();
       if (interpreterVersion.isEmpty()) {
         interpreterVersion = "could not be evaluated";

@@ -2,7 +2,7 @@
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
 
-package org.sikuli.support.ide;
+package org.sikuli.support.runnerSupport;
 
 /**
  * This interface provides script language specific methods which are non a part

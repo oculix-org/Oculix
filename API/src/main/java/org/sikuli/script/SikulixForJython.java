@@ -6,7 +6,7 @@ package org.sikuli.script;
 import java.io.File;
 import java.net.URL;
 
-import org.sikuli.script.runnerSupport.JythonSupport;
+import org.sikuli.support.runnerSupport.JythonSupport;
 import org.sikuli.support.Commons;
 import org.sikuli.support.RunTime;
 

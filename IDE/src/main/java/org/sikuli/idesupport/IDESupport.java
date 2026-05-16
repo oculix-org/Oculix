@@ -6,10 +6,9 @@ package org.sikuli.idesupport;
 import org.sikuli.basics.Debug;
 import org.sikuli.support.FileManager;
 import org.sikuli.script.Sikulix;
-import org.sikuli.script.runners.*;
+import org.sikuli.support.runner.*;
 import org.sikuli.support.runner.IRunner;
-import org.sikuli.support.RunTime;
-import org.sikuli.support.ide.Runner;
+import org.sikuli.support.runner.Runner;
 
 import java.io.File;
 import java.io.IOException;

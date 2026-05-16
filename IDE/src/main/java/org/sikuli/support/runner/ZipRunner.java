@@ -5,7 +5,6 @@ package org.sikuli.support.runner;
 
 import org.apache.commons.io.FilenameUtils;
 import org.sikuli.support.FileManager;
-import org.sikuli.support.ide.Runner;
 
 import java.io.File;
 import java.io.FileOutputStream;
