@@ -16,6 +16,7 @@ import java.awt.*;
 import java.awt.image.*;
 import java.io.*;
 import java.util.Date;
+import java.util.Objects;
 import javax.imageio.ImageIO;
 
 /**
@@ -258,6 +259,15 @@ public class ScreenImage {
     Imgproc.cvtColor(Commons.makeMat(((ScreenImage) other).getImage()), otherGray, Imgproc.COLOR_BGR2GRAY);
     Core.absdiff(thisGray, otherGray, mDiffAbs);
     return Core.countNonZero(mDiffAbs) == 0;
+  }
+
+  @Override
+  public int hashCode() {
+    // equals() compares pixel-by-pixel, which is too expensive to hash fully.
+    // Two equal ScreenImages necessarily share the same dimensions, so hashing
+    // on (w, h) preserves the equals/hashCode contract (more hash collisions
+    // are acceptable; what matters is equal-objects-equal-hash).
+    return Objects.hash(w, h);
   }
 
   public double diffPercentage(ScreenImage scrImg) {

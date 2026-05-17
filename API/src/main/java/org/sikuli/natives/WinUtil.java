@@ -97,6 +97,11 @@ public class WinUtil extends GenericOsUtil {
 		public boolean equals(Object other) {
 			return other != null && other instanceof WinWindow && this.hWnd.equals(((WinWindow) other).hWnd);
 		}
+
+		@Override
+		public int hashCode() {
+			return hWnd != null ? hWnd.hashCode() : 0;
+		}
 	}
 
 	@Override
