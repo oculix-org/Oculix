@@ -3,6 +3,9 @@ name: Compile API
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
 
