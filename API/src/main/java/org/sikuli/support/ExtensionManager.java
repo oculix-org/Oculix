@@ -4,7 +4,6 @@
 package org.sikuli.support;
 
 import org.sikuli.basics.Debug;
-import org.sikuli.script.support.RunTime;
 import org.sikuli.support.runner.ProcessRunner;
 
 import javax.swing.*;
@@ -47,7 +46,7 @@ public class ExtensionManager {
   }
 
   public static String makeClassPath(File jarFile) {
-    org.sikuli.script.support.RunTime.startLog(1, "starting with classpath: %.100s ...", outerClassPath);
+    RunTime.startLog(1, "starting with classpath: %.100s ...", outerClassPath);
     String jarPath = jarFile.getAbsolutePath();
     extensionClassPath = jarPath;
     File[] sxFolderList = new File[0];
@@ -88,7 +87,7 @@ public class ExtensionManager {
       sxExtensions.mkdir();
     }
     if (!sxExtensions.exists()) {
-      org.sikuli.script.support.RunTime.startLog(1, "folder extension not available: %s", sxExtensions);
+      RunTime.startLog(1, "folder extension not available: %s", sxExtensions);
       extensionsOK = false;
     }
 
@@ -108,9 +107,9 @@ public class ExtensionManager {
         for (File fJar : sxFolderList) {
           try {
             Files.move(fJar.toPath(), sxExtensions.toPath().resolve(fJar.toPath().getFileName()), StandardCopyOption.REPLACE_EXISTING);
-            org.sikuli.script.support.RunTime.startLog(1, "moving to extensions: %s", fJar);
+            RunTime.startLog(1, "moving to extensions: %s", fJar);
           } catch (IOException e) {
-            org.sikuli.script.support.RunTime.startLog(-1, "moving to extensions: %s (%s)", fJar, e.getMessage());
+            RunTime.startLog(-1, "moving to extensions: %s (%s)", fJar, e.getMessage());
           }
         }
       }
@@ -135,7 +134,7 @@ public class ExtensionManager {
               jrubyReady = true;
             }
           } else if (pExtension.contains("py4j")) {
-            org.sikuli.script.support.RunTime.get().startLog(-1, "Extension: py4j: not supported");
+            RunTime.startLog(-1, "Extension: py4j: not supported");
             continue;
           } else {
             if (extensionClassPath.contains(pExtension)) {
@@ -146,7 +145,7 @@ public class ExtensionManager {
             extensionClassPath += separator;
           }
           extensionClassPath += pExtension;
-          org.sikuli.script.support.RunTime.startLog(1, "adding extension file: %s", fExtension);
+          RunTime.startLog(1, "adding extension file: %s", fExtension);
         }
       }
     }
@@ -160,7 +159,7 @@ public class ExtensionManager {
       }
     }
 
-    if (org.sikuli.script.support.RunTime.isIDE() && !jythonReady && !jrubyReady &&
+    if (RunTime.isIDE() && !jythonReady && !jrubyReady &&
         !finalClassPath.toLowerCase().contains("jython") &&
         !finalClassPath.toLowerCase().contains("jruby") &&
         !isJythonBundled()) {
@@ -215,12 +214,12 @@ public class ExtensionManager {
         sxExtensionsFileContent.add(line);
       }
       if (sxExtensionsFileContent.size() > 0) {
-        org.sikuli.script.support.RunTime.startLog(1, "extensions.txt\n%s", extlines.trim());
+        RunTime.startLog(1, "extensions.txt\n%s", extlines.trim());
       }
     }
     if (sxExtensionsFileContent.size() == 0) {
       if (!afterStart) {
-        org.sikuli.script.support.RunTime.startLog(1, "no extensions.txt nor valid content");
+        RunTime.startLog(1, "no extensions.txt nor valid content");
       }
       return;
     }
@@ -238,13 +237,13 @@ public class ExtensionManager {
       File extFile = new File(extPath);
       if (extFile.isAbsolute()) {
         if (!extFile.exists() || !extFile.getName().endsWith(".jar")) {
-          org.sikuli.script.support.RunTime.startLog(-1, "extension path not valid: %s", line);
+          RunTime.startLog(-1, "extension path not valid: %s", line);
           continue;
         }
       } else {
         extFile = new File(sxExtensions, extFile.getPath());
         if (!extFile.exists() || !extFile.getName().endsWith(".jar")) {
-          org.sikuli.script.support.RunTime.startLog(-1, "extension path not valid: %s", line);
+          RunTime.startLog(-1, "extension path not valid: %s", line);
           continue;
         }
       }
@@ -254,7 +253,7 @@ public class ExtensionManager {
             continue;
           }
           if (!extFile.getName().endsWith(".jar")) {
-            org.sikuli.script.support.RunTime.startLog(-1, "Jython: extension is not jar: %s", line); //TODO search jar
+            RunTime.startLog(-1, "Jython: extension is not jar: %s", line); //TODO search jar
             continue;
           }
           jythonReady = true;
@@ -265,7 +264,7 @@ public class ExtensionManager {
             continue;
           }
           if (!extFile.getName().endsWith(".jar")) {
-            org.sikuli.script.support.RunTime.startLog(-1, "JRuby: extension is not jar: %s", line); //TODO search jar
+            RunTime.startLog(-1, "JRuby: extension is not jar: %s", line); //TODO search jar
             continue;
           }
           jrubyReady = true;
@@ -277,14 +276,14 @@ public class ExtensionManager {
           }
           if (extFile.isAbsolute()) {
             if (extFile.exists()) {
-              org.sikuli.script.support.RunTime.startLog(1, "Python available at: %s", extPath);
+              RunTime.startLog(1, "Python available at: %s", extPath);
               python = extPath;
             }
           } else {
             String runOut = ProcessRunner.run(extPath, "-V");
             if (runOut.startsWith("0\n")) {
               python = extPath;
-              org.sikuli.script.support.RunTime.startLog(1, "Python available as command: %s (%s)", extPath, runOut.substring(2));
+              RunTime.startLog(1, "Python available as command: %s (%s)", extPath, runOut.substring(2));
             }
           }
           continue;
@@ -295,7 +294,7 @@ public class ExtensionManager {
           extensionClassPath += File.pathSeparator;
         }
         extensionClassPath += new File(extPath).getAbsolutePath();
-        org.sikuli.script.support.RunTime.startLog(1, "adding extension entry: %s", extPath);
+        RunTime.startLog(1, "adding extension entry: %s", extPath);
       }
     }
   }
@@ -462,6 +461,7 @@ public class ExtensionManager {
 
   private ExtensionManager() {
     extensions = new ArrayList<Extension>();
+    //TODO switch to org.sikuli.support.RunTime
     fExtensions = org.sikuli.script.support.RunTime.get().fSikulixExtensions;
     Extension e;
     String path, name, version;
@@ -494,7 +494,8 @@ public class ExtensionManager {
       //url = RunTime.get().SikuliRepo + name + "-" + version + ".jar";
     }
     String extPath = fExtensions.getAbsolutePath();
-    String tmpdir = RunTime.get().fpBaseTempPath;
+    //TODO switch to org.sikuli.support.RunTime
+    String tmpdir = org.sikuli.script.support.RunTime.get().fpBaseTempPath;
     try {
       File localFile = new File(FileManager.downloadURL(new URL(url), tmpdir));
       String extName = localFile.getName();
@@ -621,5 +622,29 @@ public class ExtensionManager {
     }
   }
   //</editor-fold>
+
+  //TODO to be evauated
+  public File asExtension(String fpJar) {
+    //TODO switch to org.sikuli.support.RunTime
+    org.sikuli.script.support.RunTime runTime = org.sikuli.script.support.RunTime.get();
+    File fJarFound = new File(FileManager.normalizeAbsolute(fpJar));
+    if (!fJarFound.exists()) {
+      String fpCPEntry = Commons.isOnClasspath(fJarFound.getName());
+      if (fpCPEntry == null) {
+        fJarFound = new File(runTime.fSikulixExtensions, fpJar);
+        if (!fJarFound.exists()) {
+          fJarFound = new File(runTime.fSikulixLib, fpJar);
+          if (!fJarFound.exists()) {
+            fJarFound = null;
+          }
+        }
+      } else {
+        fJarFound = new File(fpCPEntry, fJarFound.getName());
+      }
+    } else {
+      return null;
+    }
+    return fJarFound;
+  }
 }
 
