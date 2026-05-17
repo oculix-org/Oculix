@@ -492,7 +492,8 @@ public class Key {
 
   public static void dump() {
     Map<Integer, String> namesVK = new HashMap<Integer, String>();
-    for (int i = 0; i < keyVK.length; i += 2) {
+    // keyVK is laid out in (name, vkCode) pairs; guard against an odd length
+    for (int i = 0; i + 1 < keyVK.length; i += 2) {
       namesVK.put(Integer.decode(keyVK[i+1]), keyVK[i].substring(3));
     }
     Map<String, Integer> sortedNames = new TreeMap<String, Integer>(keyTexts);
@@ -884,7 +885,8 @@ public class Key {
    */
   public static void createKeyTable() {
     Map<String, String> namesVK = new HashMap<String, String>();
-    for (int i = 0; i < keyVK.length; i += 2) {
+    // keyVK is laid out in (name, vkCode) pairs; guard against an odd length
+    for (int i = 0; i + 1 < keyVK.length; i += 2) {
       namesVK.put(keyVK[i+1], keyVK[i].substring(3));
     }
 
