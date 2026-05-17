@@ -111,6 +111,11 @@ public class MacUtil extends GenericOsUtil {
     public boolean equals(Object other) {
       return other != null && other instanceof MacWindow && this.number == (((MacWindow) other).number);
     }
+
+    @Override
+    public int hashCode() {
+      return Long.hashCode(number);
+    }
   }
 
   @Override

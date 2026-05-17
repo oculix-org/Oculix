@@ -220,6 +220,12 @@ public class ImagePath {
     }
 
     @Override
+    public int hashCode() {
+      // Matches equals(): pathURL is the identity; null URL == "no identity" so use 0.
+      return pathURL == null ? 0 : pathURL.toExternalForm().hashCode();
+    }
+
+    @Override
     public String toString() {
       return getPath();
     }
