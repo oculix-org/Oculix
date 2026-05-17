@@ -8,7 +8,7 @@
 
 [![Java](https://img.shields.io/badge/Java-11%2B-orange?style=flat-square&logo=openjdk)](https://adoptium.net)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Fork of](https://img.shields.io/badge/Fork%20of-SikuliX1%20%28archived%29-lightgrey?style=flat-square)](https://github.com/RaiMan/SikuliX1)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12878/badge)](https://www.bestpractices.dev/projects/12878)
 [![Maintained](https://img.shields.io/badge/Maintained-Yes-brightgreen?style=flat-square)](https://github.com/julienmerconsulting/OculiX)
 [![Changes](https://img.shields.io/badge/Changes%20vs%20SikuliX-123%2C728%20insertions-blue?style=flat-square)]()
 [![Version](https://img.shields.io/badge/Version-3.0.2-blue?style=flat-square)]()
