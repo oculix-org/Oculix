@@ -6,8 +6,7 @@ package org.sikuli.script;
 import org.sikuli.support.devices.IScreen;
 
 import java.awt.*;
-
-import java.awt.*;
+import java.util.Objects;
 
 /**
  * The region on the screen or rectangle in the image,
@@ -281,6 +280,13 @@ public class Match extends Region implements Comparable<Match> {
     Match that = (Match) oThat;
     return x == that.x && y == that.y && w == that.w && h == that.h
         && Math.abs(simScore - that.simScore) < 1e-5 && getTarget().equals(that.getTarget());
+  }
+
+  @Override
+  public int hashCode() {
+    // Matches equals(): same fields, simScore rounded to integer scale to keep
+    // the 1e-5 tolerance consistent (two equal matches must produce the same hash).
+    return Objects.hash(x, y, w, h, Math.round(simScore * 100000.0), getTarget());
   }
 
   @Override

@@ -52,6 +52,11 @@ public abstract class GenericOsUtil implements OSUtil {
 		public boolean equals(Object other) {
 			return other != null && other instanceof OsProcess && this.getPid() == ((OsProcess) other).getPid();
 		}
+
+		@Override
+		public int hashCode() {
+			return Long.hashCode(getPid());
+		}
 	}
 
 	@Override
