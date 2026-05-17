@@ -15,6 +15,9 @@ on:
     branches:
       - 'release/oculix-rc'
 
+permissions:
+  contents: read
+
 jobs:
   build-windows:
     runs-on: ubuntu-latest

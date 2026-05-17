@@ -3,6 +3,9 @@ name: Publish to Maven Central
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     needs: []  # à brancher sur build_dist si tu veux chaîner avec le build existant
