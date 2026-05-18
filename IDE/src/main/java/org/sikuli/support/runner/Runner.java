@@ -157,9 +157,6 @@ public class Runner {
   }
   // </editor-fold>
 
-  public static final int FILE_NOT_FOUND = 256;
-  public static final int NOT_SUPPORTED = 257;
-
   public static String[] resolveRelativeFiles(String[] givenScripts) {
     String[] runScripts = new String[givenScripts.length];
     String baseDir = Commons.getWorkDir().getPath();
@@ -292,7 +289,7 @@ public class Runner {
         }
         if (null == currentScript) {
           log(-1, "script not found: %s", script);
-          return FILE_NOT_FOUND;
+          return Commons.FILE_NOT_FOUND;
         }
       }
       script = currentScript.getPath();
@@ -307,7 +304,7 @@ public class Runner {
         if (runScripts[0].startsWith("!") && runScripts[0].endsWith(".jar")) {
           //TODO should be detected earlier
           log(-1, "runscript: No runner for given jar: %s", runScripts[0]);
-          return FILE_NOT_FOUND;
+          return Commons.FILE_NOT_FOUND;
         }
       }
       for (String scriptGiven : runScripts) {
@@ -318,7 +315,7 @@ public class Runner {
         } else if (scriptGiven.startsWith("?")) {
           // special meaning from -r option evaluation to get a synchronous log and action
           scriptGiven = scriptGiven.substring(1);
-          exitCode = FILE_NOT_FOUND;
+          exitCode = Commons.FILE_NOT_FOUND;
         } else {
           log(3, "runscript: running script: %s", scriptGiven);
           IRunner runner = getRunner(scriptGiven);
@@ -327,7 +324,7 @@ public class Runner {
           setLastScriptRunReturnCode(exitCode);
         }
         if (exitCode != 0) {
-          if (exitCode == FILE_NOT_FOUND) {
+          if (exitCode == Commons.FILE_NOT_FOUND) {
             log(-1, "runscript: (%d) not found: %s", exitCode, scriptGiven);
           }
           break;
