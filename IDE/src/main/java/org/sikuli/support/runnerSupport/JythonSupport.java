@@ -15,7 +15,7 @@ import org.sikuli.support.FileManager;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.ImagePath;
 import org.sikuli.script.SikuliXception;
-import org.sikuli.script.SikulixForJython;
+import org.sikuli.support.SikulixForJython;
 import org.sikuli.support.Commons;
 
 import java.io.File;
@@ -56,8 +56,6 @@ public class JythonSupport implements IRunnerSupport {
   private static JythonSupport instance = null;
 
   private static PythonInterpreter interpreter = null;
-
-//  private static RunTime runTime;
 
   private JythonSupport() {
   }
