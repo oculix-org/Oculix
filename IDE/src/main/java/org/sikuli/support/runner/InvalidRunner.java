@@ -5,7 +5,7 @@
 package org.sikuli.support.runner;
 
 import org.sikuli.basics.Debug;
-import org.sikuli.support.runner.Runner;
+import org.sikuli.support.Commons;
 
 import java.io.File;
 
@@ -49,6 +49,6 @@ public class InvalidRunner extends AbstractRunner {
 
   protected int doRunScript(String scriptfile, String[] scriptArgs, IRunner.Options options) {
     Debug.error("no runner available for: %s", new File(scriptfile).getName());
-    return Runner.NOT_SUPPORTED;
+    return Commons.NOT_SUPPORTED;
   }
 }
