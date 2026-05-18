@@ -3,41 +3,23 @@
  */
 package org.sikuli.script.support;
 
-import org.apache.commons.cli.CommandLine;
-import org.opencv.core.Core;
 import org.sikuli.android.ADBScreen;
 import org.sikuli.basics.*;
-import org.sikuli.natives.WinUtil;
 import org.sikuli.script.*;
 import org.sikuli.support.Commons;
-import org.sikuli.support.ExtensionManager;
 import org.sikuli.support.FileManager;
 import org.sikuli.support.Observing;
 import org.sikuli.support.devices.RobotDesktop;
-import org.sikuli.support.devices.ScreenDevice;
-import org.sikuli.support.runner.IRunner;
-import org.sikuli.support.runner.Runner;
-import org.sikuli.support.runner.IRunner.EffectiveRunner;
-import org.sikuli.util.CommandArgs;
-import org.sikuli.util.CommandArgsEnum;
 import org.sikuli.util.Highlight;
 import org.sikuli.vnc.VNCScreen;
 
 import java.awt.AWTException;
-import java.awt.Desktop;
-import java.awt.Point;
-import java.awt.Rectangle;
 import java.io.*;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.*;
 import java.security.CodeSource;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-
-import static org.sikuli.support.RunTime.getResourceList;
 
 /**
  * INTERNAL USE --- NOT official API<br>

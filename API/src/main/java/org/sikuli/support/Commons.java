@@ -44,6 +44,8 @@ import static org.sikuli.util.CommandArgsEnum.*;
 
 public class Commons {
 
+  public static final int FILE_NOT_FOUND = 256;
+  public static final int NOT_SUPPORTED = 257;
   private static final String libFolder = "Lib";
   public static File getLibFolder() {
     return new File(getAppDataPath(), libFolder);
