@@ -37,6 +37,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.ExceptionHandler;
+import io.undertow.server.handlers.IPAddressAccessControlHandler;
 import io.undertow.server.handlers.form.EagerFormParsingHandler;
 import io.undertow.server.handlers.form.FormData;
 import io.undertow.server.handlers.form.FormDataParser;
@@ -193,6 +194,14 @@ public class SikulixServer {
 
   private static List<String> allowedIPs = new ArrayList<>();
   private static final String DEFAULT_ALLOWED_IP = "localhost";
+  // Tracks whether the user explicitly opted into IP filtering via the -x
+  // option. When false, the server accepts every connection (legacy behavior
+  // — the original 2020 implementation by RaiMan never validated IPs, see
+  // commit 1852f36e: "added: SikulixServer: options -g and -x full
+  // implementation (folders exist, IP's not validated)"). When true, an
+  // Undertow IPAddressAccessControlHandler enforces the allow-list, which
+  // finishes the TODO the original commit left open.
+  private static boolean ipFilterRequested = false;
 
   private static void makeAllowedIPs(String option) {
     allowedIPs.add(DEFAULT_ALLOWED_IP);
@@ -206,10 +215,12 @@ public class SikulixServer {
           allowedIPs.add(item);
           dolog(3, "allowed: %s", item);
         }
+        ipFilterRequested = true;
       }
     } else if (null != option) {
       allowedIPs.add(option);
       dolog(3, "allowed: %s", option);
+      ipFilterRequested = true;
     }
   }
 
@@ -335,10 +346,35 @@ public class SikulixServer {
     CommandRootHttpHandler cmdRoot = new CommandRootHttpHandler(commands);
     cmdRoot.addExceptionHandler(Throwable.class, AbstractCommand.getExceptionHttpHandler());
 
+    // Conditionally wrap the root handler with an Undertow IP access control
+    // filter. Activated only when the user explicitly passes -x (opt-in), so
+    // existing deployments that never configured -x see no change in
+    // behavior. When activated, the allow-list (which always includes the
+    // default "localhost" plus whatever -x supplied) is enforced and any
+    // connection from a non-listed source IP gets rejected at the handler
+    // level before reaching the routing layer.
+    HttpHandler rootHandler = cmdRoot;
+    if (ipFilterRequested) {
+      IPAddressAccessControlHandler acl = new IPAddressAccessControlHandler(cmdRoot)
+              .setDefaultAllow(false);
+      for (String entry : allowedIPs) {
+        try {
+          acl.addAllow(entry);
+        } catch (Exception e) {
+          dolog(-1, "ignoring invalid IP / pattern in allowed list: %s (%s)",
+                  entry, e.getMessage());
+        }
+      }
+      rootHandler = acl;
+      dolog(3, "IP access control enabled: %d entries in allow-list", allowedIPs.size());
+    } else {
+      dolog(3, "IP access control disabled: -x not provided, accepting all connections");
+    }
+
     Undertow server = Undertow.builder()
             .addHttpListener(port, ipAddr)
             .setServerOption(UndertowOptions.RECORD_REQUEST_START_TIME, true)
-            .setHandler(cmdRoot)
+            .setHandler(rootHandler)
             .build();
     return server;
   }
