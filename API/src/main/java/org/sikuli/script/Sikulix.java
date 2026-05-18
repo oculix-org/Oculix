@@ -4,12 +4,7 @@
 package org.sikuli.script;
 
 import org.sikuli.basics.Debug;
-import org.sikuli.support.FileManager;
 import org.sikuli.basics.Settings;
-import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
-import org.sikuli.support.devices.Devices;
-import org.sikuli.support.devices.HelpDevice;
 import org.sikuli.support.devices.ScreenDevice;
 
 import javax.swing.*;
@@ -17,35 +12,8 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.io.File;
 
 public class Sikulix {
-
-public static void main(String[] args) throws FindFailed {
-    // Mode serveur: java -jar oculixapi.jar -s
-    // Demarre le ServerRunner legacy sur le port 50001
-    for (String arg : args) {
-      if ("-s".equals(arg)) {
-        try {
-          Class<?> cServer = Class.forName("org.sikuli.support.runner.ServerRunner");
-          cServer.getMethod("run").invoke(null);
-          System.exit(0);
-        } catch (Exception e) {
-          System.err.println("[ERROR] Failed to start ServerRunner: " + e.getMessage());
-          e.printStackTrace();
-          System.exit(1);
-        }
-      }
-    }
-
-    if (args.length == 1 && "buildDate".equals(args[0])) {
-      System.out.println(Commons.getSxBuildStamp());
-      System.exit(0);
-    }
-
-    System.out.println("SikuliX API: nothing to do");
-    System.exit(0);
-}
 
   //<editor-fold desc="00 log">
   private static int lvl = 3;
@@ -378,87 +346,6 @@ public static void main(String[] args) throws FindFailed {
     } else {
       return null;
     }
-  }
-  //</editor-fold>
-
-  //<editor-fold desc="10 run">
-  public static String run(String cmdline) {
-    return run(new String[]{cmdline});
-  }
-
-  public static String run(String[] cmd) {
-    return RunTime.runcmd(cmd);
-  }
-  //</editor-fold>
-
-  //<editor-fold desc="11 vnc">
-
-  /**
-   * convenience for a password protected VNCScreen connection
-   * (use theVNCScreen.stop() to stop the connection)
-   * active screens are auto-stopped at cleanup
-   *
-   * @param theIP    the server IP
-   * @param thePort  the port number
-   * @param password a needed password for the server in plain text
-   * @param cTimeout seconds to wait for a valid connection
-   * @param timeout  value in milli-seconds during normal operation
-   * @return a VNCScreen object
-   */
-  public static Devices vncStart(String theIP, int thePort, String password, int cTimeout, int timeout) {
-    //TODO finally implement VNCScreen as VNCDevice
-    return HelpDevice.startVNC(theIP, thePort, password, cTimeout, timeout);
-  }
-
-  /**
-   * convenience for a VNCScreen connection (use theVNCScreen.stop() to stop the connection)
-   * active screens are auto-stopped at cleanup
-   *
-   * @param theIP    the server IP
-   * @param thePort  the port number
-   * @param cTimeout seconds to wait for a valid connection
-   * @param timeout  value in milli-seconds during normal operation
-   * @return a VNCScreen object
-   */
-  public static Devices vncStart(String theIP, int thePort, int cTimeout, int timeout) {
-    //TODO finally implement VNCScreen as VNCDevice
-    return HelpDevice.startVNC(theIP, thePort, cTimeout, timeout);
-  }
-  //</editor-fold>
-
-  //<editor-fold desc="99 buildjar, compile">
-
-  /**
-   * build a jar on the fly at runtime from a folder.<br>
-   * special for Jython: if the folder contains a __init__.py on first level,
-   * the folder will be copied to the jar root (hence preserving module folders)
-   *
-   * @param targetJar    absolute path to the created jar (parent folder must exist, jar is overwritten)
-   * @param sourceFolder absolute path to a folder, the contained folder structure
-   *                     will be copied to the jar root level
-   * @return
-   */
-  public static boolean buildJarFromFolder(String targetJar, String sourceFolder) {
-    log(lvl, "buildJarFromFolder: \nfrom Folder: %s\nto Jar: %s", sourceFolder, targetJar);
-    File fJar = new File(targetJar);
-    if (!fJar.getParentFile().exists()) {
-      log(-1, "buildJarFromFolder: parent folder of Jar not available");
-      return false;
-    }
-    File fSrc = new File(sourceFolder);
-    if (!fSrc.exists() || !fSrc.isDirectory()) {
-      log(-1, "buildJarFromFolder: source folder not available");
-      return false;
-    }
-    String prefix = null;
-    if (new File(fSrc, "__init__.py").exists() || new File(fSrc, "__init__$py.class").exists()) {
-      prefix = fSrc.getName();
-      if (prefix.endsWith("_")) {
-        prefix = prefix.substring(0, prefix.length() - 1);
-      }
-    }
-    return FileManager.buildJar(targetJar, new String[]{null},
-        new String[]{sourceFolder}, new String[]{prefix}, null);
   }
   //</editor-fold>
 }
