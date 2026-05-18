@@ -11,10 +11,10 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12878/badge)](https://www.bestpractices.dev/projects/12878)
 [![Version](https://img.shields.io/badge/Version-3.0.3-blue?style=flat-square)](https://github.com/oculix-org/Oculix/releases)
-[![Docs](https://img.shields.io/badge/Docs-docs.oculix.org-blueviolet?style=flat-square)](https://docs.oculix.org)
+[![Docs](https://img.shields.io/badge/Docs-oculix.org-blueviolet?style=flat-square)](https://oculix.org)
 [![Maven Central](https://img.shields.io/badge/Maven%20Central-io.github.oculix--org-blue?style=flat-square&logo=apachemaven)](https://central.sonatype.com/namespace/io.github.oculix-org)
 
-[**Get started**](https://docs.oculix.org/getting-started/installation/) · [**Documentation**](https://docs.oculix.org) · [**Enterprise**](https://docs.oculix.org/support/enterprise/)
+[**Get started**](https://oculix.org/getting-started/installation/) · [**Documentation**](https://oculix.org) · [**Enterprise**](https://oculix.org/support/enterprise/)
 
 </div>
 
@@ -51,7 +51,7 @@ type("filename_field.png", "report_today.csv")
 click("save_button.png")
 ```
 
-Full installation, first-script tutorial, and tour of the IDE at [**docs.oculix.org/getting-started**](https://docs.oculix.org/getting-started/installation/).
+Full installation, first-script tutorial, and tour of the IDE at [**oculix.org/getting-started**](https://oculix.org/getting-started/installation/).
 
 ---
 
@@ -158,7 +158,7 @@ cd Oculix
 mvn clean install -DskipTests
 ```
 
-Detailed setup at [**docs.oculix.org/getting-started/installation**](https://docs.oculix.org/getting-started/installation/).
+Detailed setup at [**oculix.org/getting-started/installation**](https://oculix.org/getting-started/installation/).
 
 ---
 
@@ -166,7 +166,7 @@ Detailed setup at [**docs.oculix.org/getting-started/installation**](https://doc
 
 IBM · Qualcomm · Tencent · Alibaba · Kakao · Deutsche Bank · PepsiCo · Dassault Systèmes · Kaspersky · Synopsys · Neo4j · Zscaler · Jack Henry · RSA Security · Bill.com · University of Alberta
 
-*Organizations with verified OculiX downloads on Maven Central. Names listed for informational purposes only — no endorsement, partnership, or affiliation is implied. Full list on the [adoption showcase](https://docs.oculix.org/showcase/).*
+*Organizations with verified OculiX downloads on Maven Central. Names listed for informational purposes only — no endorsement, partnership, or affiliation is implied. Full list on the [adoption showcase](https://oculix.org/showcase/).*
 
 ---
 
@@ -174,12 +174,12 @@ IBM · Qualcomm · Tencent · Alibaba · Kakao · Deutsche Bank · PepsiCo · Da
 
 | Need | Where |
 |---|---|
-| Install OculiX | [Get started](https://docs.oculix.org/getting-started/installation/) |
-| Your first script | [Hello-world tutorial](https://docs.oculix.org/getting-started/first-script/) |
-| OCR & text recognition | [OCR guide](https://docs.oculix.org/guides/ocr/) |
+| Install OculiX | [Get started](https://oculix.org/getting-started/installation/) |
+| Your first script | [Hello-world tutorial](https://oculix.org/getting-started/first-script/) |
+| OCR & text recognition | [OCR guide](https://oculix.org/guides/ocr/) |
 | Bug reports & questions | [GitHub Issues](https://github.com/oculix-org/Oculix/issues) · [Discussions](https://github.com/oculix-org/Oculix/discussions) |
 | Security vulnerability | [Private advisory](https://github.com/oculix-org/Oculix/security/advisories/new) — see [SECURITY.md](SECURITY.md) |
-| Enterprise support | [Work with us](https://docs.oculix.org/support/enterprise/) |
+| Enterprise support | [Work with us](https://oculix.org/support/enterprise/) |
 
 ---
 
