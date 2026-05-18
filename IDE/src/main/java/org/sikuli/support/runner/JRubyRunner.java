@@ -5,6 +5,7 @@ package org.sikuli.support.runner;
 
 import org.apache.commons.io.FileUtils;
 import org.sikuli.basics.Debug;
+import org.sikuli.support.Commons;
 import org.sikuli.support.runnerSupport.JRubySupport;
 
 import java.io.*;
@@ -100,7 +101,7 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
         script = FileUtils.readFileToString(rubyFile, "UTF-8");
       } catch (IOException ex) {
         log(-1, "reading script: %s", ex.getMessage());
-        return Runner.FILE_NOT_FOUND;
+        return Commons.FILE_NOT_FOUND;
       }
 
       script = injectAbortWatcher(script);

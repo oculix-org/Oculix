@@ -4,6 +4,7 @@
 package org.sikuli.support.runner;
 
 import org.apache.commons.io.FilenameUtils;
+import org.sikuli.support.Commons;
 import org.sikuli.support.FileManager;
 
 import java.io.File;
@@ -85,7 +86,7 @@ public class ZipRunner extends AbstractLocalFileScriptRunner {
         wrapper.setRunner(runner);
         return runner.runScript(innerScriptFile, scriptArgs, options);
       }
-      return Runner.FILE_NOT_FOUND;
+      return Commons.FILE_NOT_FOUND;
     } finally {
       wrapper.clearRunner();
       if (null != innerScriptFile) {
