@@ -54,13 +54,27 @@
   <profiles>
     <!-- Build extensions is a cosmetic Maven core extension (gecko banner).
          Not a public OculiX artifact and Maven Central does not need it.
-         Skip the deploy step under the release profile so Sonatype does
-         not complain about missing sources/javadocs jars. -->
+         Skip both the standard maven-deploy-plugin (maven.deploy.skip) AND
+         the inherited central-publishing-maven-plugin from the parent's
+         release profile (skipPublishing). Without the latter, Sonatype
+         still receives build-extensions in the bundle and complains about
+         missing sources/javadocs jars. -->
     <profile>
       <id>release</id>
       <properties>
         <maven.deploy.skip>true</maven.deploy.skip>
       </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <configuration>
+              <skipPublishing>true</skipPublishing>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 </project>
