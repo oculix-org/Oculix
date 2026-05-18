@@ -50,4 +50,17 @@
       <scope>provided</scope>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <!-- Build extensions is a cosmetic Maven core extension (gecko banner).
+         Not a public OculiX artifact and Maven Central does not need it.
+         Skip the deploy step under the release profile so Sonatype does
+         not complain about missing sources/javadocs jars. -->
+    <profile>
+      <id>release</id>
+      <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+      </properties>
+    </profile>
+  </profiles>
 </project>
