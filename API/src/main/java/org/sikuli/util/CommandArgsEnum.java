@@ -53,7 +53,9 @@ public enum CommandArgsEnum {
 	 */
 	SERVER("server", "s", "ip : port or spec file", "run as server", true),
 	GROUPS("groups", "g", "group name or spec file", "group names to run", true),
-	XTRAS("xtras", "x", "server extra or spec file", "server extra options", true),
+	XTRAS("xtras", "x", "ip,ip,...|file.txt",
+	      "server IP allow-list (strict, no auto-localhost). " +
+	      "Example: -x localhost,192.168.1.10 or -x /path/to/allowed-ips.txt", true),
 	/**
 	 * run the server for Python
 	 */
