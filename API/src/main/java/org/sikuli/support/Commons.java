@@ -44,6 +44,11 @@ import static org.sikuli.util.CommandArgsEnum.*;
 
 public class Commons {
 
+  private static final String libFolder = "Lib";
+  public static File getLibFolder() {
+    return new File(getAppDataPath(), libFolder);
+  }
+
   //<editor-fold desc="00 static">
   private static String sxVersion;
 
@@ -533,10 +538,6 @@ public class Commons {
 
   public static File getLibsFolder() {
     return new File(getAppDataPath(), "SikulixLibs");
-  }
-
-  public static File getLibFolder() {
-    return new File(getAppDataPath(), "Lib");
   }
 
   public static File getExtensionsFolder() {
