@@ -1,14 +1,13 @@
 /*
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
-package org.sikuli.script;
+package org.sikuli.support;
 
 import java.io.File;
 import java.net.URL;
 
+import org.sikuli.script.SikuliXception;
 import org.sikuli.support.runnerSupport.JythonSupport;
-import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 
 /**
  * Can be used in pure Jython environments to add the Sikuli Python API to sys.path<br>
