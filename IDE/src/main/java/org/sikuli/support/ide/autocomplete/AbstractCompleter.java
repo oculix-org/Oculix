@@ -100,9 +100,10 @@ public abstract class AbstractCompleter implements IAutoCompleter {
   private List<String> getCommandMenu() {
     String[][] CommandsOnToolbar = getMenuCommands();
     List<String> menu = new ArrayList<>();
-    for (int i = 0; i < CommandsOnToolbar.length; i++) {
-      String cmd = CommandsOnToolbar[i++][0];
-      String[] params = CommandsOnToolbar[i];
+    // CommandsOnToolbar is laid out in (command, params) pairs; iterate explicitly by 2
+    for (int i = 0; i + 1 < CommandsOnToolbar.length; i += 2) {
+      String cmd = CommandsOnToolbar[i][0];
+      String[] params = CommandsOnToolbar[i + 1];
       if (cmd.equals("----")) {
         menu.add("_" + params[0]);
       } else {

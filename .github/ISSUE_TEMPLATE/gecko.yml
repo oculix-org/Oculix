@@ -1,0 +1,72 @@
+name: "🦎 Say hi to the gecko"
+description: Not a bug. Not a feature. Just vibes. Wave at the gecko, share what you automated, or submit ASCII art for a future RIP block.
+title: "[🦎]: "
+labels: ["branding"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        <div align="center">
+
+        <img src="https://raw.githubusercontent.com/oculix-org/Oculix/master/IDE/src/main/resources/icons/gecko_cyclope_hero.png" alt="OculiX gecko mascot" width="240" />
+
+        > *"Hi. I'm OculiX.*
+        > *I see what you see.*
+        > *I do what you'd do."*
+
+        </div>
+
+        This template exists because GitHub's issue chooser was missing a 🦎-shaped slot.
+
+        If you got here looking for help, please go back and pick the actual template you need (Bug / Feature / Regression / Platform / Docs / Epic / Translation). The gecko's not on triage duty.
+
+        If you got here on purpose — welcome. Fill in whatever makes sense, skip the rest, all fields are optional.
+
+  - type: dropdown
+    id: vibe
+    attributes:
+      label: Vibe check
+      description: How's it going?
+      options:
+        - "First time meeting the gecko 👋"
+        - "Long-time user (SikuliX → OculiX migration)"
+        - "I shipped something with OculiX today"
+        - "I broke something with OculiX today (in a fun way)"
+        - "Just here for the release notes humor"
+        - "Other"
+
+  - type: textarea
+    id: story
+    attributes:
+      label: What did you automate? (optional)
+      description: |
+        Real-world stories help everyone — they remind us that QA engineers, kiosk operators, SAP consultants, RPA practitioners, students, hobbyists, and other-people-with-screens-to-tame are all on the same project.
+      placeholder: |
+        e.g. "Automated 200 daily Excel exports against a legacy POS that only renders correctly on a Win7 VM. Saved my team ~6 hours a week. Thank gecko."
+
+  - type: textarea
+    id: ascii
+    attributes:
+      label: ASCII art submission (optional)
+      description: |
+        For the RIP blocks in future release notes / closing comments. Gecko-themed, automation-themed, retired-bug-themed — your call. Keep it < 60 columns so it survives the GitHub mobile renderer.
+      render: text
+
+  - type: dropdown
+    id: maintainer_response
+    attributes:
+      label: Maintainer response preference
+      description: How would you like the maintainer to respond?
+      options:
+        - "Just acknowledge with a 🦎 emoji and close — no fuss"
+        - "I want a reply"
+        - "Don't respond, this was a one-way wave"
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        > **A note on filtering:** issues opened with this template land in the `branding` label bucket so they don't clutter bug triage. The gecko sees them. The gecko appreciates them. The gecko reserves the right to close them with a single emoji reply.
+
+        🦎
