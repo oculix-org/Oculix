@@ -498,11 +498,11 @@ public class SikulixServer {
         Task task = getTaskManager().requestSync(id, groupName, scriptName, scriptArgs);
         int retval = task.exitCode;
         switch(retval) {
-          case Runner.FILE_NOT_FOUND:
+          case Commons.FILE_NOT_FOUND:
             responseObject = new ErrorResponse(String.format("script not found '%s'", scriptName));
             statusCode = StatusCodes.NOT_FOUND;
             break;
-          case Runner.NOT_SUPPORTED:
+          case Commons.NOT_SUPPORTED:
             responseObject = new ErrorResponse(String.format("script not supported '%s'", scriptName));
             statusCode = StatusCodes.NOT_FOUND;
             break;
