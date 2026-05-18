@@ -46,6 +46,23 @@ public class Sikulix {
   }
 
   public static void main(String[] args) {
+
+    // Mode serveur: java -jar oculixapi.jar -s
+    // Demarre le ServerRunner legacy sur le port 50001
+    for (String arg : args) {
+      if ("-s".equals(arg)) {
+        try {
+          Class<?> cServer = Class.forName("org.sikuli.support.runner.ServerRunner");
+          cServer.getMethod("run").invoke(null);
+          System.exit(0);
+        } catch (Exception e) {
+          System.err.println("[ERROR] Failed to start ServerRunner: " + e.getMessage());
+          e.printStackTrace();
+          System.exit(1);
+        }
+      }
+    }
+
     //region startup
     Commons.setStartClass(Sikulix.class);
     Commons.setStartArgs(args);
