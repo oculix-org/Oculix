@@ -160,7 +160,10 @@ public class JythonSupport implements IRunnerSupport {
   }
   //</editor-fold>
 
-  private static boolean isLibExported = false;
+  private static final String libFolderInJar = "LibJython";
+
+  //TODO is exportLib() really needed? seems like jython all gets already fron the Jar at runtime via syspath in Jython. On further evaluation.
+  private static boolean isLibExported = true;
 
   public static void exportLib() {
     if (isLibExported) {
@@ -179,7 +182,7 @@ public class JythonSupport implements IRunnerSupport {
             return true;
           }
         });
-        Commons.extractResourcesToFolder("Lib", fSikulixLib, new FilenameFilter() {
+        Commons.extractResourcesToFolder(libFolderInJar, fSikulixLib, new FilenameFilter() {
           @Override
           public boolean accept(File dir, String name) {
             if (dir.getPath().contains("site-packages")) {
@@ -196,7 +199,7 @@ public class JythonSupport implements IRunnerSupport {
       if (!fSikulixLib.exists()) {
         throw new SikuliXception("LibExport: folder not available: " + fSikulixLib.toString());
       }
-      Commons.extractResourcesToFolder("Lib", fSikulixLib, null);
+      Commons.extractResourcesToFolder(libFolderInJar, fSikulixLib, null);
       Commons.makeVersionFile(fSikulixLib);
     }
     isLibExported = true;
