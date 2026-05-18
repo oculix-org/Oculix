@@ -481,7 +481,8 @@ public class Keys {
 
   public static Map<String, Integer> getKeyNames() {
     Map<String, Integer> keyNames = new HashMap<>();
-    for (int i = 0; i < keyVK.length; i += 2) {
+    // keyVK is laid out in (name, vkCode) pairs; guard against an odd length
+    for (int i = 0; i + 1 < keyVK.length; i += 2) {
       keyNames.put(keyVK[i].substring(3), Integer.decode(keyVK[i + 1]));
     }
     Map<String, Integer> sortedKeyNames = new TreeMap<>(keyNames);

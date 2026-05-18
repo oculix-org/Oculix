@@ -1,0 +1,95 @@
+name: Feature request
+description: Suggest an idea or improvement for OculiX
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a feature.
+
+        Before submitting, please:
+        - Search [existing issues](https://github.com/oculix-org/Oculix/issues?q=is%3Aissue) to avoid duplicates
+        - If you have a "how do I do X" question instead of a feature idea, please open a [Discussion](https://github.com/oculix-org/Oculix/discussions)
+        - Concrete real-world use cases land faster than abstract wishes — what are you trying to automate?
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to achieve, and what is currently in the way? Real-world use case appreciated.
+      placeholder: |
+        e.g. "I automate a kiosk via VNC and need to detect when the screen is fully black,
+        but Region.has(...) does not expose this and I have to compare pixel histograms manually."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: A clear description of what you'd like to happen — API shape, method names, expected behavior. Code snippets welcome.
+      placeholder: |
+        e.g. "Add Region.isUniformColor(threshold=...) returning bool, plus
+        Region.dominantColor() returning java.awt.Color."
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you tried or thought about, and why they fall short.
+      placeholder: |
+        e.g. "I tried Region.getLastMatch().getScore() but it requires a previous find().
+        I tried capturing and walking pixels manually — too slow for a 4K screen."
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where would this live?
+      multiple: true
+      options:
+        - IDE (editor, menus, dialogs, recorder)
+        - API (Screen / Region / Pattern / Match)
+        - VNC stack
+        - SSH tunnel
+        - Android / ADB
+        - PaddleOCR / Tesseract
+        - Script runners (Jython, JRuby, Python, PowerShell, Robot)
+        - Build / Maven / packaging
+        - MCP server
+        - Reporter module
+        - Documentation / wiki
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: breakage
+    attributes:
+      label: API impact
+      description: Does this require an API change?
+      options:
+        - No — internal / non-breaking addition
+        - Yes — adds new public API (backward-compatible)
+        - Yes — modifies existing API (potentially breaking)
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Use case / impact
+      description: Who benefits from this change? How often does the situation arise? Any concrete project / workflow that depends on it?
+      placeholder: |
+        e.g. "Anyone automating kiosk apps that boot to a splash screen needs this.
+        In my own setup it happens on every test run (~200 times/day across CI)."
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, mockups, links to similar features in other tools (PyAutoGUI, Sikuli legacy, Playwright, etc.), or anything else worth knowing.

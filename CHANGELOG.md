@@ -11,6 +11,40 @@ Versions follow [SemVer](https://semver.org/) with `-rcN` / `-betaN` / `-alphaN`
 
 ---
 
+## [v3.0.4-rc1] - 2026-05-18
+
+![status](https://img.shields.io/badge/release-pre--release-yellow)
+![maven](https://img.shields.io/badge/maven_central-pending-lightgrey)
+![track](https://img.shields.io/badge/upgrade-safe_from_3.0.3-orange)
+
+> **Polish release candidate** — community standards, security hygiene, README refresh. No breaking changes, no behavior changes. The 3.0.4 stable will follow with the CodeQL triage fixes (#358–#362) and the Legerix manifestSections fix (#350).
+
+### What's new for users
+
+- 🔒 **Security hygiene** — CodeQL findings cleaned up: `hashCode()` added to 8 classes that already override `equals()` (#352), array index OOB on pair-formatted arrays (#351). No user-facing impact, but the codebase is now CodeQL-clean on these rules.
+
+- 🛡️ **Workflows hardened** — every GitHub Actions workflow now declares `contents: read` at the top level (#354), reducing token blast radius. Conforms to OpenSSF Scorecard expectations.
+
+- 📋 **Community standards** — OpenSSF Best Practices badge added (#355), README redesigned to align with `docs.oculix.org` tone (#356, #357), CODEOWNERS scoped (RaiMan removed per his explicit request, MCP scoped to maintainer).
+
+### Maven coordinates
+
+```xml
+<dependency>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculixapi</artifactId>
+    <version>3.0.4-rc1</version>
+</dependency>
+```
+
+### Known follow-ups before 3.0.4 stable
+
+- Legerix `manifestSections` fix (#350) — Ubuntu 22 `libjpeg.so.62` mismatch
+- CodeQL triage bugs (#358 Runner self-assignment, #360 allowedIPs, #361 RecordedEventsFlow, #362 ButtonGenCommand)
+- Cherry-pick remaining SikuliX1 community PRs (#345, #346 under EPIC #344)
+
+---
+
 ## [v3.0.3] - 2026-05-09
 
 ![status](https://img.shields.io/badge/release-stable-brightgreen)

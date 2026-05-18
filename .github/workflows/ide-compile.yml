@@ -3,6 +3,9 @@ name: Compile IDE
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
 

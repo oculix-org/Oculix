@@ -110,6 +110,11 @@ public class LinuxUtil extends GenericOsUtil {
 		public boolean equals(Object other) {
 			return other != null && other instanceof LinuxWindow && this.id == (((LinuxWindow) other).id);
 		}
+
+		@Override
+		public int hashCode() {
+			return Long.hashCode(id);
+		}
 	}
 
 	private static boolean xdotoolAvailable = true;
