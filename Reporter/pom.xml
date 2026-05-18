@@ -122,4 +122,17 @@
     </plugins>
   </build>
 
+  <profiles>
+    <!-- Reporter is consumed in-tree by OculiX users but not published to
+         Maven Central. Skip the deploy step only when the release profile
+         is active (i.e. during the publish-maven workflow), so local
+         `mvn install` and the release-rc workflow are unaffected. -->
+    <profile>
+      <id>release</id>
+      <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+      </properties>
+    </profile>
+  </profiles>
+
 </project>
