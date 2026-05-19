@@ -170,7 +170,7 @@
     <dependency>
       <groupId>io.github.oculix-org</groupId>
       <artifactId>legerix</artifactId>
-      <version>5.5.0-4</version>
+      <version>5.5.0-5</version>
     </dependency>
   </dependencies>
 
