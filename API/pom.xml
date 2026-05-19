@@ -50,6 +50,7 @@
     <sikuli.jartype>plain.xml</sikuli.jartype>
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
+    <legerix.version>5.5.0-5</legerix.version>
     <versiontess4j>5.18.0</versiontess4j>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd_HH:mm</maven.build.timestamp.format>
@@ -293,6 +294,15 @@
                 <manifest>
                   <mainClass>org.sikuli.script.Sikulix</mainClass>
                 </manifest>
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeapi-lux.xml</descriptor>

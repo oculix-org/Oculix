@@ -47,6 +47,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
+    <legerix.version>5.5.0-5</legerix.version>
   </properties>
 
   <dependencies>
@@ -252,6 +253,15 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeide-lux.xml</descriptor>
