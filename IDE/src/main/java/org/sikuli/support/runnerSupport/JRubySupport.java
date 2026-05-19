@@ -36,9 +36,11 @@ public class JRubySupport implements IRunnerSupport {
   public static JRubySupport get() {
     if (null == instance) {
       instance = new JRubySupport();
+      //TODO sikulix.rb: seems to work without copying it to the outside
       //RunTime.get().exportLib();
-      Commons.getLibFolder().mkdirs();
-      Commons.copyResourceToFile("/Lib/sikulix.rb", Commons.class, Commons.getLibFolder());
+      //Commons.getLibFolder().mkdirs();
+      //TODO does not work anyways: 3rd parm must be a filename - is folder -> returns false and does nothing
+      //Commons.copyResourceToFile("/Lib/sikulix.rb", Commons.class, Commons.getLibFolder());
       instance.interpreterInitialization();
     }
     return instance;

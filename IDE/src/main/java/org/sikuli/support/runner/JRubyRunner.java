@@ -68,7 +68,7 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
 
   private String injectAbortWatcher(String script) {
     return "Thread.new(){\n"
-         + "  runner = org.sikuli.support.ide.Runner.getRunner(\"" + NAME + "\")\n"
+         + "  runner = org.sikuli.support.runner.Runner.getRunner(\"" + NAME + "\")\n"
          + "  while runner.isRunning()\n"
          + "    sleep(0.1)\n"
          + "    if runner.isAborted()\n"
