@@ -27,4 +27,5 @@ Test*.java
 # Reporter module uses Test/TestRun as legitimate domain model classes — whitelist them
 !Reporter/src/main/java/**/Test*.java
 *.txt
+Support/RaiMan/
 
