@@ -87,17 +87,7 @@ public class JythonSupport implements IRunnerSupport {
       Debug.log("Jython: not found on classpath");
       return;
     }
-    // Refresh the bundled Python lib in the user's profile if the build stamp
-    // has changed since the last extraction. The version-gate inside
-    // org.sikuli.script.support.RunTime.exportLib() compares the marker file
-    // (e.g. 3.0.4_<stamp>_MadeForSikuliX64<W|M|L>.txt) against the current
-    // OculiX build; on mismatch it wipes everything except site-packages and
-    // re-extracts /Lib from the jar. No-op when stamps match, so no startup
-    // cost on a stable install. Without this, end-users who upgraded over a
-    // pre-#235 OculiX kept a Sikuli.py calling Screen.all() (removed by #235)
-    // and crashed at IDE startup until they manually wiped the file.
-    exportLib();
-
+ 
     try {
       interpreter = new PythonInterpreter();
       cPyException = Class.forName("org.python.core.PyException");
@@ -159,49 +149,6 @@ public class JythonSupport implements IRunnerSupport {
   //</editor-fold>
 
   private static final String libFolderInJar = "LibJython";
-
-  //TODO is exportLib() really needed? seems like jython all gets already fron the Jar at runtime via syspath in Jython. On further evaluation.
-  private static boolean isLibExported = true;
-
-  public static void exportLib() {
-    if (isLibExported) {
-      return;
-    }
-    File fSikulixLib = Commons.getLibFolder();
-
-    if (fSikulixLib.exists()) {
-      if (!Commons.hasVersionFile(fSikulixLib)) {
-        FileManager.deleteFileOrFolder(fSikulixLib, new FileManager.FileFilter() {
-          @Override
-          public boolean accept(File entry) {
-            if (entry.getPath().contains("site-packages")) {
-              return false;
-            }
-            return true;
-          }
-        });
-        Commons.extractResourcesToFolder(libFolderInJar, fSikulixLib, new FilenameFilter() {
-          @Override
-          public boolean accept(File dir, String name) {
-            if (dir.getPath().contains("site-packages")) {
-              return false;
-            }
-            return true;
-          }
-        });
-        Commons.makeVersionFile(fSikulixLib);
-      }
-    }
-    if (!fSikulixLib.exists()) {
-      fSikulixLib.mkdir();
-      if (!fSikulixLib.exists()) {
-        throw new SikuliXception("LibExport: folder not available: " + fSikulixLib.toString());
-      }
-      Commons.extractResourcesToFolder(libFolderInJar, fSikulixLib, null);
-      Commons.makeVersionFile(fSikulixLib);
-    }
-    isLibExported = true;
-  }
 
   //<editor-fold desc="05 Jython reflection">
   static Class cPyMethod = null;
