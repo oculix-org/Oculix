@@ -46,6 +46,45 @@
     <module>Reporter</module>
   </modules>
 
+  <!-- Security: force transitive versions to kill known CVEs (mostly brought by Jython 2.7.4).
+       Refresh quarterly or whenever Scorecard / Dependency-Check flags new ones. -->
+  <dependencyManagement>
+    <dependencies>
+      <!-- Netty: 5 GHSAs killed at once via the BOM (transitive from jython-slim 2.7.4) -->
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-bom</artifactId>
+        <version>4.1.133.Final</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Bouncy Castle: 4 GHSAs killed (transitive from jython-slim 2.7.4) -->
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcprov-jdk18on</artifactId>
+        <version>1.84</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcpkix-jdk18on</artifactId>
+        <version>1.84</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcutil-jdk18on</artifactId>
+        <version>1.84</version>
+      </dependency>
+
+      <!-- plexus-utils: 1 GHSA killed (transitive from maven-core in build-extensions, provided scope) -->
+      <dependency>
+        <groupId>org.codehaus.plexus</groupId>
+        <artifactId>plexus-utils</artifactId>
+        <version>3.6.1</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <profiles>
     <profile>
       <id>release</id>
