@@ -6,8 +6,6 @@ require 'java'
 # Classes and methods for using SikuliX
 module Sikulix
   private
-  #TODO uncomment to prove it is entered
-  #print "------------------------------- ENTER sikulix.rb\n"
   # 'private' for avoiding of unexpected effects when
   #   'include Sikulix' is used.
   java_import java.net.Socket
@@ -189,8 +187,6 @@ module Sikulix
     dynamic_def(name) { |*args| cl.new(*args) }
   end
   dynamic_def("Location") { |*args| Location.new(*args).setOtherScreen($DEFAULT_SCREEN) }
-  #TODO uncomment to prove it is exited
-  #print "------------------------------- EXIT sikulix.rb\n"
 end
 
 # This is an alternative for method generation using define_method

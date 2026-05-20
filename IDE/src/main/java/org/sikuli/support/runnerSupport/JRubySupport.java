@@ -18,6 +18,7 @@ import org.jruby.RubyInstanceConfig;
 import org.jruby.embed.LocalContextScope;
 import org.jruby.embed.ScriptingContainer;
 import org.sikuli.basics.Debug;
+import org.sikuli.basics.Settings;
 import org.sikuli.support.FileManager;
 import org.sikuli.support.Commons;
 
@@ -36,11 +37,6 @@ public class JRubySupport implements IRunnerSupport {
   public static JRubySupport get() {
     if (null == instance) {
       instance = new JRubySupport();
-      //TODO sikulix.rb: seems to work without copying it to the outside
-      //RunTime.get().exportLib();
-      //Commons.getLibFolder().mkdirs();
-      //TODO does not work anyways: 3rd parm must be a filename - is folder -> returns false and does nothing
-      //Commons.copyResourceToFile("/Lib/sikulix.rb", Commons.class, Commons.getLibFolder());
       instance.interpreterInitialization();
     }
     return instance;
@@ -103,42 +99,12 @@ public class JRubySupport implements IRunnerSupport {
   //</editor-fold>
 
   //<editor-fold desc="10 before script run">
-  public List<String> interpreterGetLoadPaths() {
-    if (null == interpreter) {
-      return null;
-    }
-    return interpreter.getLoadPaths();
-  }
+  private final static String SCRIPT_HEADER =
+      "# coding: utf-8\n"
+          + "require 'Lib/sikulix'\n"
+          + "include Sikulix\n";
 
   public void executeScriptHeader(List<String> codeBefore, String ... paths) {
-    List<String> path = interpreterGetLoadPaths();
-    if (null == path) {
-      return;
-    }
-    String sikuliLibPath = Commons.getLibFolder().getAbsolutePath();
-    if (path.size() == 0 || !FileManager.pathEquals(path.get(0), sikuliLibPath)) {
-      log(lvl, "executeScriptHeader: adding SikuliX Lib path to sys.path\n" + sikuliLibPath);
-      int pathLength = path.size();
-      String[] pathNew = new String[pathLength + 1];
-      pathNew[0] = sikuliLibPath;
-      for (int i = 0; i < pathLength; i++) {
-        pathNew[i + 1] = path.get(i);
-      }
-      for (int i = 0; i < pathLength; i++) {
-        path.set(i, pathNew[i]);
-      }
-      path.add(pathNew[pathNew.length - 1]);
-    }
-    if (savedpathlen == 0) {
-      savedpathlen = interpreterGetLoadPaths().size();
-    }
-    while (interpreterGetLoadPaths().size() > savedpathlen) {
-      interpreterGetLoadPaths().remove(savedpathlen);
-    }
-    for (String syspath : paths) {
-      path.add(new File(syspath).getAbsolutePath());
-    }
-
     interpreterRunScriptletString(SCRIPT_HEADER);
 
     if (codeBefore != null) {
@@ -149,12 +115,6 @@ public class JRubySupport implements IRunnerSupport {
       interpreterRunScriptletString(buffer.toString());
     }
   }
-
-  private static int savedpathlen = 0;
-  private final static String SCRIPT_HEADER =
-          "# coding: utf-8\n"
-                  + "require 'Lib/sikulix'\n"
-                  + "include Sikulix\n";
 
   private static ArrayList<String> sysargv = null;
 
