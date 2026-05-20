@@ -109,8 +109,6 @@ public class RunTime {
   //<editor-fold defaultstate="collapsed" desc="02 logging">
   private int lvl = 3;
   private int minLvl = lvl;
-  private static String preLogMessages = "";
-
   public static String arrayToQuotedString(String[] args) {
     String ret = "";
     for (String s : args) {
@@ -155,8 +153,6 @@ public class RunTime {
   public boolean runningIDE() {
     return Type.IDE.equals(runType);
   }
-
-  private static Options sxOptions = null;
 
   private static boolean isTerminating = false;
   private static boolean hasDoneCleanUpTerminating = false;
@@ -215,31 +211,15 @@ public class RunTime {
   private RunTime() {
   }
 
-  public static synchronized RunTime get() {
-    if (runTime == null) {
+  // public static synchronized RunTime get() {
+  /*    if (runTime == null) {
       return get(Type.API);
     }
     return runTime;
   }
-
-  static final long started = new Date().getTime();
-  static final long obsolete = started - 2 * 24 * 60 * 60 * 1000;
-
-  static boolean isObsolete(long refTime) {
-    if (refTime == 0) {
-      return false;
-    }
-    return refTime < obsolete;
-  }
-
-  static boolean optTesting = false;
-
-  public boolean isTesting() {
-    return optTesting;
-  }
-
-  public static synchronized RunTime get(Type typ) {
-    if (runTime != null) {
+*/
+  // public static synchronized RunTime get(Type typ) {
+  /*  if (runTime != null) {
       return runTime;
     }
     runTime = new RunTime();
@@ -305,6 +285,25 @@ public class RunTime {
     }
     return runTime;
   }
+  */
+
+  static final long started = new Date().getTime();
+
+  static final long obsolete = started - 2 * 24 * 60 * 60 * 1000;
+
+  static boolean isObsolete(long refTime) {
+    if (refTime == 0) {
+      return false;
+    }
+    return refTime < obsolete;
+  }
+
+  static boolean optTesting = false;
+
+  public boolean isTesting() {
+    return optTesting;
+  }
+
   //</editor-fold>
 
   //<editor-fold defaultstate="collapsed" desc="05 global init">
@@ -315,17 +314,20 @@ public class RunTime {
   public File fBaseTempPath = null;
   public String fpBaseTempPath = "";
 
+  //Obsolete
+  //private static String preLogMessages = "";
+
   private void init(Type typ) {
-    if ("winapp".equals(sxOptions.getOption("testing"))) {
-      log(lvl, "***** for testing: simulating WinApp");
-      testingWinApp = true;
-    }
-    for (String line : preLogMessages.split(";")) {
-      if (!line.isEmpty()) {
-        log(lvl, line);
-      }
-    }
-    log(4, "global init: entering as: %s", typ);
+//    if ("winapp".equals(sxOptions.getOption("testing"))) {
+//      log(lvl, "***** for testing: simulating WinApp");
+//      testingWinApp = true;
+//    }
+//    for (String line : preLogMessages.split(";")) {
+//      if (!line.isEmpty()) {
+//        log(lvl, line);
+//      }
+//    }
+//    log(4, "global init: entering as: %s", typ);
 
     if (fTempPath == null) {
       String tmpdir = System.getProperty("java.io.tmpdir");
@@ -462,8 +464,8 @@ public class RunTime {
   }
   //</editor-fold>
 
-  //<editor-fold desc="99 cleanUp">
-  public static void terminate() {
+  //Obsolete <editor-fold desc="99 cleanUp">
+  /*public static void terminate() {
     terminate(0, "");
   }
 
@@ -552,20 +554,20 @@ public class RunTime {
       FileManager.deleteFileOrFolder(f.getAbsolutePath());
     }
   }
-  //</editor-fold>
+  */
 
-  //<editor-fold defaultstate="collapsed" desc="13 Sikulix options handling">
-  public String getOption(String oName) {
-    return sxOptions.getOption(oName);
-  }
+//  obsolete Sikulix options handling">
+/*  public String getOption(String oName) {
+//    return sxOptions.getOption(oName);
+//  }
+//
+//  public Options options() {
+//    return sxOptions;
+//  }
+*/
 
-  public Options options() {
-    return sxOptions;
-  }
-  //</editor-fold>
-
-  //<editor-fold defaultstate="collapsed" desc="07 init for IDE">
-  public static boolean isRunningIDE = false;
+  //obsolete init for API /  IDE">
+  /* public static boolean isRunningIDE = false;
 
   private void initIDEbefore() {
     log(4, "initIDEbefore: entering");
@@ -612,10 +614,11 @@ public class RunTime {
       }
     }
   }
-//</editor-fold>
+*/
 
-  //<editor-fold defaultstate="collapsed" desc="06 init for API">
-  private static RobotDesktop cleanupRobot = null;
+
+//obsolete init for API">
+/*  private static RobotDesktop cleanupRobot = null;
 
   private void initAPI() {
     log(4, "initAPI: entering");
@@ -625,5 +628,5 @@ public class RunTime {
     }
     log(4, "initAPI: leaving");
   }
-  //</editor-fold>
+*/
 }
