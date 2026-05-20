@@ -11,6 +11,42 @@ Versions follow [SemVer](https://semver.org/) with `-rcN` / `-betaN` / `-alphaN`
 
 ---
 
+## [v3.0.4] - 2026-05-20
+
+![status](https://img.shields.io/badge/release-stable-brightgreen)
+![maven](https://img.shields.io/badge/maven_central-pending-lightgrey)
+![track](https://img.shields.io/badge/upgrade-drop--in_from_3.0.x-orange)
+
+> **Security + Linux stability** — promotes `3.0.4-rc1` to stable, kills 10 transitive CVEs, and pulls in Legerix `5.5.0-6` with self-contained codec natives (resolves the Ubuntu 22 `libjpeg.so.62` mismatch, #350).
+
+### What's new for users
+
+- 🛡️ **10 CVEs killed** — `netty-codec*` pinned to `4.1.133`, `bouncycastle:bcprov-jdk18on` to `1.84`, `plexus-utils` to `3.6.1`. Removes all known transitive vulnerabilities flagged by the latest CodeQL / Dependabot run. No API change.
+
+- 🐧 **Linux codec stability (Legerix `5.5.0-6`)** — Legerix now ships self-contained codec runtime libraries (`libjpeg`, `libwebp`, `libtiff` with `libsharpyuv` / `lzma` / `zstd` / `jbig` / `Lerc` transitives) on Linux/macOS via the vcpkg modern bundle. Resolves the long-standing `libjpeg.so.62 not found` error on Ubuntu 22.04 containers (#350). Validated by Adrian Costin on a fresh Ubuntu 22.04 container.
+
+- 🔒 **Promotes `3.0.4-rc1` to stable** — All hardening from `3.0.4-rc1` (CodeQL `hashCode()` fixes, array OOB fix, workflow `contents: read` permissions, OpenSSF Best Practices badge, README modernization) is now stable. No behavior change vs `rc1` — pure version promotion + CVE patches + Legerix bump.
+
+- 🦎 **Reporter and build-extensions deploy skips** — `central-publishing-maven-plugin` now correctly skips the `oculixreporter` and `oculix-build-extensions` modules under the release profile, preventing the deployment failure observed during the `3.0.4-rc1` publish attempt.
+
+### Maven coordinates
+
+```xml
+<dependency>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculixapi</artifactId>
+    <version>3.0.4</version>
+</dependency>
+```
+
+### Deferred to 3.0.5 / 4.0
+
+- CodeQL triage bugs identified at `rc1` time: #358 (`Runner` self-assignment), #360 (`allowedIPs`), #361 (`RecordedEventsFlow`), #362 (`ButtonGenCommand`)
+- Android `ADBDevice` cleanup #297 — branch ready, awaiting cross-OS validation (Linux/macOS) before merge
+- SikuliX1 community PRs #345, #346 (EPIC #344)
+
+---
+
 ## [v3.0.4-rc1] - 2026-05-18
 
 ![status](https://img.shields.io/badge/release-pre--release-yellow)
