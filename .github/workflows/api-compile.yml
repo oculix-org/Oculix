@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  api-compile:
 
     runs-on: ubuntu-latest
 

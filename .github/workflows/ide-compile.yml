@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  ide-compile:
 
     runs-on: ubuntu-latest
 
