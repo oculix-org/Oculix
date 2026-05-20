@@ -59,8 +59,6 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
     synchronized (JRubyRunner.class) {
       if (null == jrubySupport) {
         jrubySupport = JRubySupport.get();
-        // execute script headers to already do the warmup during init
-        jrubySupport.executeScriptHeader(codeBefore);
       }
     }
   }
