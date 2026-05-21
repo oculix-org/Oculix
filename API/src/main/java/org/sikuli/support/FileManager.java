@@ -571,7 +571,7 @@ public class FileManager {
   }
 
   public static String saveTimedImage(BufferedImage img, String path, String name) {
-    RunTime.pause(0.01f);
+    Commons.pause(0.01f);
     if (null == path) {
       return null;
     }

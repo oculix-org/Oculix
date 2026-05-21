@@ -162,7 +162,7 @@ public class SikulixIDE extends JFrame {
 
   public static void doHide(float waitTime) {
     ideWindow.setVisible(false);
-    RunTime.pause(waitTime);
+    Commons.pause(waitTime);
   }
 
   static void showAgain() {
@@ -428,7 +428,7 @@ public class SikulixIDE extends JFrame {
 
   public static void showAfterStart() {
     while (!ideIsReady.get()) {
-      RunTime.pause(100);
+      Commons.pause(100);
     }
     org.sikuli.ide.Sikulix.stopSplash();
     ideWindow.setVisible(true);
@@ -3937,7 +3937,7 @@ public class SikulixIDE extends JFrame {
             //TODO ButtonShowIn perform show
           }
         }).start();
-        RunTime.pause(2.0f);
+        Commons.pause(2.0f);
       } else {
         SikulixIDE.showAgain();
         SX.popup("ButtonShowIn: Nothing to show!" +
@@ -4074,7 +4074,7 @@ public class SikulixIDE extends JFrame {
             log("Run script continued, though System.out is broken (console output)");
           }
 
-          RunTime.pause(0.1f);
+          Commons.pause(0.1f);
           resetErrorMark();
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
           System.out.println(String.format("──────── Run started @ %s ────────", runStamp));

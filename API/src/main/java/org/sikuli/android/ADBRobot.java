@@ -6,6 +6,7 @@ package org.sikuli.android;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.script.*;
+import org.sikuli.support.Commons;
 import org.sikuli.support.devices.IRobot;
 import org.sikuli.support.devices.IScreen;
 import org.sikuli.support.RunTime;
@@ -118,7 +119,7 @@ public class ADBRobot implements IRobot {
       return;
     }
     while (!device.typeStarts()) {
-      RunTime.pause(1);
+      Commons.pause(1);
     }
   }
 

@@ -160,7 +160,7 @@ public class SXDialog extends JFrame {
       popup(where);
       if (autoClose > 0) {
         new Thread(() -> {
-          RunTime.pause(autoClose * 1000);
+          Commons.pause(autoClose * 1000);
           closeCancel();
         }).start();
       }

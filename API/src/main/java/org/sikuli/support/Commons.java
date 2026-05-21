@@ -2973,6 +2973,20 @@ public static boolean loadLib(String libName) {
   //</editor-fold>
 
   //<editor-fold desc="99 stuff">
+  public static void pause(int time) {
+    try {
+      Thread.sleep(time);
+    } catch (InterruptedException ex) {
+    }
+  }
+
+  public static void pause(float time) {
+    try {
+      Thread.sleep((int) (time * 1000));
+    } catch (InterruptedException ex) {
+    }
+  }
+
   public static void browse(String url) {
     if (Desktop.isDesktopSupported()) {
       try {

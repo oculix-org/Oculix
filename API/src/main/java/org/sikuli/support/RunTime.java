@@ -100,64 +100,6 @@ public class RunTime {
   }
   //</editor-fold>
 
-  //<editor-fold defaultstate="collapsed" desc="20 helpers">
-  public void crash() {
-    int x = 1 / 0;
-  }
-
-  public static void pause(int time) {
-    try {
-      Thread.sleep(time);
-    } catch (InterruptedException ex) {
-    }
-  }
-
-  public static void pause(float time) {
-    try {
-      Thread.sleep((int) (time * 1000));
-    } catch (InterruptedException ex) {
-    }
-  }
-
-//TODO abortScripting obsolete
-/*
-  protected void abortScripting(String msg1, String msg2) {
-    Thread current = Thread.currentThread();
-    String where = "";
-    if (isJythonReady) {
-      where = JythonHelper.get().getCurrentLine();
-      log(-1, msg2);
-      log(-1, msg1 + " %s", where);
-    }
-    if (where.isEmpty()) {
-      throw new RuntimeException(msg1 + msg2);
-    }
-    current.interrupt();
-    current.stop();
-  }
-*/
-
-  /**
-   * INTERNAL USE: to check whether we are running in compiled classes context
-   *
-   * @return true if the code source location is a folder ending with classes (Maven convention)
-   */
-  public boolean isRunningFromJar() {
-    return runningJar;
-  }
-
-  public boolean isJava9(String... args) {
-    if (Commons.getJavaVersion() > 8) {
-      if (args.length > 0) {
-        log(-1, "*** Java 9+: %s", args[0]);
-      }
-      return true;
-    } else {
-      return false;
-    }
-  }
-  //</editor-fold>
-
   //<editor-fold desc="16 get resources NEW">
   public static List<String> getResourceList(String res) {
     return getResourceList(res, clsRef);
@@ -897,6 +839,17 @@ public class RunTime {
   //</editor-fold>
 
   //<editor-fold defaultstate="collapsed" desc="12 classpath handling">
+  private boolean isJava9(String... args) {
+    if (Commons.getJavaVersion() > 8) {
+      if (args.length > 0) {
+        log(-1, "*** Java 9+: %s", args[0]);
+      }
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   private void storeClassPath() {
     if (isJava9()) {
       String separator = File.pathSeparator;
