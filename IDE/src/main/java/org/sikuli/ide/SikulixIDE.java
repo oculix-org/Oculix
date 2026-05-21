@@ -21,7 +21,6 @@ import org.sikuli.support.ide.syntaxhighlight.grammar.Lexer;
 import org.sikuli.support.ide.syntaxhighlight.grammar.Token;
 import org.sikuli.support.ide.syntaxhighlight.grammar.TokenType;
 import org.sikuli.script.Image;
-import org.sikuli.script.Sikulix;
 import org.sikuli.script.*;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.InvalidRunner;
@@ -2838,7 +2837,7 @@ public class SikulixIDE extends JFrame {
       String orgName = codePane.getCurrentShortFilename();
       log("doAsJar requested: %s", orgName);
       if (codePane.isDirty()) {
-        Sikulix.popError("Please save script before!", "Export as jar");
+        SX.popError("Please save script before!", "Export as jar");
       } else {
         File fScript = codePane.saveAndGetCurrentFile();
         List<String> options = new ArrayList<>();
@@ -2846,9 +2845,9 @@ public class SikulixIDE extends JFrame {
         options.add(fScript.getParentFile().getAbsolutePath());
         String fpJar = FileManager.makeScriptjar(options);
         if (null != fpJar) {
-          Sikulix.popup(fpJar, "Export as jar ...");
+          SX.popup(fpJar, "Export as jar ...");
         } else {
-          Sikulix.popError("did not work for: " + orgName, "Export as jar");
+          SX.popError("did not work for: " + orgName, "Export as jar");
         }
       }
     }
@@ -2858,16 +2857,16 @@ public class SikulixIDE extends JFrame {
       String orgName = codePane.getCurrentShortFilename();
       log("doAsRunJar requested: %s", orgName);
       if (codePane.isDirty()) {
-        Sikulix.popError("Please save script before!", "Export as runnable jar");
+        SX.popError("Please save script before!", "Export as runnable jar");
       } else {
         File fScript = codePane.saveAndGetCurrentFile();
         List<String> options = new ArrayList<>();
         options.add(fScript.getParentFile().getAbsolutePath());
         String fpJar = FileManager.makeScriptjar(options);
         if (null != fpJar) {
-          Sikulix.popup(fpJar, "Export as runnable jar ...");
+          SX.popup(fpJar, "Export as runnable jar ...");
         } else {
-          Sikulix.popError("did not work for: " + orgName, "Export as runnable jar");
+          SX.popError("did not work for: " + orgName, "Export as runnable jar");
         }
       }
     }
@@ -3043,7 +3042,7 @@ public class SikulixIDE extends JFrame {
     public void doFind(ActionEvent ae) {
 //      _searchField.selectAll();
 //      _searchField.requestFocus();
-      findText = Sikulix.input(
+      findText = SX.input(
               "Enter text to be searched (case sensitive)\n" +
                       "Start with ! to search case insensitive\n",
               findText, "SikuliX IDE -- Find");
@@ -3435,9 +3434,9 @@ public class SikulixIDE extends JFrame {
 //        return;
 //      }
 //    } else if (!ADBClient.isAdbAvailable) {
-//      Sikulix.popError("Package adb seems not to be available.\nIt must be installed for Android support.", title);
+//      SX.popError("Package adb seems not to be available.\nIt must be installed for Android support.", title);
 //    } else {
-//      Sikulix.popError("No android device attached", title);
+//      SX.popError("No android device attached", title);
 //    }
   }
 
@@ -3581,7 +3580,7 @@ public class SikulixIDE extends JFrame {
       String si = Commons.getSystemInfo();
       System.out.println(si);
       msg = String.format(msg, si);
-      if (Sikulix.popAsk(msg, title)) {
+      if (SX.popAsk(msg, title)) {
         Clipboard clb = Toolkit.getDefaultToolkit().getSystemClipboard();
         StringSelection sic = new StringSelection(si.toString());
         clb.setContents(sic, sic);
@@ -3722,7 +3721,7 @@ public class SikulixIDE extends JFrame {
           }
         } else {
           final String msg = String.format("%s already exists - stored as %s", newFile.getName(), imgFile.getName());
-          Sikulix.popError(msg, "IDE: Insert Image");
+          SX.popError(msg, "IDE: Insert Image");
         }
       }
       if (context.getShowThumbs()) {
@@ -3886,7 +3885,7 @@ public class SikulixIDE extends JFrame {
         }).start();
         return;
       }
-      Sikulix.popup("ButtonShow: Nothing to show!" +
+      SX.popup("ButtonShow: Nothing to show!" +
               "\nThe line with the cursor should contain:" +
               "\n- an absolute Region or Location" +
               "\n- an image file name or" +
@@ -3941,7 +3940,7 @@ public class SikulixIDE extends JFrame {
         RunTime.pause(2.0f);
       } else {
         SikulixIDE.showAgain();
-        Sikulix.popup("ButtonShowIn: Nothing to show!" +
+        SX.popup("ButtonShowIn: Nothing to show!" +
                 "\nThe line with the cursor should contain:" +
                 "\n- an image file name or" +
                 "\n- a Pattern with an image file name");
@@ -4062,7 +4061,7 @@ public class SikulixIDE extends JFrame {
         @Override
         public void run() {
           if (System.out.checkError()) {
-            boolean shouldContinue = Sikulix.popAsk("System.out is broken (console output)!"
+            boolean shouldContinue = SX.popAsk("System.out is broken (console output)!"
                     + "\nYou will not see any messages anymore!"
                     + "\nSave your work and restart the IDE!"
                     + "\nYou may ignore this on your own risk!" +
