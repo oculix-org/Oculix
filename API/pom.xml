@@ -189,7 +189,7 @@
             <configuration>
               <archive>
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
               <descriptors>
@@ -223,7 +223,7 @@
             <configuration>
               <archive>
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
               <descriptors>
@@ -257,7 +257,7 @@
             <configuration>
               <archive>
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
               <descriptors>
@@ -291,7 +291,7 @@
             <configuration>
               <archive>
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
               <descriptors>
@@ -508,7 +508,7 @@
         <configuration>
           <archive>
             <manifest>
-              <mainClass>org.sikuli.script.Sikulix</mainClass>
+              <mainClass>org.sikuli.script.SX</mainClass>
             </manifest>
           </archive>
         </configuration>
