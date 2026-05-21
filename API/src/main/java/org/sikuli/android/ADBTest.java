@@ -102,18 +102,18 @@ public class ADBTest {
    */
   public static void ideTest(ADBScreen aScr) {
     String title = "Android Support - Testing device";
-    Sikulix.popup("Take care\n\nthat device is on and unlocked\n\nbefore clicking ok", title);
+    SX.popup("Take care\n\nthat device is on and unlocked\n\nbefore clicking ok", title);
     aScr.wakeUp(2);
     aScr.aKey(ADBDevice.KEY_HOME);
     boolean cancelled = true;
-    if (Sikulix.popAsk("Now the device should show the HOME screen.\n" +
+    if (SX.popAsk("Now the device should show the HOME screen.\n" +
             "\nclick YES to proceed watching the test on the device" +
             "\nclick NO to end the test now", title)) {
       cancelled = false;
       aScr.aSwipeLeft();
       aScr.aSwipeRight();
       aScr.wait(1f);
-      if (Sikulix.popAsk("You should have seen a swipe left and a swipe right.\n" +
+      if (SX.popAsk("You should have seen a swipe left and a swipe right.\n" +
               "\nclick YES to capture an icon from homescreen and then aTap it" +
               "\nclick NO to end the test now", title)) {
         int debugLevel = Debug.getDebugLevel();
@@ -124,13 +124,13 @@ public class ADBTest {
         Debug.on(debugLevel);
         try {
           aScr.aTap(new Image(sIMg));
-          Sikulix.popup("The image was found on the device's current screen" +
+          SX.popup("The image was found on the device's current screen" +
                   "\nand should have been tapped.\n" +
                   "\nIf you think it worked, you can now try\n" +
                   "to capture needed images from the device - be aware:\n" +
                   "\nYou have to come back here and click Default!", title);
         } catch (FindFailed findFailed) {
-          Sikulix.popError("Sorry, the image you captured was\nnot found on the device's current screen", title);
+          SX.popError("Sorry, the image you captured was\nnot found on the device's current screen", title);
           cancelled = true;
         }
       } else {
@@ -138,7 +138,7 @@ public class ADBTest {
       }
     }
     if (cancelled) {
-      if (Sikulix.popAsk("You have cancelled or the image was not found.\n" +
+      if (SX.popAsk("You have cancelled or the image was not found.\n" +
               "\nclick YES to produce some output for debugging" +
               "\n... which may take a while !!" +
               "\nclick NO to simply leave", title)) {

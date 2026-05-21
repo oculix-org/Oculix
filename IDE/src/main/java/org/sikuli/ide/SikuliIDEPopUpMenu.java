@@ -6,7 +6,6 @@ package org.sikuli.ide;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.support.FileManager;
-import org.sikuli.script.Sikulix;
 import org.sikuli.script.*;
 import org.sikuli.support.runner.Runner;
 import org.sikuli.support.runner.IRunner;
@@ -296,8 +295,8 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
       }
       String currentType = editorPane.getType();
       Location mouseAt = new Location(mouseTrigger.getXOnScreen(), mouseTrigger.getYOnScreen());
-      Sikulix.popat(mouseAt.offset(100, 85));
-      String targetType = Sikulix.popSelect("Select the Content Type ...",
+      SX.popat(mouseAt.offset(100, 85));
+      String targetType = SX.popSelect("Select the Content Type ...",
               selOptionsTypes, currentType.replaceFirst(".*?\\/", ""));
       if (targetType == null) {
         return;
@@ -323,7 +322,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
       (new Thread() {
         @Override
         public void run() {
-          String popFile = Sikulix.popFile("test");
+          String popFile = SX.popFile("test");
           log(3, "file selected: %s", popFile);
           if (popFile.endsWith("/") || popFile.endsWith("\\")) {
             popFile = popFile.substring(0, popFile.length() - 1);

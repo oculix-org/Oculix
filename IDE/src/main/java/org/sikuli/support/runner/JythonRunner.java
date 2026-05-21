@@ -5,8 +5,8 @@ package org.sikuli.support.runner;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.ide.SikulixIDE;
+import org.sikuli.script.SX;
 import org.sikuli.support.runnerSupport.JythonSupport;
-import org.sikuli.script.Sikulix;
 import org.sikuli.support.Commons;
 import static org.sikuli.util.CommandArgsEnum.*;
 import java.io.File;
@@ -185,7 +185,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       }
 
       if (System.out.checkError()) {
-        Sikulix.popError("System.out is broken (console output)!" + "\nYou will not see any messages anymore!"
+        SX.popError("System.out is broken (console output)!" + "\nYou will not see any messages anymore!"
                 + "\nSave your work and restart the IDE!", "Fatal Error");
       }
 

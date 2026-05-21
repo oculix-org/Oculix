@@ -5,6 +5,7 @@
 package org.sikuli.ide;
 
 import org.sikuli.basics.*;
+import org.sikuli.script.SX;
 import org.sikuli.support.FileManager;
 import org.sikuli.support.runner.SikulixServer;
 import org.sikuli.script.SikuliXception;
@@ -191,7 +192,7 @@ public class Sikulix {
         // Dismiss the splash BEFORE showing the popup - otherwise the top-most
         // splash hides the error dialog and the user only sees a stuck splash.
         stopSplash();
-        org.sikuli.script.Sikulix.popError(terminateMsg);
+        SX.popError(terminateMsg);
         System.exit(1);
       }
       for (String aFile : Commons.getTempFolder().list()) {

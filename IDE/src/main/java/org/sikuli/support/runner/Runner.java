@@ -386,8 +386,8 @@ public class Runner {
     return lastScriptRunReturnCode;
   }
 
-  public static void setLastScriptRunReturnCode(int lastScriptRunReturnCode) {
-    lastScriptRunReturnCode = lastScriptRunReturnCode;
+  public static void setLastScriptRunReturnCode(int returnCode) {
+    lastScriptRunReturnCode = returnCode;
   }
 
   private static int lastScriptRunReturnCode = 0;
