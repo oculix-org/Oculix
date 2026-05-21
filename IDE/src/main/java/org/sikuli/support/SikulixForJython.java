@@ -32,7 +32,7 @@ public class SikulixForJython {
     String libSikuli = "/Lib/" + sikuliStuff + ".py";
     String fpSikuliStuff;
     if (null == fSikuliStuff) {
-      URL uSikuliStuff = RunTime.resourceLocation(libSikuli);
+      URL uSikuliStuff = Commons.resourceLocation(libSikuli);
       if (uSikuliStuff == null) {
         //runTime.dumpClassPath();
         //helper.terminate(999, "no suitable sikulix...jar on classpath");
