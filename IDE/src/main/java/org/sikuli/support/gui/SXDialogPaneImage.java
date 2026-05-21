@@ -7,7 +7,7 @@ import org.sikuli.ide.PatternWindow;
 import org.sikuli.ide.SikulixIDE;
 import org.sikuli.script.Region;
 import org.sikuli.script.SX;
-import org.sikuli.support.RunTime;
+import org.sikuli.support.Commons;
 import org.sikuli.support.devices.ScreenDevice;
 
 import java.awt.*;
@@ -59,7 +59,7 @@ public class SXDialogPaneImage extends SXDialogIDE {
       scr = ScreenDevice.primary();
     }
     if (scr == null) {
-      RunTime.terminate(999, "SXDialogPaneImage: prepare(): no screen available for IDE window");
+      Commons.terminate(999, "SXDialogPaneImage: prepare(): no screen available for IDE window");
     }
     SikulixIDE.doHide();
     scrImage = scr.capture();

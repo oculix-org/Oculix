@@ -4,18 +4,10 @@
 package org.sikuli.support;
 
 import org.sikuli.basics.Debug;
-import org.sikuli.basics.HotkeyManager;
-import org.sikuli.script.SikuliXception;
-import org.sikuli.support.devices.HelpDevice;
 
 import java.io.*;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
-import java.security.CodeSource;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public class RunTime {
 
@@ -71,32 +63,5 @@ public class RunTime {
   public boolean runningLinux = false;
   //</editor-fold>
 
-  //<editor-fold desc="99 cleanUp">
-  public static void terminate() {
-    terminate(0, "");
-  }
-
-  public static void terminate(int retval, String message, Object... args) {
-    String outMsg = String.format(message, args);
-    if (retval < 999) {
-      if (!outMsg.isEmpty()) {
-        System.out.println("TERMINATING: " + outMsg);
-      }
-      cleanUp();
-      System.exit(retval);
-    }
-    System.out.println("FATAL ERROR: " + outMsg);
-    throw new SikuliXception(String.format("FATAL: " + outMsg));
-  }
-
-  public static void cleanUp() {
-    HotkeyManager.reset(true);
-    HelpDevice.stopAll();
-  }
-
-  public static void cleanUpAfterScript() {
-    HotkeyManager.reset(false);
-    HelpDevice.stopAll();
-  }
   //</editor-fold>
 }

@@ -29,7 +29,6 @@ import org.sikuli.support.runner.TextRunner;
 import org.sikuli.support.Commons;
 import org.sikuli.support.devices.IScreen;
 import org.sikuli.support.recorder.Recorder;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.devices.ScreenDevice;
 import org.sikuli.support.recorder.generators.ICodeGenerator;
 import org.sikuli.support.gui.SXDialog;
@@ -252,7 +251,7 @@ public class SikulixIDE extends JFrame {
     log("Quit requested");
     if (closeIDE()) {
       try {
-        RunTime.terminate(0, "");
+        Commons.terminate(0, "");
       } catch (Exception ex) {
         log("Quit: RunTime.terminate failed — forcing exit");
         System.exit(1);
@@ -4117,7 +4116,7 @@ public class SikulixIDE extends JFrame {
             context.getPane().jumpTo(line);
           }
 
-          RunTime.cleanUpAfterScript();
+          Commons.cleanUpAfterScript();
           SikulixIDE.showAgain();
         }
       }).start();

@@ -11,8 +11,10 @@ import org.opencv.core.*;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.sikuli.basics.Debug;
+import org.sikuli.basics.HotkeyManager;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.*;
+import org.sikuli.support.devices.HelpDevice;
 import org.sikuli.util.CommandArgs;
 import org.sikuli.util.CommandArgsEnum;
 
@@ -398,6 +400,33 @@ public class Commons {
   public static void setJythonReady() {
     Commons.jythonReady = true;
   }
+
+  public static void terminate() {
+    terminate(0, "");
+  }
+
+  public static void terminate(int retval, String message, Object... args) {
+    String outMsg = String.format(message, args);
+    if (retval < 999) {
+      if (!outMsg.isEmpty()) {
+        System.out.println("TERMINATING: " + outMsg);
+      }
+      cleanUp();
+      System.exit(retval);
+    }
+    System.out.println("FATAL ERROR: " + outMsg);
+    throw new SikuliXception(String.format("FATAL: " + outMsg));
+  }
+
+  public static void cleanUp() {
+    HotkeyManager.reset(true);
+    HelpDevice.stopAll();
+  }
+
+  public static void cleanUpAfterScript() {
+    HotkeyManager.reset(false);
+    HelpDevice.stopAll();
+  }
   //</editor-fold>
 
   //<editor-fold desc="05 standard directories">
@@ -457,7 +486,7 @@ public class Commons {
       appDataPath = new File(getUserHome(), givenAppPath);
       appDataPath.mkdirs();
       if (!appDataPath.exists()) {
-        RunTime.terminate(999, "Commons: setAppDataPath: %s (%s)", givenAppPath, "not created");
+        terminate(999, "Commons: setAppDataPath: %s (%s)", givenAppPath, "not created");
       }
     }
     return appDataPath;
@@ -1725,7 +1754,7 @@ public static boolean loadLib(String libName) {
           return true;
         }
       }
-      RunTime.terminate(999, "Commons.loadLib: %s");
+      terminate(999, "Commons.loadLib: %s");
     }
     return true;
   }
@@ -1740,7 +1769,7 @@ public static boolean loadLib(String libName) {
     if (!fLibsFolder.exists()) {
       fLibsFolder.mkdirs();
       if (!fLibsFolder.exists()) {
-        RunTime.terminate(999, "Commons.loadLib: %s: create failed", fLibsFolder);
+        terminate(999, "Commons.loadLib: %s: create failed", fLibsFolder);
       }
       makeVersionFile(fLibsFolder);
     }
@@ -1749,12 +1778,12 @@ public static boolean loadLib(String libName) {
          InputStream inStream = classRef.getResourceAsStream(resPath + fileName)) {
       copy(inStream, outFile);
     } catch (Exception ex) {
-      RunTime.terminate(999, "Commons.loadLib: %s: export failed", fileName);
+      terminate(999, "Commons.loadLib: %s: export failed", fileName);
     }
     try {
       System.load(libFile.getAbsolutePath());
     } catch (Exception e) {
-      RunTime.terminate(999, "Commons.loadLib: %s: load failed" + libFile);
+      terminate(999, "Commons.loadLib: %s: load failed" + libFile);
     }
     return true;
   }
@@ -2932,16 +2961,16 @@ public static boolean loadLib(String libName) {
       try {
         classSup = Class.forName("org.sikuli.support.ide.JythonSupport");
       } catch (ClassNotFoundException e) {
-        RunTime.terminate(999, "Commons: JythonSupport: %s", e.getMessage());
+        terminate(999, "Commons: JythonSupport: %s", e.getMessage());
       }
     } else if (reference instanceof String && ((String) reference).contains("org.jruby")) {
       try {
         classSup = Class.forName("org.sikuli.support.ide.JRubySupport");
       } catch (ClassNotFoundException e) {
-        RunTime.terminate(999, "Commons: JRubySupport: %s", e.getMessage());
+        terminate(999, "Commons: JRubySupport: %s", e.getMessage());
       }
     } else {
-      RunTime.terminate(999, "Commons: ScriptingSupport: not supported: %s", reference);
+      terminate(999, "Commons: ScriptingSupport: not supported: %s", reference);
     }
     Object returnSup = null;
     String error = "";
@@ -2966,7 +2995,7 @@ public static boolean loadLib(String libName) {
       error = e.toString();
     }
     if (!error.isEmpty()) {
-      RunTime.terminate(999, "Commons: runScriptingSupportFunction(%s, %s, %s): %s",
+      terminate(999, "Commons: runScriptingSupportFunction(%s, %s, %s): %s",
           instanceSup, method, args, error);
     }
     return returnSup;
