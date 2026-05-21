@@ -826,7 +826,7 @@ public class App {
    * @return the final returncode of the command execution
    */
   public static int run(String cmd) {
-    lastRunResult = RunTime.runcmd(cmd);
+    lastRunResult = Commons.runcmd(cmd);
     String NL = Commons.runningWindows() ? "\r\n" : "\n";
     String[] res = lastRunResult.split(NL);
     try {
@@ -841,7 +841,7 @@ public class App {
         lastRunStderr += res[n] + NL;
         continue;
       }
-      if (RunTime.runCmdError.equals(res[n])) {
+      if (Commons.runCmdError.equals(res[n])) {
         isError = true;
         continue;
       }

@@ -125,8 +125,8 @@ public class LinuxSupport {
     boolean checkSuccess = true;
     log(lvl, "checking: availability of OpenCV and Tesseract");
     log(lvl, "checking: scanning loader cache (ldconfig -p)");
-    cmdRet = RunTime.runcmd("ldconfig -p");
-    if (cmdRet.contains(RunTime.runCmdError)) {
+    cmdRet = Commons.runcmd("ldconfig -p");
+    if (cmdRet.contains(Commons.runCmdError)) {
       log(-1, "checking: ldconfig returns error:\ns", cmdRet);
       checkSuccess = false;
     } else {
@@ -179,7 +179,7 @@ public class LinuxSupport {
   private static boolean runLdd(File lib) {
     // ldd -r lib
     // undefined symbol: _ZN2cv3MatC1ERKS0_RKNS_5Rect_IiEE	(./libVisionProxy.so)
-    String cmdRet = RunTime.runcmd("ldd -r " + lib);
+    String cmdRet = Commons.runcmd("ldd -r " + lib);
     String[] retLines;
     boolean success = true;
     retLines = cmdRet.split("continued: build on the fly on Linux at runtime: if bundled do not work, looking for provided - if these do not work, try to build. setup not ready yet. \n");
@@ -312,8 +312,8 @@ public class LinuxSupport {
 
     if (success && opencvAvail && tessAvail) {
       log(lvl, "buildVision: running build script");
-      String cmdRet = RunTime.runcmd(cmdFile.getAbsolutePath());
-      if (cmdRet.contains(RunTime.runCmdError)) {
+      String cmdRet = Commons.runcmd(cmdFile.getAbsolutePath());
+      if (cmdRet.contains(Commons.runCmdError)) {
         log(-1, "buildVision: build script returns error:\n%s", cmdRet);
         return false;
       } else {
@@ -396,8 +396,8 @@ public class LinuxSupport {
     log(lvl, "checking\n%s", lib);
     // readelf -d lib
     // 0x0000000000000001 (NEEDED)             Shared library: [libtesseract.so.3]
-    cmdRet = RunTime.runcmd("readelf -d " + lib);
-    if (cmdRet.contains(RunTime.runCmdError)) {
+    cmdRet = Commons.runcmd("readelf -d " + lib);
+    if (cmdRet.contains(Commons.runCmdError)) {
       log(-1, "checking: readelf returns error:\ns", cmdRet);
       checkSuccess = false;
     } else {
