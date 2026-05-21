@@ -4,8 +4,8 @@
 package org.sikuli.idesupport;
 
 import org.sikuli.basics.Debug;
+import org.sikuli.script.SX;
 import org.sikuli.support.FileManager;
-import org.sikuli.script.Sikulix;
 import org.sikuli.support.runner.*;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.Runner;
@@ -94,7 +94,7 @@ public class IDESupport {
 				if (IDE_RUNNERS.isEmpty()) {
 					String em = "Terminating: No scripting support available. Rerun Setup!";
 					log(-1, em);
-					Sikulix.popError(em, "IDE has problems ...");
+					SX.popError(em, "IDE has problems ...");
 					System.exit(1);
 				}
 

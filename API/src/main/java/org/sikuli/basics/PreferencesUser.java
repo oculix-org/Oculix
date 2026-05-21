@@ -3,8 +3,6 @@
  */
 package org.sikuli.basics;
 
-import org.sikuli.script.Sikulix;
-
 import java.awt.Dimension;
 import java.awt.Event;
 import java.awt.Point;
@@ -61,7 +59,7 @@ public class PreferencesUser {
 
   private PreferencesUser() {
     Debug.log(3, "init user preferences");
-    pref = Preferences.userNodeForPackage(org.sikuli.script.Sikulix.class);
+    pref = Preferences.userNodeForPackage(org.sikuli.script.SX.class);
   }
 
   public boolean save(String path) {
