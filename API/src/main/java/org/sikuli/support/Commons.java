@@ -11,6 +11,7 @@ import org.opencv.core.*;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.sikuli.basics.Debug;
+import org.sikuli.basics.Settings;
 import org.sikuli.script.*;
 import org.sikuli.util.CommandArgs;
 import org.sikuli.util.CommandArgsEnum;
@@ -47,6 +48,7 @@ public class Commons {
   public static final int FILE_NOT_FOUND = 256;
   public static final int NOT_SUPPORTED = 257;
   private static final String libFolder = "Lib";
+
   public static File getLibFolder() {
     return new File(getAppDataPath(), libFolder);
   }
@@ -2782,6 +2784,139 @@ public static boolean loadLib(String libName) {
       error("getBufferedImage: %s error(%s)", mat, ex.getMessage());
     }
     return bImg;
+  }
+  //</editor-fold>
+
+  //<editor-fold defaultstate="collapsed" desc="85 runcmd">
+  public final static String runCmdError = "*****error*****";
+  private static String lastResult = "";
+
+  public static String arrayToQuotedString(String[] args) {
+    String ret = "";
+    for (String s : args) {
+      if (s.contains(" ")) {
+        s = "\"" + s + "\"";
+      }
+      ret += s + " ";
+    }
+    return ret;
+  }
+
+  /**
+   * run a system command finally using Java::Runtime.getRuntime().exec(args) and waiting for completion
+   *
+   * @param
+   * cmd the command as it would be given on command line, quoting is preserved
+   * @return the output produced by the command (sysout [+ "*** error ***" + syserr] if the syserr part is present, the
+   * command might have failed
+   */
+  public static String runcmd(String cmd) {
+    return runcmd(new String[]{cmd});
+  }
+
+  /**
+   * run a system command finally using Java::Runtime.getRuntime().exec(args) and waiting for completion
+   *
+   * @param args the command as it would be given on command line splitted into the space devided parts, first part is
+   *             the command, the rest are parameters and their values
+   * @return the output produced by the command (sysout [+ "*** error ***" + syserr] if the syserr part is present, the
+   * command might have failed
+   */
+  public static String runcmd(String args[]) {
+    if (args.length == 0) {
+      return "";
+    }
+    String NL = System.lineSeparator();
+    boolean silent = false;
+    if (args.length == 1) {
+      String separator = "\"";
+      ArrayList<String> argsx = new ArrayList<String>();
+      StringTokenizer toks;
+      String tok;
+      String cmd = args[0];
+      if (Settings.isWindows()) {
+        cmd = cmd.replaceAll("\\\\ ", "%20;");
+      }
+      toks = new StringTokenizer(cmd);
+      while (toks.hasMoreTokens()) {
+        tok = toks.nextToken(" ");
+        if (tok.length() == 0) {
+          continue;
+        }
+        if (separator.equals(tok)) {
+          continue;
+        }
+        if (tok.startsWith(separator)) {
+          if (tok.endsWith(separator)) {
+            tok = tok.substring(1, tok.length() - 1);
+          } else {
+            tok = tok.substring(1);
+            tok += toks.nextToken(separator);
+          }
+        }
+        argsx.add(tok.replaceAll("%20;", " "));
+      }
+      args = argsx.toArray(new String[0]);
+    }
+    if (args[0].startsWith("!")) {
+      silent = true;
+      args[0] = args[0].substring(1);
+    }
+    if (args[0].startsWith("#")) {
+      String pgm = args[0].substring(1);
+      args[0] = (new File(pgm)).getAbsolutePath();
+      runcmd(new String[]{"chmod", "ugo+x", args[0]});
+    }
+    String result = "";
+    String error = runCmdError + NL;
+    String errorOut = "";
+    boolean hasError = false;
+    int retVal;
+    try {
+      if (!silent) {
+        if (lvl <= Debug.getDebugLevel()) {
+          log(lvl, arrayToQuotedString(args));
+        } else {
+          Debug.info("runcmd: " + arrayToQuotedString(args));
+        }
+      }
+      //TODO use ProcessRunner
+      Process process = Runtime.getRuntime().exec(args);
+      BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+      BufferedReader stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+      String s;
+      while ((s = stdInput.readLine()) != null) {
+        if (!s.isEmpty()) {
+          result += s + NL;
+        }
+      }
+      while ((s = stdError.readLine()) != null) {
+        if (!s.isEmpty()) {
+          errorOut += s + NL;
+        }
+      }
+      if (!errorOut.isEmpty()) {
+        error = error + errorOut;
+        hasError = true;
+      }
+      process.waitFor();
+      retVal = process.exitValue();
+      process.destroy();
+    } catch (Exception e) {
+      log(-1, "fatal error: " + e);
+      result = String.format(error + "%s", e);
+      retVal = 9999;
+      hasError = true;
+    }
+    if (hasError) {
+      result += error;
+    }
+    lastResult = result;
+    return String.format("%d%s%s", retVal, NL, result);
+  }
+
+  public static String getLastCommandResult() {
+    return lastResult;
   }
   //</editor-fold>
 
