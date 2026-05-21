@@ -1250,7 +1250,8 @@ public class Commons {
     out.flush();
   }
 
-  private static byte[] copy(InputStream inputStream) {
+  //TODO revert to private after not needed in RunTime
+  public static byte[] copy(InputStream inputStream) {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     byte[] buffer = new byte[1024];
     int length = 0;

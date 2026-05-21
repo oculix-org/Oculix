@@ -412,7 +412,7 @@ public class TextRecognizer {
       boolean shouldExport = Commons.shouldExport();
       boolean fExists = fTessDataPath.exists();
       if (!fExists || shouldExport) {
-        if (0 == RunTime.extractResourcesToFolder("/tessdataSX", fTessDataPath, null).size()) {
+        if (0 == Commons.extractResourcesToFolder("/tessdataSX", fTessDataPath, null).size()) {
           throw new SikuliXception(String.format("OCR: start: export tessdata did not work: %s", fTessDataPath));
         }
       }
