@@ -248,7 +248,7 @@ public class LinuxSupport {
 
     File cmdFile = new File(fWorkDir, "runBuild");
     String libVisionPath = new File(fTarget, libVision).getAbsolutePath();
-    String sRunBuild = RunTime.extractResourceToString("/Support/Linux", "runBuild", "");
+    String sRunBuild = Commons.extractResourceToString("/Support/Linux", "runBuild", "");
 
     sRunBuild = sRunBuild.replace("#jdkdir#", "jdkdir=" + javaHome.getAbsolutePath());
 
@@ -269,18 +269,18 @@ public class LinuxSupport {
       exportIncludeTesseract = true;
     }
 
-    boolean success = (null != RunTime.extractResourcesToFolder("/srcnativelibs/Vision", fSource, null));
+    boolean success = (null != Commons.extractResourcesToFolder("/srcnativelibs/Vision", fSource, null));
     if (!success) {
       log(-1, "buildVision: cannot export bundled sources");
     }
     if (exportIncludeOpenCV) {
-      if (null == RunTime.extractResourcesToFolder("/srcnativelibs/Include/OpenCV", fInclude, null)) {
+      if (null == Commons.extractResourcesToFolder("/srcnativelibs/Include/OpenCV", fInclude, null)) {
         log(-1, "buildVision: cannot export opencv includes");
         success = false;
       }
     }
     if (exportIncludeTesseract) {
-      if (null == RunTime.extractResourcesToFolder("/srcnativelibs/Include/Tesseract", fInclude, null)) {
+      if (null == Commons.extractResourcesToFolder("/srcnativelibs/Include/Tesseract", fInclude, null)) {
         log(-1, "buildVision: cannot export tesseract includes");
         success = false;
       }
