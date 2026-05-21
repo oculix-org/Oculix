@@ -18,7 +18,6 @@ import org.sikuli.script.Screen;
 import org.sikuli.script.ScreenImage;
 import org.sikuli.script.SikuliXception;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.recorder.actions.IRecordedAction;
 
 import javax.swing.*;
@@ -119,7 +118,7 @@ public class Recorder implements NativeKeyListener, NativeMouseListener, NativeM
                 }
                 final int screenID = screen.getID();
                 if (screenID > 9) {
-                  RunTime.terminate(999, "Recorder: screen id > 9 --- not implemented");
+                  Commons.terminate(999, "Recorder: screen id > 9 --- not implemented");
                 }
                 String pathToSave = screenID + currentImageFilePath;
                 eventsFlow.addScreenshot(pathToSave);

@@ -3,7 +3,7 @@ package org.sikuli.support.devices;
 import org.sikuli.script.Image;
 import org.sikuli.script.Region;
 import org.sikuli.script.Screen;
-import org.sikuli.support.RunTime;
+import org.sikuli.support.Commons;
 import org.sikuli.util.OverlayCapturePrompt;
 
 import java.awt.*;
@@ -103,7 +103,7 @@ public class ScreenDevice extends Devices {
       GraphicsDevice[] gdevs = genv.getScreenDevices();
       nDevices = gdevs.length;
       if (nDevices == 0) {
-        RunTime.terminate(999, "GraphicsEnvironment: running not possibel: no ScreenDevices");
+        Commons.terminate(999, "GraphicsEnvironment: running not possibel: no ScreenDevices");
       }
       devices = new ScreenDevice[nDevices];
       Rectangle currentBounds;
@@ -115,7 +115,7 @@ public class ScreenDevice extends Devices {
         try {
           new Robot(gdev);
         } catch (AWTException e) {
-          RunTime.terminate(999, "ScreenDevice.init: device#%d (%s)", i, e.getMessage());
+          Commons.terminate(999, "ScreenDevice.init: device#%d (%s)", i, e.getMessage());
         }
         int actualScreen = nScreen;
         if (currentBounds.contains(new Point(0, 0))) {
@@ -141,7 +141,7 @@ public class ScreenDevice extends Devices {
         mainMonitor = 0;
       }
     } else {
-      RunTime.terminate(999, "GraphicsEnvironment: running not possible: is headless");
+      Commons.terminate(999, "GraphicsEnvironment: running not possible: is headless");
     }
   }
 
@@ -212,7 +212,7 @@ public class ScreenDevice extends Devices {
       try {
         robot = new Robot(gdev);
       } catch (AWTException e) {
-        RunTime.terminate(999, "ScreenDevice:robot: %s", e.getMessage());
+        Commons.terminate(999, "ScreenDevice:robot: %s", e.getMessage());
       }
     }
     return robot;

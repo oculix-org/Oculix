@@ -12,7 +12,6 @@ import org.sikuli.script.SikuliXception;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.Runner;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.ide.SikuliIDEI18N;
 
@@ -107,7 +106,7 @@ public class Sikulix {
         public void hotkeyPressed(HotkeyEvent e) {
           if (Commons.hasOption(RUN)) {
             Runner.abortAll();
-            RunTime.terminate(254, "AbortKey was pressed: aborting all running scripts");
+            Commons.terminate(254, "AbortKey was pressed: aborting all running scripts");
           }
         }
       });
@@ -116,12 +115,12 @@ public class Sikulix {
       if (exitCode > 255) {
         exitCode = 254;
       }
-      RunTime.terminate(exitCode, "");
+      Commons.terminate(exitCode, "");
     }
 
     if (Commons.hasOption(SERVER)) {
       SikulixServer.run();
-      RunTime.terminate();
+      Commons.terminate();
     }
 
     Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
