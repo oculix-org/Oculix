@@ -24,6 +24,10 @@ import java.util.concurrent.TimeUnit;
 
 public class SX {
 
+  //TODO placeholder for eventually a main entry in the future - for now simply does nothing
+  public static void main(String[] args) {
+  }
+
   static public class Log {
     public static void error(String msg, Object... args) {
       Debug.error("SX: " + msg, args);
