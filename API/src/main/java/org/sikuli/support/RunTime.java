@@ -47,60 +47,6 @@ public class RunTime {
   }
   //</editor-fold>
 
-  //<editor-fold defaultstate="collapsed" desc="02 logging script/support/RunTime">
-  private static boolean verbose = false;
-
-  public static boolean isVerbose() {
-    return verbose || Debug.getDebugLevel() > 2;
-  }
-
-  public static void setVerbose() {
-    verbose = true;
-    Debug.setDebugLevel(3);
-    Debug.startTimer();
-    Debug.globalDebugOn();
-  }
-
-  private static boolean quiet = false;
-
-  public static boolean isQuiet() {
-    return quiet;
-  }
-
-  public static void setQuiet() {
-    quiet = true;
-  }
-
-  private static boolean startAsIDE = true;
-  public static boolean isIDE() {
-    return startAsIDE;
-  }
-
-  public static void startLog(int level, String msg, Object... args) {
-    String typ = startAsIDE ? "IDE" : "API";
-    String msgShow = String.format("startUp: %s: ", typ);
-    if (!isVerbose()) {
-      return;
-    }
-    if (level < 0) {
-      msgShow = "[ERROR]" + msgShow + msg;
-      System.out.println(String.format(msgShow, args));
-      return;
-    }
-    if (isQuiet()) {
-      return;
-    }
-    if (isVerbose()) {
-      if (level > 0) {
-        msgShow = "[DEBUG]" + msgShow + msg;
-      } else {
-        msgShow = "[INFO]" + msgShow + msg;
-      }
-      System.out.println(String.format(msgShow, args));
-    }
-  }
-  //</editor-fold> script/support
-
   //<editor-fold defaultstate="collapsed" desc="03 variables">
   public enum RunType {
     JAR, CLASSES, OTHER
