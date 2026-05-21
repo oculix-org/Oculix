@@ -311,10 +311,10 @@ public class Mouse {
     if (shouldMove) {
       if (Settings.isShowActions() && !screen.isOtherScreen()) {
         Highlight highlight = new Highlight(loc).doShow();
-        RunTime.pause(0.3f);
+        Commons.pause(0.3f);
         ((RobotDesktop) robot).smoothMoveSlow(loc);
         highlight.close();
-        RunTime.pause(0.2f);
+        Commons.pause(0.2f);
       } else {
         robot.smoothMove(loc);
       }

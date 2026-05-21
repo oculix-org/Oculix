@@ -605,7 +605,7 @@ public class Screen extends Region implements IScreen, EventObserver {
     };
     th.start();
     while (userCaptureActive.get()) {
-      RunTime.pause(500);
+      Commons.pause(500);
     }
     if (capturedImage != null) {
       return new ScreenImage(capturedRectangle, capturedImage);

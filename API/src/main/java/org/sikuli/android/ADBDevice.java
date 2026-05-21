@@ -413,7 +413,7 @@ private Dimension getDisplayDimension() {
         if (isDisplayOn()) {
           return;
         } else {
-          RunTime.pause(0.25f);
+          Commons.pause(0.25f);
         }
       }
     } catch (Exception e) {
@@ -500,7 +500,7 @@ private Dimension getDisplayDimension() {
   public void input(String text) {
     try {
       device.executeShell("input text ", text);
-      RunTime.pause(text.length() * inputDelay);
+      Commons.pause(text.length() * inputDelay);
     } catch (Exception e) {
       log(-1, "input: %s", e);
     }
