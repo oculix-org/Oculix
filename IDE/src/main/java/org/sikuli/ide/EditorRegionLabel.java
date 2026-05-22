@@ -14,7 +14,6 @@ import javax.swing.JLabel;
 import javax.swing.border.Border;
 
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.script.Screen;
 import org.sikuli.util.EventSubject;
 import org.sikuli.util.OverlayCapturePrompt;

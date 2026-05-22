@@ -11,7 +11,6 @@ import javax.swing.*;
 import org.sikuli.support.Commons;
 import org.sikuli.util.OverlayCapturePrompt;
 import org.sikuli.support.devices.IScreen;
-import org.sikuli.support.RunTime;
 import org.sikuli.script.Region;
 import org.sikuli.script.ScreenImage;
 import org.sikuli.basics.Debug;

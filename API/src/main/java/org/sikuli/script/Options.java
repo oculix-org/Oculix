@@ -6,7 +6,6 @@ package org.sikuli.script;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.util.CommandArgsEnum;
 
 import java.io.*;
@@ -41,7 +40,6 @@ public class Options {
   }
 
   static Options sxOptions = null;
-  static RunTime runtime = null;
 
   private String fnSXOptions = "SikulixOptions.txt";
   private String propOptionsFile = "OptionsFile";

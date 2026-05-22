@@ -50,7 +50,6 @@ import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
 import io.undertow.util.URLUtils;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.util.CommandArgsEnum;
 
 /**
@@ -338,7 +337,7 @@ public class SikulixServer {
     ScriptsCommand scripts = new ScriptsCommand(tasks);
     GroupsCommand groups = new GroupsCommand(scripts);
 
-    ResourceManager resourceManager = new ClassPathResourceManager(RunTime.class.getClassLoader(), "htdocs");
+    ResourceManager resourceManager = new ClassPathResourceManager(Commons.class.getClassLoader(), "htdocs");
     ResourceHandler resource = new ResourceHandler(resourceManager, AbstractCommand.getFallbackHandler());
     resource.addWelcomeFiles("ControlBox.html");
 

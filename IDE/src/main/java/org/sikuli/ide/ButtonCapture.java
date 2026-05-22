@@ -10,14 +10,12 @@ import org.sikuli.script.Image;
 import org.sikuli.script.Key;
 import org.sikuli.script.ScreenImage;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.devices.ScreenDevice;
 import org.sikuli.support.ide.SikuliIDEI18N;
 import org.sikuli.util.EventObserver;
 import org.sikuli.util.EventSubject;
 import org.sikuli.util.OverlayCapturePrompt;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
