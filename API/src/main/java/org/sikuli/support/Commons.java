@@ -49,11 +49,6 @@ public class Commons {
 
   public static final int FILE_NOT_FOUND = 256;
   public static final int NOT_SUPPORTED = 257;
-  private static final String libFolder = "Lib";
-
-  public static File getLibFolder() {
-    return new File(getAppDataPath(), libFolder);
-  }
 
   //<editor-fold desc="00 static">
   private static String sxVersion;
@@ -565,12 +560,14 @@ public class Commons {
 
   private static File workDir = null;
 
-  public static String getJarLibsPath() {
-    return "/sikulixlibs";
-  }
-
   public static File getLibsFolder() {
     return new File(getAppDataPath(), "SikulixLibs");
+  }
+
+  private static final String libFolder = "Lib";
+
+  public static File getLibFolder() {
+    return new File(getAppDataPath(), libFolder);
   }
 
   public static File getExtensionsFolder() {
@@ -1366,7 +1363,7 @@ public class Commons {
   //<editor-fold desc="20 library handling">
   private static final String libOpenCVclassref = "nu.pattern.OpenCV";
 
-public static void loadOpenCV() {
+  public static void loadOpenCV() {
     if (libOpenCVloaded) {
       return;
     }
@@ -1733,7 +1730,7 @@ public static void loadOpenCV() {
   private static List<String> libsLoaded = new ArrayList<>();
   public static final String LIB_JXGRABKEY = "JXGrabKey";
 
-public static boolean loadLib(String libName) {
+  public static boolean loadLib(String libName) {
     if (!libsLoaded.contains(libName)) {
       // opencv géré par Apertix/JNA - skip chargement natif
       if (libName.startsWith("opencv_java")) {
