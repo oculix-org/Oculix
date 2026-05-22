@@ -10,7 +10,6 @@ import org.opencv.core.Mat;
 import org.sikuli.basics.Debug;
 import org.sikuli.support.Commons;
 import org.sikuli.support.FileManager;
-import org.sikuli.support.RunTime;
 import org.sikuli.script.ScreenImage;
 import se.vidstige.jadb.JadbDevice;
 import se.vidstige.jadb.JadbException;

@@ -9,7 +9,6 @@ import org.sikuli.script.*;
 import org.sikuli.support.Commons;
 import org.sikuli.support.devices.IRobot;
 import org.sikuli.support.devices.IScreen;
-import org.sikuli.support.RunTime;
 
 import java.awt.*;
 

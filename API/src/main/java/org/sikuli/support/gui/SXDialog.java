@@ -5,7 +5,6 @@
 package org.sikuli.support.gui;
 
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.devices.ScreenDevice;
 
 import javax.imageio.ImageIO;

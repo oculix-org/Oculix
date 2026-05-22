@@ -16,7 +16,6 @@ import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
 import org.sikuli.support.runner.ProcessRunner;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;

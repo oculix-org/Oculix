@@ -38,7 +38,6 @@ import org.sikuli.natives.OSUtil.OsProcess;
 import org.sikuli.natives.OSUtil.OsWindow;
 import org.sikuli.natives.SysUtil;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 
 /**
  * App implements features to manage (open, switch to, close) applications. on

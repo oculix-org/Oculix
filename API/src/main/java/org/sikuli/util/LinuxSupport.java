@@ -10,7 +10,6 @@ import java.io.PrintStream;
 import org.sikuli.basics.Debug;
 import org.sikuli.support.Commons;
 import org.sikuli.support.FileManager;
-import org.sikuli.support.RunTime;
 
 /**
  * INTERNAL USE: all things needed with Linux at setup or runtime
