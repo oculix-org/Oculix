@@ -101,6 +101,17 @@ public class ADBDevice {
     return adbDevice;
   }
 
+  public static ADBDevice initBySerial(String serial) {
+    ADBDevice adbDevice = new ADBDevice();
+    adbDevice.device = ADBClient.getDeviceBySerial(serial);
+    if (adbDevice.device == null) {
+      return null;
+    }
+    adbDevice.initDevice(adbDevice);
+    adbDevice.adbExec = ADBClient.getADB();
+    return adbDevice;
+  }
+
   private void initDevice(ADBDevice device) {
     device.deviceProps = Arrays.asList(device.exec("getprop").split("\n"));
     //[ro.build.version.release]: [6.0.1]

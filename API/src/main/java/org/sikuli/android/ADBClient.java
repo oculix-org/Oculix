@@ -188,6 +188,27 @@ public class ADBClient {
     return device;
   }
 
+  public static JadbDevice getDeviceBySerial(String serial) {
+    if (serial == null || serial.isEmpty()) {
+      return null;
+    }
+    // Same lazy-connect as getDevice(int): a serial-based caller may run before
+    // any start()/init(String). Serial is stable across runs, unlike the index.
+    if (jadb == null) {
+      init("");
+    }
+    try {
+      for (JadbDevice d : jadb.getDevices()) {
+        if (serial.equals(d.getSerial())) {
+          return d;
+        }
+      }
+      Debug.error("ADBClient: getDeviceBySerial: no attached device with serial '%s'", serial);
+    } catch (Exception e) {
+    }
+    return null;
+  }
+
   public static void reset() {
     device = null;
     jadb = null;
