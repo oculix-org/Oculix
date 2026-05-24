@@ -7,7 +7,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculix</artifactId>
-  <version>3.0.3</version>
+  <version>3.0.4</version>
   <name>OculiX</name>
   <description>Visual automation - if you can see it, you can automate it</description>
   <url>https://github.com/oculix-org/Oculix</url>
@@ -45,6 +45,45 @@
     <module>MCP</module>
     <module>Reporter</module>
   </modules>
+
+  <!-- Security: force transitive versions to kill known CVEs (mostly brought by Jython 2.7.4).
+       Refresh quarterly or whenever Scorecard / Dependency-Check flags new ones. -->
+  <dependencyManagement>
+    <dependencies>
+      <!-- Netty: 5 GHSAs killed at once via the BOM (transitive from jython-slim 2.7.4) -->
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-bom</artifactId>
+        <version>4.1.133.Final</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Bouncy Castle: 4 GHSAs killed (transitive from jython-slim 2.7.4) -->
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcprov-jdk18on</artifactId>
+        <version>1.84</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcpkix-jdk18on</artifactId>
+        <version>1.84</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcutil-jdk18on</artifactId>
+        <version>1.84</version>
+      </dependency>
+
+      <!-- plexus-utils: 1 GHSA killed (transitive from maven-core in build-extensions, provided scope) -->
+      <dependency>
+        <groupId>org.codehaus.plexus</groupId>
+        <artifactId>plexus-utils</artifactId>
+        <version>3.6.1</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <profiles>
     <profile>
