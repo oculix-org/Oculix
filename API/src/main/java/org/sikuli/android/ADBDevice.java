@@ -440,25 +440,13 @@ public class ADBDevice {
   }
 
   public void wakeUp(int seconds) {
-    int times = seconds * 4;
-    try {
-      if (null == isDisplayOn()) {
-        log(-1, "wakeUp: not possible - see log");
-        return;
-      }
-      //device.executeShell("input", "keyevent", "224");
-      inputKeyEvent(224);
-      while (0 < times--) {
-        if (isDisplayOn()) {
-          return;
-        } else {
-          Commons.pause(0.25f);
-        }
-      }
-    } catch (Exception e) {
-      log(-1, "wakeUp: did not work: %s", e);
-    }
-    log(-1, "wakeUp: timeout: %d seconds", seconds);
+    // KEYCODE_WAKEUP (224) is idempotent: it wakes the screen if asleep and is a
+    // no-op if it is already on (unlike KEYCODE_POWER, it never sleeps). So there
+    // is no need to read the screen state via dumpsys first — just send it.
+    // `seconds` is kept for API compatibility; the old dumpsys-polling loop is
+    // gone now that the wake is deterministic.
+    inputKeyEvent(224);
+    Commons.pause(0.5f);
   }
 
   public Boolean isDisplayOn() {

@@ -140,15 +140,11 @@ public class ADBScreen extends Region implements EventObserver, IScreen {
     if (null == device) {
       return;
     }
-    if (null == device.isDisplayOn()) {
-      Debug.log(-1, "wakeUp: not possible - see log");
-      return;
-    }
-    if (!device.isDisplayOn()) {
-      device.wakeUp(seconds);
-      if (needsUnLock) {
-        aSwipeUp();
-      }
+    // KEYCODE_WAKEUP is idempotent (see ADBDevice.wakeUp), so there is no need to
+    // read the screen state first — wake unconditionally, then unlock if required.
+    device.wakeUp(seconds);
+    if (needsUnLock) {
+      aSwipeUp();
     }
   }
 
