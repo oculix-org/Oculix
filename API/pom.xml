@@ -50,12 +50,12 @@
     <sikuli.jartype>plain.xml</sikuli.jartype>
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
+    <apertix.opencv.version>4.10.0-3</apertix.opencv.version>
     <legerix.version>5.5.0-8</legerix.version>
     <versiontess4j>5.18.0</versiontess4j>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd_HH:mm</maven.build.timestamp.format>
     <!--suppress UnresolvedMavenProperty -->
-    <buildnumber>${env.GITHUB_RUN_NUMBER}</buildnumber>
   </properties>
 
   <dependencies>
@@ -89,7 +89,7 @@
     <dependency>
       <groupId>io.github.julienmerconsulting.apertix</groupId>
       <artifactId>opencv</artifactId>
-      <version>4.10.0-3</version>
+      <version>${apertix.opencv.version}</version>
       <!-- https://github.com/julienmerconsulting/Apertix
            4.10.0-3 ships dual Linux native builds: modern (glibc >= 2.38) at
            linux-{x86-64,aarch64}/ and legacy (manylinux_2_28, glibc >= 2.28)

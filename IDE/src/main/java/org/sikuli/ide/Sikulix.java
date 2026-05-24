@@ -72,6 +72,7 @@ public class Sikulix {
       System.exit(0);
     }
 
+    //TODO 
     Commons.initOptions();
 
     Commons.globals().setOption("SX_LOCALE", SikuliIDEI18N.getLocaleShow());
@@ -156,49 +157,47 @@ public class Sikulix {
     // abrupt termination can leave the splash window on top indefinitely.
     Runtime.getRuntime().addShutdownHook(new Thread(Sikulix::stopSplash, "oculix-splash-closer"));
 
-    if (!Commons.hasOption(MULTI)) {
-      File isRunning = new File(Commons.getTempFolder(), "s_i_k_u_l_i-ide-isrunning");
-      FileOutputStream isRunningFile = null;
-      boolean shouldTerminate = false;
-      String terminateMsg = null;
+    File isRunning = new File(Commons.getTempFolder(), "s_i_k_u_l_i-ide-isrunning");
+    FileOutputStream isRunningFile = null;
+    boolean shouldTerminate = false;
+    String terminateMsg = null;
 
-      // Stale-lock recovery: OS releases file locks when a process dies, so if
-      // the file is still on disk it is either a live IDE or a killed-JVM
-      // leftover (typical after Ctrl+C). Try to delete it first - delete will
-      // succeed only if no live process still has the file open.
-      if (isRunning.exists() && !isRunning.delete()) {
-        // File still open by a live process - give it a short moment (dying
-        // JVM may take a beat to release handles on Windows) and retry once.
-        try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
-        isRunning.delete();
-      }
+    // Stale-lock recovery: OS releases file locks when a process dies, so if
+    // the file is still on disk it is either a live IDE or a killed-JVM
+    // leftover (typical after Ctrl+C). Try to delete it first - delete will
+    // succeed only if no live process still has the file open.
+    if (isRunning.exists() && !isRunning.delete()) {
+      // File still open by a live process - give it a short moment (dying
+      // JVM may take a beat to release handles on Windows) and retry once.
+      try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
+      isRunning.delete();
+    }
 
-      try {
-        isRunning.createNewFile();
-        isRunningFile = new FileOutputStream(isRunning);
-        if (null == isRunningFile.getChannel().tryLock()) {
-          terminateMsg = "Terminating: another IDE instance is already running";
-          shouldTerminate = true;
-        } else {
-          Commons.setIsRunning(isRunning, isRunningFile);
-        }
-      } catch (Exception ex) {
-        terminateMsg = "Terminating on FatalError: cannot access IDE lock\n"
-            + isRunning + "\n" + ex.getMessage();
+    try {
+      isRunning.createNewFile();
+      isRunningFile = new FileOutputStream(isRunning);
+      if (null == isRunningFile.getChannel().tryLock()) {
+        terminateMsg = "Terminating: another IDE instance is already running";
         shouldTerminate = true;
+      } else {
+        Commons.setIsRunning(isRunning, isRunningFile);
       }
-      if (shouldTerminate) {
-        // Dismiss the splash BEFORE showing the popup - otherwise the top-most
-        // splash hides the error dialog and the user only sees a stuck splash.
-        stopSplash();
-        SX.popError(terminateMsg);
-        System.exit(1);
-      }
-      for (String aFile : Commons.getTempFolder().list()) {
-        if ((aFile.startsWith("Sikulix"))
-            || (aFile.startsWith("jffi") && aFile.endsWith(".tmp"))) {
-          FileManager.deleteFileOrFolder(new File(Commons.getTempFolder(), aFile));
-        }
+    } catch (Exception ex) {
+      terminateMsg = "Terminating on FatalError: cannot access IDE lock\n"
+          + isRunning + "\n" + ex.getMessage();
+      shouldTerminate = true;
+    }
+    if (shouldTerminate) {
+      // Dismiss the splash BEFORE showing the popup - otherwise the top-most
+      // splash hides the error dialog and the user only sees a stuck splash.
+      stopSplash();
+      SX.popError(terminateMsg);
+      System.exit(1);
+    }
+    for (String aFile : Commons.getTempFolder().list()) {
+      if ((aFile.startsWith("Sikulix"))
+          || (aFile.startsWith("jffi") && aFile.endsWith(".tmp"))) {
+        FileManager.deleteFileOrFolder(new File(Commons.getTempFolder(), aFile));
       }
     }
 

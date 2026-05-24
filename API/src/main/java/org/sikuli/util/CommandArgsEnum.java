@@ -60,10 +60,6 @@ public enum CommandArgsEnum {
 	 * run the server for Python
 	 */
 	PYTHONSERVER("pythonserver", "p", "Python support", "use SikuliX features from Python"),
-	/**
-	 * allow multiple IDE
-	 */
-	MULTI("multi", "m", "more than one IDE", "two or more IDE instances are allowed"),
 
 	/**
 	 * allow multiple IDE
