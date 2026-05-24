@@ -130,6 +130,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
       initAbort();
+      redirectToCurrentConsole();
       jythonSupport.interpreterExecString(script);
       return 0;
     }
@@ -149,6 +150,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
       initAbort();
+      redirectToCurrentConsole();
 
       File pyFile = new File(scriptFile);
 
@@ -198,6 +200,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
       initAbort();
+      redirectToCurrentConsole();
       jythonSupport.executeScriptHeader(codeBefore);
 
       try {
@@ -241,6 +244,31 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       }
       return true;
     }
+  }
+
+  /**
+   * Re-point Jython's {@code sys.stdout} / {@code sys.stderr} at the IDE's
+   * <em>current</em> {@code System.out} / {@code System.err} right before every
+   * run.
+   *
+   * <p>The one-shot startup redirect ({@code EditorConsolePane.initRedirect()} →
+   * {@code srunner.redirect(null,null)}) fires at {@code SikulixIDE} l.410, i.e.
+   * <em>before</em> the Jython interpreter exists: "IDE ready" precedes
+   * "Jython ready" by ~0.5s (see the startup log), so at redirect time
+   * {@code interpreter == null} and {@code interpreterRedirect} is a no-op.
+   * Nothing re-applied it afterwards, so {@code print} stayed bound to the JVM's
+   * original terminal stdout, while {@code Debug.on(3)} — routed through
+   * {@code System.out} at call time — correctly reached the Messages pane. That
+   * is the print/debug asymmetry reported in #272 and re-surfaced in #273.
+   *
+   * <p>Re-applying here, when both invariants hold (the interpreter exists AND
+   * {@code System.out} is the Messages-pane pipe in the IDE / the real stdout in
+   * CLI mode), guarantees {@code print} lands where the IDE is actually listening
+   * on every OS and every run — not just on the run that happens to win the
+   * warm-up race. Idempotent and cheap (two {@code setOut/setErr} calls).
+   */
+  private void redirectToCurrentConsole() {
+    jythonSupport.interpreterRedirect(System.out, System.err);
   }
   //</editor-fold>
 
