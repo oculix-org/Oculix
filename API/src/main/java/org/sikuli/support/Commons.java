@@ -57,9 +57,13 @@ public class Commons {
   private static String sxVersionShort;
   private static String sxBuild;
   private static String sxBuildStamp;
-  private static String sxBuildNumber;
 
   private static String sxversiontess4j;
+  private static String sxversionapertix;
+  private static String sxversionlegerix;
+
+  private static String sxversionjython;
+  private static String sxversionjruby;
 
   private static final String osName = System.getProperty("os.name").toLowerCase();
   private static final String osVersion = System.getProperty("os.version").toLowerCase();
@@ -171,28 +175,23 @@ public class Commons {
       String msg = String.format("SikuliX fatal Error: load did not work: %s (%s)", svf, e.getMessage());
       throw new SikuliXception(msg);
     }
-    //    sikulixvproject=2.0.0  or 2.1.0-SNAPSHOT
+    //    sikulixvproject=2.0.0....
     sxVersion = sxProps.getProperty("sikulixvproject");
     //    sikulixbuild=2019-10-17_09:58
     sxBuild = sxProps.getProperty("sikulixbuild");
     sxBuildStamp = sxBuild
         .replace("_", "").replace("-", "").replace(":", "")
         .substring(0, 12);
-    //    sikulixbuildnumber= BE-AWARE: only real in deployed artefacts (TravisCI)
-    //    in development context undefined:
-    sxBuildNumber = sxProps.getProperty("sikulixbuildnumber");
-    if (sxBuildNumber.contains("TRAVIS_BUILD_NUMBER")) {
-      sxBuildNumber = "";
-    }
 
-    if (sxBuildNumber.isEmpty()) {
-      sxVersionLong = sxVersion + String.format("-%s", sxBuildStamp);
-    } else {
-      sxVersionLong = sxVersion + String.format("-#%s-%s", sxBuildNumber, sxBuildStamp);
-    }
+    sxVersionLong = sxVersion + String.format("-%s", sxBuildStamp);
     sxVersionShort = sxVersion.replace("-SNAPSHOT", "");
 
     sxversiontess4j = sxProps.getProperty("versiontess4j");
+    sxversionapertix = sxProps.getProperty("versionapertixopencv");
+    sxversionlegerix = sxProps.getProperty("versionlegerix");
+
+    sxversionjython = sxProps.getProperty("versionjython");
+    sxversionjruby = sxProps.getProperty("versionjruby");
 
     Runtime.getRuntime().addShutdownHook(new Thread() {
       @Override
@@ -648,23 +647,28 @@ public class Commons {
     return sxVersionShort;
   }
 
-  public static String getSXBuild() {
-    return sxBuild;
-  }
-
   public static String getSxBuildStamp() {
     return sxBuildStamp;
   }
 
-  public static String getSXBuildNumber() {
-    if (sxBuildNumber.isEmpty()) {
-      return "dev";
-    }
-    return sxBuildNumber;
-  }
-
   public static String getSXVersionTess4j() {
     return sxversiontess4j;
+  }
+
+  public static String getSXVersionLegerix() {
+    return sxversionlegerix;
+  }
+
+  public static String getSXVersionApertix() {
+    return sxversionapertix;
+  }
+
+  public static String getSXVersionJython() {
+    return sxversionjython;
+  }
+
+  public static String getSXVersionJRuby() {
+    return sxversionjruby;
   }
 
   public static boolean hasVersionFile(File folder) {
