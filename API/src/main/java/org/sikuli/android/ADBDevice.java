@@ -318,28 +318,62 @@ public class ADBDevice {
     return null;
   }
 
-private Dimension getDisplayDimension() {
+  private Dimension getDisplayDimension() {
+    // Primary: `wm size` — a small, stable "Physical size: WxH" contract that
+    // holds across Android versions and on emulators (LDPlayer, BlueStacks, ...)
+    // where the `dumpsys display` layout varies wildly and the
+    // deviceWidth/deviceHeight keys are often absent (issue #229).
+    Dimension dim = parseWmSize(exec("wm", "size"));
+    if (dim != null) {
+      return dim;
+    }
+
+    // Fallback only: the legacy `dumpsys display` parse, kept as a safety net
+    // for exotic ROMs where `wm size` returns nothing. `dumpsys display` has no
+    // stable output contract — which is exactly why it is no longer the primary.
     String dump = dumpsys("display");
-    Dimension dim = null;
     // Android < 12
-    Pattern p1 = Pattern.compile(
-        "mDefaultViewport.*?deviceWidth=(\\d+).*?deviceHeight=(\\d+)");
+    Pattern p1 = Pattern.compile("mDefaultViewport.*?deviceWidth=(\\d+).*?deviceHeight=(\\d+)");
     // Android 12+
-    Pattern p2 = Pattern.compile(
-        "deviceWidth=(\\d+).*?deviceHeight=(\\d+)");
+    Pattern p2 = Pattern.compile("deviceWidth=(\\d+).*?deviceHeight=(\\d+)");
     Matcher match = p1.matcher(dump);
     if (!match.find()) {
-        match = p2.matcher(dump);
+      match = p2.matcher(dump);
     }
     if (match.find()) {
-        int w = Integer.parseInt(match.group(1));
-        int h = Integer.parseInt(match.group(2));
-        dim = new Dimension(w, h);
-    } else {
-        log(-1, "getDisplayDimension: could not detect device dimensions");
+      return new Dimension(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)));
     }
-    return dim;
-}
+
+    log(-1, "getDisplayDimension: could not detect device dimensions (wm size + dumpsys display both failed)");
+    return null;
+  }
+
+  /**
+   * Parse the output of {@code adb shell wm size}:
+   * <pre>
+   *   Physical size: 1080x2400
+   *   Override size: 720x1600     (optional - wins when present)
+   * </pre>
+   *
+   * @return the display dimension, or {@code null} if the output is empty or
+   *         contains no parseable size line.
+   */
+  private Dimension parseWmSize(String wmOutput) {
+    if (wmOutput == null || wmOutput.isEmpty()) {
+      return null;
+    }
+    // An override (e.g. set via `wm size WxH`) reflects the actually rendered
+    // surface, so it takes precedence over the physical panel size.
+    Matcher override = Pattern.compile("Override size:\\s*(\\d+)x(\\d+)").matcher(wmOutput);
+    if (override.find()) {
+      return new Dimension(Integer.parseInt(override.group(1)), Integer.parseInt(override.group(2)));
+    }
+    Matcher physical = Pattern.compile("Physical size:\\s*(\\d+)x(\\d+)").matcher(wmOutput);
+    if (physical.find()) {
+      return new Dimension(Integer.parseInt(physical.group(1)), Integer.parseInt(physical.group(2)));
+    }
+    return null;
+  }
 
   public String exec(String command, String... args) {
     String out = "";
