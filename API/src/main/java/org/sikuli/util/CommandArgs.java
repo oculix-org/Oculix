@@ -59,8 +59,6 @@ public class CommandArgs {
 
     cmdArgs.addOption(makeOption(CommandArgsEnum.HELP));
 
-    cmdArgs.addOption(makeOption(CommandArgsEnum.MULTI));
-
     cmdArgs.addOption(makeOption(CommandArgsEnum.VERBOSE));
 
     cmdArgs.addOption(makeOption(CommandArgsEnum.QUIET));
