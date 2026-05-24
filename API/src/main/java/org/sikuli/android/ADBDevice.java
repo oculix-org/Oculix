@@ -79,7 +79,9 @@ public class ADBDevice {
       } else {
         adbDevice.initDevice(adbDevice);
         adbDevice.adbExec = ADBClient.getADB();
-        Commons.loadOpenCV();
+        // OpenCV is loaded lazily on first screen-capture call (see
+        // captureDeviceScreenMat). Skipping it here keeps init() lightweight
+        // for use cases that only need input/keyevent/swipe — no image work.
       }
     }
     return adbDevice;
@@ -93,7 +95,8 @@ public class ADBDevice {
       } else {
         adbDevice.initDevice(adbDevice);
         adbDevice.adbExec = ADBClient.getADB();
-        Commons.loadOpenCV();
+        // OpenCV is loaded lazily on first screen-capture call — see comment
+        // in init() above.
       }
     return adbDevice;
   }
@@ -185,6 +188,9 @@ public class ADBDevice {
   }
 
   public Mat captureDeviceScreenMat(int x, int y, int actW, int actH) {
+    // Lazy-load OpenCV — only the screen-capture path needs the native lib.
+    // Idempotent: Commons.loadOpenCV() short-circuits if already loaded.
+    Commons.loadOpenCV();
     log(lvl, "captureDeviceScreenMat: enter: [%d,%d %dx%d]", x, y, actW, actH);
     byte[] imagePrefix = new byte[12];
     byte[] image = new byte[0];
@@ -448,7 +454,7 @@ private Dimension getDisplayDimension() {
     try {
       device.executeShell("input", "keyevent", Integer.toString(key));
     } catch (Exception e) {
-      log(-1, "inputKeyEvent: %d did not work: %s", e.getMessage());
+      log(-1, "inputKeyEvent: %d did not work: %s", key, e.getMessage());
     }
   }
 
@@ -461,11 +467,68 @@ private Dimension getDisplayDimension() {
   }
 
   public void swipe(int x1, int y1, int x2, int y2) {
+    swipe(x1, y1, x2, y2, 0);
+  }
+
+  /**
+   * Swipe gesture from (x1, y1) to (x2, y2) with optional duration.
+   *
+   * @param durationMs swipe duration in milliseconds; pass 0 to use the Android
+   *                   default (~150 ms). Typical UI swipes use 200-400 ms.
+   *                   Values above ~500 ms are interpreted as a drag by most
+   *                   apps and may be intercepted — use {@link #dragAndDrop}
+   *                   for intentional drag gestures.
+   */
+  public void swipe(int x1, int y1, int x2, int y2, int durationMs) {
     try {
-      device.executeShell("input swipe", Integer.toString(x1), Integer.toString(y1),
-              Integer.toString(x2), Integer.toString(y2));
+      if (durationMs > 0) {
+        device.executeShell("input swipe",
+                Integer.toString(x1), Integer.toString(y1),
+                Integer.toString(x2), Integer.toString(y2),
+                Integer.toString(durationMs));
+      } else {
+        device.executeShell("input swipe",
+                Integer.toString(x1), Integer.toString(y1),
+                Integer.toString(x2), Integer.toString(y2));
+      }
     } catch (IOException | JadbException e) {
       log(-1, "swipe: %s", e);
+    }
+  }
+
+  /**
+   * Drag-and-drop gesture from (x1, y1) to (x2, y2) — touch + hold +
+   * move + release. The initial press-hold distinguishes this from a
+   * regular swipe and is required to move draggable UI elements
+   * (home-screen icons, list reordering, file managers, etc.).
+   * <p>
+   * Requires Android 10+ (API 29). On older versions Android will
+   * return an error and the gesture will be logged as failed.
+   */
+  public void dragAndDrop(int x1, int y1, int x2, int y2) {
+    dragAndDrop(x1, y1, x2, y2, 0);
+  }
+
+  /**
+   * Drag-and-drop gesture with optional duration.
+   *
+   * @param durationMs drag duration in milliseconds; pass 0 to use the
+   *                   Android default. Typical drags use 500-1500 ms.
+   */
+  public void dragAndDrop(int x1, int y1, int x2, int y2, int durationMs) {
+    try {
+      if (durationMs > 0) {
+        device.executeShell("input draganddrop",
+                Integer.toString(x1), Integer.toString(y1),
+                Integer.toString(x2), Integer.toString(y2),
+                Integer.toString(durationMs));
+      } else {
+        device.executeShell("input draganddrop",
+                Integer.toString(x1), Integer.toString(y1),
+                Integer.toString(x2), Integer.toString(y2));
+      }
+    } catch (IOException | JadbException e) {
+      log(-1, "dragAndDrop: %s", e);
     }
   }
 
