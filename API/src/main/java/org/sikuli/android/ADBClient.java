@@ -165,6 +165,13 @@ public class ADBClient {
     if (id < 0) {
       return null;
     }
+    // Lazy-connect so multi-session callers (new ADBScreen(0), new ADBScreen(1),
+    // ...) work without a prior start()/init(String). One jadb connection to the
+    // local adb server already serves every attached device, so sharing it across
+    // sessions is correct. init("") establishes it and is a no-op once connected.
+    if (jadb == null) {
+      init("");
+    }
     List<JadbDevice> devices;
     JadbDevice device = null;
     try {
