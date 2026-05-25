@@ -91,45 +91,64 @@ def parse_properties_keys(path: Path) -> dict[str, str]:
     return out
 
 
-def merge_locale(locale_suffix: str, dry_run: bool) -> tuple[int, int]:
-    """Merge staging into live for one locale. Returns (added, skipped)."""
+def merge_locale(locale_suffix: str, dry_run: bool,
+                 overwrite: bool = False) -> tuple[int, int, int]:
+    """Merge staging into live for one locale. Returns (added, updated, skipped).
+
+    Default (additive — the peixuana-safe rule): only keys ABSENT from live
+    are appended; existing live keys are never touched (protects native review
+    work from being clobbered by re-run auto-translation).
+
+    overwrite=True (--overwrite): an UPSERT / diff for promoting a *validated
+    native review*. For each staging key:
+      - present in live AND value differs → UPDATED in place
+      - absent from live                  → ADDED (appended)
+    Crucially this is a diff, NOT a replace: live keys that are NOT in the
+    staging are kept verbatim (comments + ordering too). The live bundle never
+    shrinks to the staging's contents — it only gains keys or fixes values.
+    """
     staging = STAGING_DIR / f"IDE_{locale_suffix}.properties"
     live = LIVE_DIR / f"IDE_{locale_suffix}.properties"
 
     if not staging.exists():
         print(f"  [{locale_suffix:>6}] no staging file, skip")
-        return 0, 0
+        return 0, 0, 0
 
     staging_keys = parse_properties_keys(staging)
     live_keys = parse_properties_keys(live) if live.exists() else {}
 
     missing = [k for k in staging_keys if k not in live_keys]
-    skipped = len(staging_keys) - len(missing)
+    common = [k for k in staging_keys if k in live_keys]
+    # Additive mode never updates; overwrite updates only where the value
+    # actually changed (avoids churn on identical keys).
+    to_update = ([k for k in common if staging_keys[k] != live_keys[k]]
+                 if overwrite else [])
+    skipped = len(common) - len(to_update)
 
-    if not missing:
-        print(f"  [{locale_suffix:>6}] {len(staging_keys)} staging keys, all already in live, nothing to add")
-        return 0, skipped
+    if not missing and not to_update:
+        print(f"  [{locale_suffix:>6}] {len(staging_keys)} staging keys, "
+              f"nothing to add/update")
+        return 0, 0, skipped
 
     if dry_run:
-        print(f"  [{locale_suffix:>6}] DRY-RUN would add {len(missing)} keys, skip {skipped} duplicates")
-        return 0, skipped
+        print(f"  [{locale_suffix:>6}] DRY-RUN +{len(missing)} add, "
+              f"~{len(to_update)} update, {skipped} skip")
+        return 0, 0, skipped
 
-    # Append new keys to the live bundle, preserving existing content.
-    # Add a banner so future readers know which block was machine-promoted.
-    block = []
-    block.append("")
-    block.append("# ── Auto-translated keys promoted from translation/ (Phase 1 i18n)")
-    block.append("# ── Native-speaker corrections welcome via the GitHub")
-    block.append("# ── 'i18n-Languages' issue tracker / Translation issue template.")
-    for k in missing:
-        block.append(f"{k}={java_encode(staging_keys[k])}")
-
+    # 1) Start from the EXISTING live content and update changed keys IN PLACE.
+    #    Comments, ordering and live-only keys are preserved verbatim — the
+    #    file is rebuilt line-by-line, never replaced by the staging.
+    update_set = set(to_update)
     if live.exists():
-        existing = live.read_text(encoding="utf-8").rstrip("\n")
-        new_content = existing + "\n" + "\n".join(block) + "\n"
+        body_lines = live.read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(body_lines):
+            m = _KV_RE.match(line)
+            if m and m.group("key").strip() in update_set:
+                k = m.group("key").strip()
+                body_lines[i] = f"{k}={java_encode(staging_keys[k])}"
     else:
         # Brand-new locale (e.g. hi/bn/te) — write a header from scratch.
-        header = [
+        body_lines = [
             "#",
             "# Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license",
             "#",
@@ -137,14 +156,23 @@ def merge_locale(locale_suffix: str, dry_run: bool) -> tuple[int, int]:
             "# Source: IDE_en_US.properties via Google Translate",
             "# Native-speaker corrections welcome via the i18n-Languages issue tracker.",
             "#",
-            "",
         ]
-        new_content = "\n".join(header) + "\n".join(block) + "\n"
 
+    # 2) Append the keys that are genuinely missing from live, under a banner.
+    if missing:
+        body_lines.append("")
+        body_lines.append("# ── Auto-translated keys promoted from translation/ (Phase 1 i18n)")
+        body_lines.append("# ── Native-speaker corrections welcome via the GitHub")
+        body_lines.append("# ── 'i18n-Languages' issue tracker / Translation issue template.")
+        for k in missing:
+            body_lines.append(f"{k}={java_encode(staging_keys[k])}")
+
+    new_content = "\n".join(body_lines).rstrip("\n") + "\n"
     live.parent.mkdir(parents=True, exist_ok=True)
     live.write_text(new_content, encoding="utf-8")
-    print(f"  [{locale_suffix:>6}] +{len(missing)} keys (skipped {skipped} duplicates)")
-    return len(missing), skipped
+    print(f"  [{locale_suffix:>6}] +{len(missing)} added, ~{len(to_update)} "
+          f"updated, {skipped} unchanged")
+    return len(missing), len(to_update), skipped
 
 
 def main() -> int:
@@ -156,6 +184,14 @@ def main() -> int:
     parser.add_argument("--dry-run",
                         action="store_true",
                         help="Preview what would change without writing files")
+    parser.add_argument("--overwrite",
+                        action="store_true",
+                        help="UPSERT mode for a VALIDATED native review: also "
+                             "UPDATE existing live keys whose value changed in "
+                             "staging (in place), on top of adding missing ones. "
+                             "Live-only keys are kept verbatim — the file never "
+                             "shrinks. Default is additive-only (existing keys "
+                             "untouched, the peixuana-safe rule).")
     args = parser.parse_args()
 
     if not STAGING_DIR.is_dir():
@@ -181,12 +217,16 @@ def main() -> int:
     print(f"Merging {len(targets)} locale(s) from {STAGING_DIR}/ into {LIVE_DIR}/\n")
 
     total_added = 0
+    total_updated = 0
     for loc in targets:
-        added, _ = merge_locale(loc, args.dry_run)
+        added, updated, _ = merge_locale(loc, args.dry_run, args.overwrite)
         total_added += added
+        total_updated += updated
 
     suffix = " (dry-run)" if args.dry_run else ""
-    print(f"\nDone — {total_added} keys promoted across {len(targets)} locales{suffix}")
+    mode = "overwrite/upsert" if args.overwrite else "additive"
+    print(f"\nDone [{mode}] — {total_added} added, {total_updated} updated "
+          f"across {len(targets)} locales{suffix}")
     return 0
 
 
