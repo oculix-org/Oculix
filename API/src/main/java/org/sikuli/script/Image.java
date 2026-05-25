@@ -1041,6 +1041,7 @@ public class Image extends Element {
               images.size(), (int) (currentMemory / KB),
               (int) (100 * currentMemory / maxMemory), (int) (maxMemory / MB));
         }
+        seedLastSeenFromChunk();
       } else {
         log(-1, "invalid! not loaded! %s", fileURL);
       }
@@ -1199,6 +1200,108 @@ public class Image extends Element {
     this.lastScore = sim;
     return this;
   }
+
+  // <editor-fold desc="#353 persistent lastSeen — oPLx PNG ancillary chunk">
+  private static final String LASTSEEN_CHUNK = "oPLx";
+  private static final byte[] LASTSEEN_MAGIC = {'O', 'P', 'L', 0};
+  private static final short LASTSEEN_VERSION = 1;
+
+  /**
+   * Like {@link #setLastSeen(Rectangle, double)} but also persists the position
+   * into the source PNG as an {@code oPLx} ancillary chunk (#353), so the next
+   * cold-start process seeds its ROI from disk instead of paying a full screen
+   * scan. Called by the find paths on a real match — NOT by {@link #load()}
+   * (which only seeds via {@link #seedLastSeenFromChunk()}), so loading never
+   * rewrites the file.
+   *
+   * <p>Writes only when the position actually changed and the file is a writable
+   * {@code file:} PNG — no churn, no crash on jar/read-only assets. Failures are
+   * swallowed: persistence is a pure speed optimisation, the find has already
+   * succeeded.
+   */
+  public Image setLastSeenAndPersist(Rectangle lastSeen, double sim) {
+    Rectangle previous = this.lastSeen;
+    setLastSeen(lastSeen, sim);
+    if (lastSeen != null && !lastSeen.equals(previous)) {
+      try {
+        java.io.File png = fileForChunk();
+        if (png != null && png.canWrite()) {
+          java.nio.ByteBuffer buf = java.nio.ByteBuffer.allocate(34);
+          buf.put(LASTSEEN_MAGIC);
+          buf.putShort(LASTSEEN_VERSION);
+          buf.putInt(lastSeen.x);
+          buf.putInt(lastSeen.y);
+          buf.putInt(lastSeen.width);
+          buf.putInt(lastSeen.height);
+          buf.putLong(System.currentTimeMillis());
+          buf.putInt(0); // runs — reserved for the future history API
+          org.sikuli.support.PngChunk.write(png, LASTSEEN_CHUNK, buf.array());
+        }
+      } catch (Exception e) {
+        // optimisation only — never break a successful find on a write issue
+      }
+    }
+    return this;
+  }
+
+  /**
+   * Seed {@link #lastSeen} from the {@code oPLx} chunk of the source PNG, if
+   * present (#353). Called once at {@link #load()} time. Read-only: scans chunk
+   * headers, never decodes pixels, never writes. Any problem (no chunk, not a
+   * {@code file:} PNG, malformed) leaves {@code lastSeen} untouched and the
+   * normal full-scan path applies.
+   */
+  private void seedLastSeenFromChunk() {
+    try {
+      java.io.File png = fileForChunk();
+      if (png == null) {
+        return;
+      }
+      byte[] data = org.sikuli.support.PngChunk.read(png, LASTSEEN_CHUNK);
+      if (data == null || data.length < 34) {
+        return;
+      }
+      java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(data);
+      byte[] magic = new byte[4];
+      buf.get(magic);
+      if (!java.util.Arrays.equals(magic, LASTSEEN_MAGIC)) {
+        return;
+      }
+      if (buf.getShort() != LASTSEEN_VERSION) {
+        return;
+      }
+      int x = buf.getInt();
+      int y = buf.getInt();
+      int rw = buf.getInt();
+      int rh = buf.getInt();
+      if (rw > 0 && rh > 0) {
+        setLastSeen(new Rectangle(x, y, rw, rh), 1.0);
+      }
+    } catch (Exception e) {
+      // never let chunk handling break image loading
+    }
+  }
+
+  /**
+   * The source file as a writable-PNG candidate for the {@code oPLx} chunk, or
+   * {@code null} when the image is not a {@code file:} PNG (jar resource, http,
+   * non-png) — persistence is then silently skipped.
+   */
+  private java.io.File fileForChunk() {
+    if (fileURL == null || !"file".equals(fileURL.getProtocol())) {
+      return null;
+    }
+    String path = fileURL.getPath();
+    if (path == null || !path.toLowerCase().endsWith(".png")) {
+      return null;
+    }
+    try {
+      return new java.io.File(fileURL.toURI());
+    } catch (Exception e) {
+      return null;
+    }
+  }
+  // </editor-fold>
   //</editor-fold>
 
   //<editor-fold desc="10 raster">
