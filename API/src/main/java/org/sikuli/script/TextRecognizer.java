@@ -341,6 +341,15 @@ public class TextRecognizer {
 
     float rFactor = options.factor();
 
+    // OCR perf: the default factor (~x2) targets small UI text. On a large, full-screen
+    // search region it would explode the image to ~4K -> Tesseract LSTM ~10s. Measured:
+    // a 0.8 downscale stays stable on screen text and is ~2x faster. So for large images
+    // (>1 MP, i.e. full-screen-scale searches — findText, where you cannot know the
+    // location a priori) cap to 0.8 instead of upscaling. Small regions keep the upscale.
+    if ((long) mimg.cols() * mimg.rows() > 1_000_000L) {
+      rFactor = 0.8f;
+    }
+
     if (rFactor > 0 && rFactor != 1) {
       Commons.resize(mimg, rFactor, options.resizeInterpolation());
     }
