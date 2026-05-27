@@ -1,0 +1,98 @@
+name: OCR perf bench
+
+# Runs the OCR.readWords benchmark (OcrPerfBench) on a committed full-HD
+# screenshot of a GitHub issue page. Useful as a perf signal across changes
+# to TextRecognizer / Commons / Legerix Tesseract bundling.
+#
+# Triggers:
+#   - push  : when the OCR pipeline files OR the bench harness/image change
+#   - PR    : same path filter, so reviewers see the perf delta on touch
+#   - manual: workflow_dispatch (also requires the YAML on the default branch
+#             to be selectable from the UI; on a non-default branch it
+#             auto-triggers via push only).
+#
+# Reports min/median/max OCR time + word count + average confidence,
+# and uploads the dumped text output as an artifact for diffing.
+
+on:
+  push:
+    paths:
+      - 'API/src/main/java/org/sikuli/script/OCR.java'
+      - 'API/src/main/java/org/sikuli/script/TextRecognizer.java'
+      - 'API/src/main/java/org/sikuli/support/Commons.java'
+      - 'API/src/test/java/bench/OcrPerfBench.java'
+      - 'API/src/test/resources/bench/**'
+      - '.github/workflows/ocr-perf-bench.yml'
+  pull_request:
+    paths:
+      - 'API/src/main/java/org/sikuli/script/OCR.java'
+      - 'API/src/main/java/org/sikuli/script/TextRecognizer.java'
+      - 'API/src/main/java/org/sikuli/support/Commons.java'
+      - 'API/src/test/java/bench/OcrPerfBench.java'
+      - 'API/src/test/resources/bench/**'
+  workflow_dispatch:
+
+jobs:
+  bench:
+    name: bench (ubuntu-latest, Java 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Show CPU info (context for perf numbers)
+        run: |
+          echo "::group::CPU"
+          lscpu | grep -E 'Model name|CPU\(s\):|MHz|cache' || true
+          echo "::endgroup::"
+          echo "::group::Memory"
+          free -h
+          echo "::endgroup::"
+
+      - name: Build API (skip tests of other modules)
+        run: mvn -B -pl API test-compile -DskipTests
+        # -B = batch mode (no progress noise), test-compile so the bench
+        # picks up changes in API/src/main/java/
+
+      - name: Run OCR bench (uses /bench/bench_screen.png from classpath)
+        run: |
+          mvn -B -pl API test \
+            -Dtest=OcrPerfBench \
+            -Dbench.label=ci \
+            -Dsurefire.useFile=false \
+            -Djava.awt.headless=true
+        # Headless OK because the harness loads the committed PNG from
+        # the classpath (src/test/resources/bench/) and never reaches
+        # the Robot.createScreenCapture() path.
+
+      - name: Summarise bench result
+        if: always()
+        run: |
+          if [ -f API/.claude/tmp/bench_ci.txt ]; then
+            echo "## OCR perf bench result" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -3 API/.claude/tmp/bench_ci.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Full text dump uploaded as artifact \`bench-ci-output\`." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "::error::bench_ci.txt missing — bench did not produce output"
+          fi
+
+      - name: Upload bench artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-ci-output
+          path: API/.claude/tmp/bench_ci.txt
+          if-no-files-found: warn
+          retention-days: 30
