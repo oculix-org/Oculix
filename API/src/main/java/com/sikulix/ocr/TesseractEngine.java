@@ -21,6 +21,19 @@ import javax.imageio.ImageIO;
  */
 public class TesseractEngine implements OCREngine {
 
+    /**
+     * Optional custom tessdata directory. When non-null, calls go through
+     * {@code OCR.readWords(image, options)} with a cloned globalOptions whose
+     * dataPath is overridden. When null (default), uses {@code OCR.readWords(image)}
+     * which honours the global SikuliX OCR configuration (Legerix-bundled tessdata).
+     *
+     * <p>This is the ONLY engine-local customization point. All other Tesseract
+     * configuration (language, PSM, OEM, upscale factor, …) goes through the
+     * shared {@code OCR.globalOptions()} so engine and {@code Region.findText}
+     * stay coherent.
+     */
+    private String customDataPath = null;
+
     @Override
     public String getName() {
         return "tesseract";
@@ -30,6 +43,33 @@ public class TesseractEngine implements OCREngine {
     public boolean isAvailable() {
         // Tesseract is always available (bundled with SikuliX)
         return true;
+    }
+
+    /**
+     * Override the tessdata directory for this engine instance.
+     *
+     * <p>Use this when you need a custom set of {@code .traineddata} files
+     * (e.g. a fine-tuned model, an enriched language set, an air-gapped
+     * cache) without disturbing the global SikuliX OCR configuration that
+     * {@code Region.findText} relies on.
+     *
+     * <p>Pass {@code null} to revert to the default (Legerix-bundled tessdata
+     * resolved by {@code OCR.globalOptions()}).
+     *
+     * @param path absolute path to a {@code tessdata/} directory, or {@code null}
+     * @return this engine for chaining
+     */
+    public TesseractEngine setDataPath(String path) {
+        this.customDataPath = (path == null || path.trim().isEmpty()) ? null : path.trim();
+        return this;
+    }
+
+    /**
+     * @return the currently configured custom tessdata path, or {@code null}
+     *         if the engine uses the global SikuliX OCR default.
+     */
+    public String getDataPath() {
+        return customDataPath;
     }
 
     @Override
@@ -77,16 +117,28 @@ public class TesseractEngine implements OCREngine {
      */
     private String recognizeWithTesseract(BufferedImage image) {
         long startTime = System.currentTimeMillis();
+        // Build an Options override only when the caller asked for a custom
+        // dataPath. Otherwise stay on the no-args API so we transparently
+        // pick up everything the global OCR configuration carries
+        // (largeImageFactor, language, PSM, …).
+        org.sikuli.script.OCR.Options opts = null;
+        if (customDataPath != null) {
+            opts = org.sikuli.script.OCR.globalOptions().clone();
+            opts.dataPath(customDataPath);
+        }
         try {
             // Prefer readWords for bounding boxes (parity with Paddle output)
-            java.util.List<org.sikuli.script.Match> words =
-                org.sikuli.script.OCR.readWords(image);
+            java.util.List<org.sikuli.script.Match> words = (opts != null)
+                ? org.sikuli.script.OCR.readWords(image, opts)
+                : org.sikuli.script.OCR.readWords(image);
             double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
             return buildJsonFromMatches(words, elapsed);
         } catch (Throwable bbErr) {
             // Fallback to readText (no bounding boxes — dummy bbox in output JSON)
             try {
-                String text = org.sikuli.script.OCR.readText(image);
+                String text = (opts != null)
+                    ? org.sikuli.script.OCR.readText(image, opts)
+                    : org.sikuli.script.OCR.readText(image);
                 double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
                 return buildJsonFromText(text, elapsed);
             } catch (Throwable txtErr) {
