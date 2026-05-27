@@ -1,0 +1,112 @@
+name: OCR perf bench
+
+# Runs the OCR.readWords benchmark (OcrPerfBench) on a committed full-HD
+# screenshot of a GitHub issue page. Useful as a perf signal across changes
+# to TextRecognizer / Commons / Legerix Tesseract bundling.
+#
+# Triggers:
+#   - push  : when the OCR pipeline files OR the bench harness/image change
+#   - PR    : same path filter, so reviewers see the perf delta on touch
+#   - manual: workflow_dispatch (also requires the YAML on the default branch
+#             to be selectable from the UI; on a non-default branch it
+#             auto-triggers via push only).
+#
+# Reports min/median/max OCR time + word count + average confidence,
+# and uploads the dumped text output as an artifact for diffing.
+
+on:
+  push:
+    paths:
+      - 'API/src/main/java/org/sikuli/script/OCR.java'
+      - 'API/src/main/java/org/sikuli/script/TextRecognizer.java'
+      - 'API/src/main/java/org/sikuli/support/Commons.java'
+      - 'API/src/test/java/bench/OcrPerfBench.java'
+      - 'API/src/test/resources/bench/**'
+      - '.github/workflows/ocr-perf-bench.yml'
+  pull_request:
+    paths:
+      - 'API/src/main/java/org/sikuli/script/OCR.java'
+      - 'API/src/main/java/org/sikuli/script/TextRecognizer.java'
+      - 'API/src/main/java/org/sikuli/support/Commons.java'
+      - 'API/src/test/java/bench/OcrPerfBench.java'
+      - 'API/src/test/resources/bench/**'
+  workflow_dispatch:
+
+jobs:
+  bench:
+    name: bench (windows-latest, Java 17)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    # Windows runner because OculiX is overwhelmingly used to automate
+    # Windows UIs (RPA, desktop app testing, internal QA farms). Linux
+    # measurements would skew low and not match what real users see.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Show CPU + memory info (context for perf numbers)
+        shell: pwsh
+        run: |
+          Write-Host "::group::CPU"
+          Get-CimInstance -ClassName Win32_Processor |
+            Select-Object Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed |
+            Format-List
+          Write-Host "::endgroup::"
+          Write-Host "::group::Memory"
+          Get-CimInstance -ClassName Win32_OperatingSystem |
+            Select-Object @{n='TotalGB';e={[math]::Round($_.TotalVisibleMemorySize/1MB,1)}},
+                          @{n='FreeGB';e={[math]::Round($_.FreePhysicalMemory/1MB,1)}} |
+            Format-List
+          Write-Host "::endgroup::"
+
+      - name: Build API (skip tests of other modules)
+        shell: pwsh
+        run: mvn -B -pl API test-compile -DskipTests
+        # -B = batch mode (no progress noise), test-compile so the bench
+        # picks up changes in API/src/main/java/
+
+      - name: Run OCR bench (uses /bench/bench_screen.png from classpath)
+        shell: pwsh
+        run: |
+          mvn -B -pl API test `
+            -Dtest=OcrPerfBench `
+            "-Dbench.label=ci" `
+            "-Dsurefire.useFile=false" `
+            "-Djava.awt.headless=true"
+        # Headless OK because the harness loads the committed PNG from
+        # the classpath (src/test/resources/bench/) and never reaches
+        # the Robot.createScreenCapture() path.
+
+      - name: Summarise bench result
+        if: always()
+        shell: pwsh
+        run: |
+          $f = "API/.claude/tmp/bench_ci.txt"
+          if (Test-Path $f) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## OCR perf bench result (Windows)"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+            Get-Content -Path $f -TotalCount 3 |
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Full text dump uploaded as artifact ``bench-ci-output``."
+          } else {
+            Write-Host "::error::bench_ci.txt missing — bench did not produce output"
+          }
+
+      - name: Upload bench artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-ci-output
+          path: API/.claude/tmp/bench_ci.txt
+          if-no-files-found: warn
+          retention-days: 30
