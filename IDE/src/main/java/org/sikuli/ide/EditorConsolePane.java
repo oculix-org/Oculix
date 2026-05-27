@@ -27,6 +27,8 @@ import javax.swing.text.html.*;
 import org.sikuli.basics.Debug;
 import org.sikuli.support.runner.Runner;
 import org.sikuli.support.runner.IRunner;
+
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 //
 // A simple Java Console for your application (Swing version)
 // Requires Java 1.1.5 or higher
@@ -102,7 +104,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
     //Create the popup menu.
     popup = new JPopupMenu();
-    JMenuItem menuItem = new JMenuItem("Clear messages");
+    JMenuItem menuItem = new JMenuItem(_I("editorConsoleCtxClear"));
     // Add ActionListener that clears the textArea
     menuItem.addActionListener(new ActionListener() {
       public void actionPerformed(ActionEvent e) {

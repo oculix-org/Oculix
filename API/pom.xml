@@ -10,7 +10,7 @@
 
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculixapi</artifactId>
-  <version>3.0.3</version>
+  <version>3.0.4</version>
 
   <packaging>jar</packaging>
 
@@ -294,6 +294,15 @@
                 <manifest>
                   <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeapi-lux.xml</descriptor>

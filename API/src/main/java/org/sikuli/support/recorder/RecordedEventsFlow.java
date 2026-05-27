@@ -146,7 +146,7 @@ public class RecordedEventsFlow {
 
           if (keyText.length() > 1) {
             actions.add(new TypeKeyAction(keyText, modifiersTexts));
-          } else if (!modifiers.isEmpty() && characterWithModifiers == character) {
+          } else if (!modifiers.isEmpty() && java.util.Objects.equals(characterWithModifiers, character)) {
             actions.add(new TypeTextAction(keyText, modifiersTexts));
           } else {
             typedText.append(keyText);

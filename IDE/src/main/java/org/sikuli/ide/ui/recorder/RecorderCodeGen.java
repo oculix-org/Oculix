@@ -95,7 +95,7 @@ class RecorderCodeGen {
   }
 
   void generateVanish(JDialog parent, Pattern pattern, boolean appScoped, String appVarName) {
-    JCheckBox chkVanish = new JCheckBox("Assert UI change after this action (waitVanish)");
+    JCheckBox chkVanish = new JCheckBox(_I("recorderCodeGenAssertCheckbox"));
     JOptionPane.showMessageDialog(parent, chkVanish, _I("recorderCodeGenAssertionTitle"),
         JOptionPane.PLAIN_MESSAGE);
     if (chkVanish.isSelected()) {

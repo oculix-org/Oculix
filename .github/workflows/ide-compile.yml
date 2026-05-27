@@ -2,9 +2,21 @@ name: Compile IDE
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+      - release/oculix-rc
+    paths:
+      - 'API/**'
+      - 'IDE/**'
+      - 'pom.xml'
+      - '.github/workflows/ide-compile.yml'
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  ide-compile:
 
     runs-on: ubuntu-latest
 
@@ -16,4 +28,6 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     - name: Build with Maven
-      run: mvn -B -pl IDE compile | egrep -v "^\[INFO\].*?Download.*?http"
+      run: |
+        set -o pipefail
+        mvn -B -pl IDE -am compile | egrep -v "^\[INFO\].*?Download.*?http"

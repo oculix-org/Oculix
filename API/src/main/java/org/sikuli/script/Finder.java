@@ -1108,7 +1108,7 @@ public class Finder implements Iterator<Match> {
                     union(new Rectangle(wordsInLine.get(endText).getRect()));
                 rword.x += wordOrLine.x;
                 rword.y += wordOrLine.y;
-                double score = (wordsInLine.get(startText).getScore() + wordsInLine.get(startText).getScore()) / 2;
+                double score = (wordsInLine.get(startText).getScore() + wordsInLine.get(endText).getScore()) / 2;
                 String foundText = wordsInLine.get(startText).getText() + " ... " + wordsInLine.get(endText);
                 wordsMatch.add(new Match(rword, score, foundText, where));
               }

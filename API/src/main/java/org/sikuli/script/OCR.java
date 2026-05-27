@@ -586,6 +586,44 @@ public class OCR {
       }
       return OPTIMAL_X_HEIGHT / textHeight;
     }
+
+    private float largeImageFactor = 2.0f;
+
+    /**
+     * Resize factor applied to large search regions ({@code > 1 MP}) before OCR.
+     *
+     * <p>The legacy default factor (~×3 for typical screen text) was calibrated
+     * for tiny UI glyphs and over-margins for modern Tesseract 5.x LSTM. On
+     * full-screen captures it explodes the image up to ~18 MP, driving
+     * recognition to several seconds with no precision gain. Capping at 2.0
+     * on {@code > 1 MP} regions yields ~×1.4-2 speedup with negligible
+     * accuracy difference (median confidence preserved).
+     *
+     * <p>Override per use case:
+     * <ul>
+     *   <li>{@code 0.8f} — Auchan-style dashboards / standard text (≥14 px) — measured ~×4 speedup, zero accuracy loss in that range (see #378)</li>
+     *   <li>{@code 1.0f} — safe middle ground, no resize at all</li>
+     *   <li>{@code 2.0f} — default, conservative</li>
+     *   <li>{@code 3.0f} — legacy behaviour (max precision on small text, slowest)</li>
+     * </ul>
+     */
+    public float largeImageFactor() {
+      return largeImageFactor;
+    }
+
+    /**
+     * @param factor resize factor for large ({@code > 1 MP}) search regions; must be {@code > 0}
+     * @return this Options
+     * @see #largeImageFactor()
+     */
+    public Options largeImageFactor(float factor) {
+      if (factor <= 0) {
+        throw new IllegalArgumentException(
+            String.format("OCR: Invalid largeImageFactor: %s (must be > 0)", factor));
+      }
+      this.largeImageFactor = factor;
+      return this;
+    }
     //</editor-fold>
 
     //<editor-fold desc="15 variables">

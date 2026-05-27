@@ -3,6 +3,9 @@ name: Test OculiX macOS Launch
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test-mac:
     runs-on: macos-latest

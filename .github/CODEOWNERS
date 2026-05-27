@@ -8,12 +8,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Default owners — everything in the repo
-*                           @julienmerconsulting @RaiMan
+*                           @julienmerconsulting @adriancostin6
+
+# MCP module: Julien only (no auto-ping for Adrian on this scope)
+/MCP/                       @julienmerconsulting
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Notes
 # ─────────────────────────────────────────────────────────────────────────────
 # - @julienmerconsulting: active maintainer, day-to-day reviews and releases.
-# - @RaiMan:              original SikuliX author, emeritus — lineage authority.
+# - @adriancostin6:       trusted contributor, infrastructure & Linux specialist.
 # - Adding a scoped owner (e.g. `/MCP/  @someone`) is how we onboard trusted
 #   contributors to a specific module without giving them the whole repo.

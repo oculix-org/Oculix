@@ -13,6 +13,7 @@ import java.awt.Color;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * A point like AWT.Point using global coordinates (x, y).
@@ -570,6 +571,11 @@ public class Location implements Comparable<Location>{
     }
     Location that = (Location) oThat;
     return x == that.x && y == that.y;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(x, y);
   }
 
   /**
