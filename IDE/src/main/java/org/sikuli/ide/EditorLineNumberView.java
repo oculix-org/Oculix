@@ -13,6 +13,8 @@ import javax.swing.text.*;
 
 import org.sikuli.basics.Debug;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 public class EditorLineNumberView extends JComponent implements MouseListener {
 
   private static ImageIcon ERROR_ICON = SikulixIDE.getIconResource("/icons/error_icon.gif");
@@ -68,7 +70,7 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
 
   private void init() {
     addMouseListener(this);
-    setToolTipText("RightClick for options - left to jump to - double to select");
+    setToolTipText(_I("editorLineNumberTooltip"));
     popMenuLineNumber = new SikuliIDEPopUpMenu("POP_LINE", this);
     if (!popMenuLineNumber.isValidMenu()) {
       popMenuLineNumber = null;
