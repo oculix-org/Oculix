@@ -60,78 +60,39 @@ public class TesseractEngine implements OCREngine {
     }
 
     /**
-     * Perform Tesseract OCR using reflection to avoid hard dependency on SikuliX OCR classes.
+     * Perform Tesseract OCR via SikuliX's static OCR API.
+     *
+     * <p><b>Why direct call, not reflection or raw Tess4J:</b> TesseractEngine
+     * ships in the same Maven module as {@code org.sikuli.script.OCR}, so the
+     * compile-time dependency is fine. The previous implementation fell back
+     * to {@code new net.sourceforge.tess4j.Tesseract()} when reflection failed,
+     * which silently created an un-configured Tesseract instance — Legerix
+     * only configures the static TextRecognizer's Tesseract at startup, NOT
+     * arbitrary fresh instances. That fallback produced
+     * {@code "Error opening data file ./eng.traineddata"} → 0 texts returned.
+     *
+     * <p>Going through {@code OCR.readWords} / {@code OCR.readText} hits the
+     * same Legerix-configured TextRecognizer used by {@code Region.findText},
+     * which is the path proven to work.
      */
     private String recognizeWithTesseract(BufferedImage image) {
         long startTime = System.currentTimeMillis();
-
         try {
-            // Try to use org.sikuli.script.OCR via reflection
-            Class<?> ocrClass = Class.forName("org.sikuli.script.OCR");
-
-            // Get OCR.readWords(BufferedImage)
-            java.lang.reflect.Method readWordsMethod = null;
-            for (java.lang.reflect.Method m : ocrClass.getMethods()) {
-                if (m.getName().equals("readWords") && m.getParameterCount() == 1
-                        && m.getParameterTypes()[0] == BufferedImage.class) {
-                    readWordsMethod = m;
-                    break;
-                }
-            }
-
-            // Fallback: try readText
-            if (readWordsMethod == null) {
-                java.lang.reflect.Method readTextMethod = null;
-                for (java.lang.reflect.Method m : ocrClass.getMethods()) {
-                    if (m.getName().equals("readText") && m.getParameterCount() == 1
-                            && m.getParameterTypes()[0] == BufferedImage.class) {
-                        readTextMethod = m;
-                        break;
-                    }
-                }
-
-                if (readTextMethod != null) {
-                    String text = (String) readTextMethod.invoke(null, image);
-                    double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
-                    return buildJsonFromText(text, elapsed);
-                }
-            }
-
-            if (readWordsMethod != null) {
-                @SuppressWarnings("unchecked")
-                List<?> words = (List<?>) readWordsMethod.invoke(null, image);
-                double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
-                return buildJsonFromMatches(words, elapsed);
-            }
-
-            // Last resort: use Tess4J directly
-            return recognizeWithTess4J(image, startTime);
-
-        } catch (ClassNotFoundException e) {
-            SikuliLogger.warn("[Tesseract] org.sikuli.script.OCR not found, trying Tess4J directly");
-            return recognizeWithTess4J(image, startTime);
-        } catch (Exception e) {
-            SikuliLogger.error("[Tesseract] Reflection call failed: " + e.getMessage());
-            return createErrorJson("Tesseract reflection error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Direct Tess4J usage as last resort.
-     */
-    private String recognizeWithTess4J(BufferedImage image, long startTime) {
-        try {
-            Class<?> tessClass = Class.forName("net.sourceforge.tess4j.Tesseract");
-            Object tess = tessClass.getDeclaredConstructor().newInstance();
-
-            java.lang.reflect.Method doOCR = tessClass.getMethod("doOCR", BufferedImage.class);
-            String text = (String) doOCR.invoke(tess, image);
-
+            // Prefer readWords for bounding boxes (parity with Paddle output)
+            java.util.List<org.sikuli.script.Match> words =
+                org.sikuli.script.OCR.readWords(image);
             double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
-            return buildJsonFromText(text, elapsed);
-
-        } catch (Exception e) {
-            return createErrorJson("Tess4J unavailable: " + e.getMessage());
+            return buildJsonFromMatches(words, elapsed);
+        } catch (Throwable bbErr) {
+            // Fallback to readText (no bounding boxes — dummy bbox in output JSON)
+            try {
+                String text = org.sikuli.script.OCR.readText(image);
+                double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
+                return buildJsonFromText(text, elapsed);
+            } catch (Throwable txtErr) {
+                SikuliLogger.error("[Tesseract] OCR failed: " + txtErr.getMessage());
+                return createErrorJson("Tesseract error: " + txtErr.getMessage());
+            }
         }
     }
 
