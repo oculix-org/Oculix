@@ -18,6 +18,7 @@
 package bench;
 
 import org.junit.jupiter.api.Test;
+import org.sikuli.script.Finder;
 import org.sikuli.script.Match;
 import org.sikuli.script.OCR;
 
@@ -57,23 +58,85 @@ public class OcrPerfBench {
         long warmMs = (System.nanoTime() - tWarm0) / 1_000_000;
         System.out.println("[BENCH] warmup: " + warmMs + "ms");
 
-        // Timed runs
-        long[] times = new long[RUNS];
+        // The word we search for in findText / findWords / findLines.
+        // 'review' is reliably present as a standalone token on the bench
+        // image (issue #254 has "Report a translation issue" + the "review"
+        // label). System property override if you need to bench another.
+        String needle = System.getProperty("bench.needle", "review");
+        System.out.println("[BENCH] needle=" + needle);
+
+        // --- A) OCR.readWords(image) ----------------------------------
+        // Direct, naive path — what `findWord` calls under the hood.
+        // Bounds the worst case.
+        long[] timesRW = new long[RUNS];
         List<Match> words = null;
         for (int i = 0; i < RUNS; i++) {
             long t0 = System.nanoTime();
             words = OCR.readWords(img);
-            times[i] = (System.nanoTime() - t0) / 1_000_000;
-            System.out.printf("[BENCH] run %d: %dms (%d words)%n", i + 1, times[i], words.size());
+            timesRW[i] = (System.nanoTime() - t0) / 1_000_000;
+            System.out.printf("[BENCH] readWords  run %d: %4dms (%d words)%n", i + 1, timesRW[i], words.size());
         }
 
-        long[] sorted = times.clone();
-        Arrays.sort(sorted);
-        long min = sorted[0];
-        long median = sorted[sorted.length / 2];
-        long max = sorted[sorted.length - 1];
-        System.out.printf("[BENCH] === SUMMARY === min=%dms  median=%dms  max=%dms  | warmup=%dms  | %d words%n",
-                min, median, max, warmMs, words.size());
+        // --- B) Finder.findText (line + drill-down) -------------------
+        // The path Region.findText actually uses. Generally faster than
+        // readWords on large images because pass-1 is at line level (fewer
+        // bboxes) and pass-2 is on a tiny sub-image.
+        long[] timesFT = new long[RUNS];
+        int hitsFT = 0;
+        for (int i = 0; i < RUNS; i++) {
+            long t0 = System.nanoTime();
+            Finder f = new Finder(img);
+            f.findText(needle);
+            int hits = 0;
+            while (f.hasNext()) { f.next(); hits++; }
+            timesFT[i] = (System.nanoTime() - t0) / 1_000_000;
+            hitsFT = hits;
+            System.out.printf("[BENCH] findText   run %d: %4dms (%d hits)%n", i + 1, timesFT[i], hits);
+        }
+
+        // --- C) Finder.findWords (direct WORD-level) ------------------
+        long[] timesFW = new long[RUNS];
+        int hitsFW = 0;
+        for (int i = 0; i < RUNS; i++) {
+            long t0 = System.nanoTime();
+            Finder f = new Finder(img);
+            f.findWords(needle);
+            int hits = 0;
+            while (f.hasNext()) { f.next(); hits++; }
+            timesFW[i] = (System.nanoTime() - t0) / 1_000_000;
+            hitsFW = hits;
+            System.out.printf("[BENCH] findWords  run %d: %4dms (%d hits)%n", i + 1, timesFW[i], hits);
+        }
+
+        // --- D) Finder.findLines (direct LINE-level) ------------------
+        long[] timesFL = new long[RUNS];
+        int hitsFL = 0;
+        for (int i = 0; i < RUNS; i++) {
+            long t0 = System.nanoTime();
+            Finder f = new Finder(img);
+            f.findLines(needle);
+            int hits = 0;
+            while (f.hasNext()) { f.next(); hits++; }
+            timesFL[i] = (System.nanoTime() - t0) / 1_000_000;
+            hitsFL = hits;
+            System.out.printf("[BENCH] findLines  run %d: %4dms (%d hits)%n", i + 1, timesFL[i], hits);
+        }
+
+        long minRW = min(timesRW), medRW = median(timesRW), maxRW = max(timesRW);
+        long minFT = min(timesFT), medFT = median(timesFT), maxFT = max(timesFT);
+        long minFW = min(timesFW), medFW = median(timesFW), maxFW = max(timesFW);
+        long minFL = min(timesFL), medFL = median(timesFL), maxFL = max(timesFL);
+
+        System.out.println();
+        System.out.println("[BENCH] === SUMMARY ===");
+        System.out.printf("[BENCH]   readWords (worst case)   : min=%4dms med=%4dms max=%4dms  | %d words found%n", minRW, medRW, maxRW, words.size());
+        System.out.printf("[BENCH]   findText '%s' (line+drill): min=%4dms med=%4dms max=%4dms  | %d hits%n",   needle, minFT, medFT, maxFT, hitsFT);
+        System.out.printf("[BENCH]   findWords '%s' (word)     : min=%4dms med=%4dms max=%4dms  | %d hits%n",   needle, minFW, medFW, maxFW, hitsFW);
+        System.out.printf("[BENCH]   findLines '%s' (line)     : min=%4dms med=%4dms max=%4dms  | %d hits%n",   needle, minFL, medFL, maxFL, hitsFL);
+        System.out.printf("[BENCH]   warmup=%dms%n", warmMs);
+
+        // Local refs used by the file dump below
+        long min = minRW, median = medRW, max = maxRW;
 
         // Dump words to a stable, diffable text file.
         String label = System.getProperty("bench.label", "baseline");
@@ -143,4 +206,8 @@ public class OcrPerfBench {
         s = s.replaceAll("\\s+", " ").trim();
         return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
+
+    private static long min(long[] a)    { long m = Long.MAX_VALUE; for (long v : a) if (v < m) m = v; return m; }
+    private static long max(long[] a)    { long m = Long.MIN_VALUE; for (long v : a) if (v > m) m = v; return m; }
+    private static long median(long[] a) { long[] s = a.clone(); Arrays.sort(s); return s[s.length / 2]; }
 }
