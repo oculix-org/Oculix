@@ -354,7 +354,7 @@ class RecorderActions {
       default:           label = "Text:"; break;
     }
 
-    String text = JOptionPane.showInputDialog(assistant, label, "Text Action",
+    String text = JOptionPane.showInputDialog(assistant, label, _I("recorderActionsTextActionTitle"),
         JOptionPane.PLAIN_MESSAGE);
     if (text != null && !text.trim().isEmpty()) {
       codeGen.addActionCode(codeGen.generateTextCode(actionType, text.trim()),
@@ -367,7 +367,7 @@ class RecorderActions {
     if (appScope.warnIfNoApp(assistant)) return;
     if (!workflow.startTextInput()) return;
 
-    String text = JOptionPane.showInputDialog(assistant, _I("recorderTypePrompt"), "Type Text",
+    String text = JOptionPane.showInputDialog(assistant, _I("recorderTypePrompt"), _I("recorderActionsTypeTextTitle"),
         JOptionPane.PLAIN_MESSAGE);
     if (text != null && !text.isEmpty()) {
       String code = codeGen.getGenerator().typeText(text, new String[0]);
@@ -393,7 +393,7 @@ class RecorderActions {
     if (!workflow.startPauseInput()) return;
 
     String seconds = JOptionPane.showInputDialog(assistant, _I("recorderPausePrompt"),
-        "Pause", JOptionPane.PLAIN_MESSAGE);
+        _I("recorderActionsPauseTitle"), JOptionPane.PLAIN_MESSAGE);
     if (seconds != null && !seconds.isEmpty()) {
       try {
         int s = Integer.parseInt(seconds.trim());
