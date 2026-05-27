@@ -21,6 +21,19 @@ import javax.imageio.ImageIO;
  */
 public class TesseractEngine implements OCREngine {
 
+    /**
+     * Optional custom tessdata directory. When non-null, calls go through
+     * {@code OCR.readWords(image, options)} with a cloned globalOptions whose
+     * dataPath is overridden. When null (default), uses {@code OCR.readWords(image)}
+     * which honours the global SikuliX OCR configuration (Legerix-bundled tessdata).
+     *
+     * <p>This is the ONLY engine-local customization point. All other Tesseract
+     * configuration (language, PSM, OEM, upscale factor, …) goes through the
+     * shared {@code OCR.globalOptions()} so engine and {@code Region.findText}
+     * stay coherent.
+     */
+    private String customDataPath = null;
+
     @Override
     public String getName() {
         return "tesseract";
@@ -30,6 +43,33 @@ public class TesseractEngine implements OCREngine {
     public boolean isAvailable() {
         // Tesseract is always available (bundled with SikuliX)
         return true;
+    }
+
+    /**
+     * Override the tessdata directory for this engine instance.
+     *
+     * <p>Use this when you need a custom set of {@code .traineddata} files
+     * (e.g. a fine-tuned model, an enriched language set, an air-gapped
+     * cache) without disturbing the global SikuliX OCR configuration that
+     * {@code Region.findText} relies on.
+     *
+     * <p>Pass {@code null} to revert to the default (Legerix-bundled tessdata
+     * resolved by {@code OCR.globalOptions()}).
+     *
+     * @param path absolute path to a {@code tessdata/} directory, or {@code null}
+     * @return this engine for chaining
+     */
+    public TesseractEngine setDataPath(String path) {
+        this.customDataPath = (path == null || path.trim().isEmpty()) ? null : path.trim();
+        return this;
+    }
+
+    /**
+     * @return the currently configured custom tessdata path, or {@code null}
+     *         if the engine uses the global SikuliX OCR default.
+     */
+    public String getDataPath() {
+        return customDataPath;
     }
 
     @Override
@@ -60,78 +100,51 @@ public class TesseractEngine implements OCREngine {
     }
 
     /**
-     * Perform Tesseract OCR using reflection to avoid hard dependency on SikuliX OCR classes.
+     * Perform Tesseract OCR via SikuliX's static OCR API.
+     *
+     * <p><b>Why direct call, not reflection or raw Tess4J:</b> TesseractEngine
+     * ships in the same Maven module as {@code org.sikuli.script.OCR}, so the
+     * compile-time dependency is fine. The previous implementation fell back
+     * to {@code new net.sourceforge.tess4j.Tesseract()} when reflection failed,
+     * which silently created an un-configured Tesseract instance — Legerix
+     * only configures the static TextRecognizer's Tesseract at startup, NOT
+     * arbitrary fresh instances. That fallback produced
+     * {@code "Error opening data file ./eng.traineddata"} → 0 texts returned.
+     *
+     * <p>Going through {@code OCR.readWords} / {@code OCR.readText} hits the
+     * same Legerix-configured TextRecognizer used by {@code Region.findText},
+     * which is the path proven to work.
      */
     private String recognizeWithTesseract(BufferedImage image) {
         long startTime = System.currentTimeMillis();
-
-        try {
-            // Try to use org.sikuli.script.OCR via reflection
-            Class<?> ocrClass = Class.forName("org.sikuli.script.OCR");
-
-            // Get OCR.readWords(BufferedImage)
-            java.lang.reflect.Method readWordsMethod = null;
-            for (java.lang.reflect.Method m : ocrClass.getMethods()) {
-                if (m.getName().equals("readWords") && m.getParameterCount() == 1
-                        && m.getParameterTypes()[0] == BufferedImage.class) {
-                    readWordsMethod = m;
-                    break;
-                }
-            }
-
-            // Fallback: try readText
-            if (readWordsMethod == null) {
-                java.lang.reflect.Method readTextMethod = null;
-                for (java.lang.reflect.Method m : ocrClass.getMethods()) {
-                    if (m.getName().equals("readText") && m.getParameterCount() == 1
-                            && m.getParameterTypes()[0] == BufferedImage.class) {
-                        readTextMethod = m;
-                        break;
-                    }
-                }
-
-                if (readTextMethod != null) {
-                    String text = (String) readTextMethod.invoke(null, image);
-                    double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
-                    return buildJsonFromText(text, elapsed);
-                }
-            }
-
-            if (readWordsMethod != null) {
-                @SuppressWarnings("unchecked")
-                List<?> words = (List<?>) readWordsMethod.invoke(null, image);
-                double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
-                return buildJsonFromMatches(words, elapsed);
-            }
-
-            // Last resort: use Tess4J directly
-            return recognizeWithTess4J(image, startTime);
-
-        } catch (ClassNotFoundException e) {
-            SikuliLogger.warn("[Tesseract] org.sikuli.script.OCR not found, trying Tess4J directly");
-            return recognizeWithTess4J(image, startTime);
-        } catch (Exception e) {
-            SikuliLogger.error("[Tesseract] Reflection call failed: " + e.getMessage());
-            return createErrorJson("Tesseract reflection error: " + e.getMessage());
+        // Build an Options override only when the caller asked for a custom
+        // dataPath. Otherwise stay on the no-args API so we transparently
+        // pick up everything the global OCR configuration carries
+        // (largeImageFactor, language, PSM, …).
+        org.sikuli.script.OCR.Options opts = null;
+        if (customDataPath != null) {
+            opts = org.sikuli.script.OCR.globalOptions().clone();
+            opts.dataPath(customDataPath);
         }
-    }
-
-    /**
-     * Direct Tess4J usage as last resort.
-     */
-    private String recognizeWithTess4J(BufferedImage image, long startTime) {
         try {
-            Class<?> tessClass = Class.forName("net.sourceforge.tess4j.Tesseract");
-            Object tess = tessClass.getDeclaredConstructor().newInstance();
-
-            java.lang.reflect.Method doOCR = tessClass.getMethod("doOCR", BufferedImage.class);
-            String text = (String) doOCR.invoke(tess, image);
-
+            // Prefer readWords for bounding boxes (parity with Paddle output)
+            java.util.List<org.sikuli.script.Match> words = (opts != null)
+                ? org.sikuli.script.OCR.readWords(image, opts)
+                : org.sikuli.script.OCR.readWords(image);
             double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
-            return buildJsonFromText(text, elapsed);
-
-        } catch (Exception e) {
-            return createErrorJson("Tess4J unavailable: " + e.getMessage());
+            return buildJsonFromMatches(words, elapsed);
+        } catch (Throwable bbErr) {
+            // Fallback to readText (no bounding boxes — dummy bbox in output JSON)
+            try {
+                String text = (opts != null)
+                    ? org.sikuli.script.OCR.readText(image, opts)
+                    : org.sikuli.script.OCR.readText(image);
+                double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
+                return buildJsonFromText(text, elapsed);
+            } catch (Throwable txtErr) {
+                SikuliLogger.error("[Tesseract] OCR failed: " + txtErr.getMessage());
+                return createErrorJson("Tesseract error: " + txtErr.getMessage());
+            }
         }
     }
 

@@ -341,13 +341,16 @@ public class TextRecognizer {
 
     float rFactor = options.factor();
 
-    // OCR perf: the default factor (~x2) targets small UI text. On a large, full-screen
-    // search region it would explode the image to ~4K -> Tesseract LSTM ~10s. Measured:
-    // a 0.8 downscale stays stable on screen text and is ~2x faster. So for large images
-    // (>1 MP, i.e. full-screen-scale searches — findText, where you cannot know the
-    // location a priori) cap to 0.8 instead of upscaling. Small regions keep the upscale.
+    // #378: on a large, full-screen search region the default factor (~3.0,
+    // calibrated for tiny UI text) explodes the image to ~18 MP and drives
+    // Tesseract LSTM to ~8s. Cap on > 1 MP regions; default 2.0 keeps precision
+    // (-1 mot mesuré sur cleaned full-HD vs baseline) with ~×1.4 speedup.
+    // Tunable via OCR.globalOptions().largeImageFactor(...) — Auchan-style
+    // dashboards (text >= 14 px) can set 0.8 for ~×4 speedup.
+    // Supersedes the original hardcoded 0.8 on this branch (commit 26d30979);
+    // see #378 thread for the empirical justification.
     if ((long) mimg.cols() * mimg.rows() > 1_000_000L) {
-      rFactor = 0.8f;
+      rFactor = options.largeImageFactor();
     }
 
     if (rFactor > 0 && rFactor != 1) {

@@ -137,7 +137,7 @@ class RecorderAppScope {
     System.err.println("[VNC-DEBUG] Host=" + host + " User=" + user + " Port=" + port);
     System.err.println("[VNC-DEBUG] Creating wait dialog...");
 
-    JDialog waitDialog = new JDialog(parent, "Pre-flight", false);
+    JDialog waitDialog = new JDialog(parent, _I("recorderAppScopePreflightTitle"), false);
     waitDialog.setSize(280, 80);
     waitDialog.setLocationRelativeTo(parent);
     waitDialog.setLayout(new java.awt.BorderLayout());
@@ -213,7 +213,7 @@ class RecorderAppScope {
             if (choice == 2 || choice < 0) return;
           }
 
-          waitLabel.setText("  \u23F3 Launching VNC...");
+          waitLabel.setText("  \u23F3 " + _I("recorderAppScopeLaunchingVnc"));
           waitDialog.setVisible(true);
 
           AppLauncher.launchRemoteVNC(fHost, fUser, fPassword, fPort);
