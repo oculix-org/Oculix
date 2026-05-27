@@ -34,9 +34,12 @@ on:
 
 jobs:
   bench:
-    name: bench (ubuntu-latest, Java 17)
-    runs-on: ubuntu-latest
+    name: bench (windows-latest, Java 17)
+    runs-on: windows-latest
     timeout-minutes: 15
+    # Windows runner because OculiX is overwhelmingly used to automate
+    # Windows UIs (RPA, desktop app testing, internal QA farms). Linux
+    # measurements would skew low and not match what real users see.
 
     steps:
       - name: Checkout
@@ -49,44 +52,55 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Show CPU info (context for perf numbers)
+      - name: Show CPU + memory info (context for perf numbers)
+        shell: pwsh
         run: |
-          echo "::group::CPU"
-          lscpu | grep -E 'Model name|CPU\(s\):|MHz|cache' || true
-          echo "::endgroup::"
-          echo "::group::Memory"
-          free -h
-          echo "::endgroup::"
+          Write-Host "::group::CPU"
+          Get-CimInstance -ClassName Win32_Processor |
+            Select-Object Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed |
+            Format-List
+          Write-Host "::endgroup::"
+          Write-Host "::group::Memory"
+          Get-CimInstance -ClassName Win32_OperatingSystem |
+            Select-Object @{n='TotalGB';e={[math]::Round($_.TotalVisibleMemorySize/1MB,1)}},
+                          @{n='FreeGB';e={[math]::Round($_.FreePhysicalMemory/1MB,1)}} |
+            Format-List
+          Write-Host "::endgroup::"
 
       - name: Build API (skip tests of other modules)
+        shell: pwsh
         run: mvn -B -pl API test-compile -DskipTests
         # -B = batch mode (no progress noise), test-compile so the bench
         # picks up changes in API/src/main/java/
 
       - name: Run OCR bench (uses /bench/bench_screen.png from classpath)
+        shell: pwsh
         run: |
-          mvn -B -pl API test \
-            -Dtest=OcrPerfBench \
-            -Dbench.label=ci \
-            -Dsurefire.useFile=false \
-            -Djava.awt.headless=true
+          mvn -B -pl API test `
+            -Dtest=OcrPerfBench `
+            "-Dbench.label=ci" `
+            "-Dsurefire.useFile=false" `
+            "-Djava.awt.headless=true"
         # Headless OK because the harness loads the committed PNG from
         # the classpath (src/test/resources/bench/) and never reaches
         # the Robot.createScreenCapture() path.
 
       - name: Summarise bench result
         if: always()
+        shell: pwsh
         run: |
-          if [ -f API/.claude/tmp/bench_ci.txt ]; then
-            echo "## OCR perf bench result" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            head -3 API/.claude/tmp/bench_ci.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Full text dump uploaded as artifact \`bench-ci-output\`." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "::error::bench_ci.txt missing — bench did not produce output"
-          fi
+          $f = "API/.claude/tmp/bench_ci.txt"
+          if (Test-Path $f) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## OCR perf bench result (Windows)"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+            Get-Content -Path $f -TotalCount 3 |
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Full text dump uploaded as artifact ``bench-ci-output``."
+          } else {
+            Write-Host "::error::bench_ci.txt missing — bench did not produce output"
+          }
 
       - name: Upload bench artifact
         if: always()
