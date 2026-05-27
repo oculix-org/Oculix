@@ -22,6 +22,7 @@ import org.sikuli.ide.theme.OculixLightLaf;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 
 import static org.sikuli.util.CommandArgsEnum.*;
 
@@ -45,23 +46,15 @@ public class Sikulix {
     }
   }
 
-  public static void main(String[] args) {
+  private static File ideIsRunningFile = null;
+  private static FileOutputStream ideIsRunningStrean;
 
-    // Mode serveur: java -jar oculixapi.jar -s
-    // Demarre le ServerRunner legacy sur le port 50001
-    for (String arg : args) {
-      if ("-s".equals(arg)) {
-        try {
-          Class<?> cServer = Class.forName("org.sikuli.support.runner.ServerRunner");
-          cServer.getMethod("run").invoke(null);
-          System.exit(0);
-        } catch (Exception e) {
-          System.err.println("[ERROR] Failed to start ServerRunner: " + e.getMessage());
-          e.printStackTrace();
-          System.exit(1);
-        }
-      }
-    }
+  public static void setIsRunning(File tokenFile, FileOutputStream tokenStream) {
+    ideIsRunningFile = tokenFile;
+    ideIsRunningStrean = tokenStream;
+  }
+
+  public static void main(String[] args) {
 
     //region startup
     Commons.setStartClass(Sikulix.class);
@@ -72,7 +65,7 @@ public class Sikulix {
       System.exit(0);
     }
 
-    //TODO 
+    //TODO CmdArgs vs. Options
     Commons.initOptions();
 
     Commons.globals().setOption("SX_LOCALE", SikuliIDEI18N.getLocaleShow());
@@ -98,8 +91,6 @@ public class Sikulix {
       Debug.setDebugLevel(3);
     }
 
-    //TODO autoCheckUpdate();
-
     if (Commons.hasOption(RUN)) {
       Commons.loadOpenCV();
       HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
@@ -123,6 +114,23 @@ public class Sikulix {
       SikulixServer.run();
       Commons.terminate();
     }
+    //TODO obsolete?
+    // Mode serveur: java -jar oculixapi.jar -s
+    // Demarre le ServerRunner legacy sur le port 50001
+    //    for (String arg : args) {
+    //      if ("-s".equals(arg)) {
+    //        try {
+    //          Class<?> cServer = Class.forName("org.sikuli.support.runner.ServerRunner");
+    //          cServer.getMethod("run").invoke(null);
+    //          System.exit(0);
+    //        } catch (Exception e) {
+    //          System.err.println("[ERROR] Failed to start ServerRunner: " + e.getMessage());
+    //          e.printStackTrace();
+    //          System.exit(1);
+    //        }
+    //      }
+    //    }
+
 
     Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
     //endregion
@@ -157,8 +165,20 @@ public class Sikulix {
     // abrupt termination can leave the splash window on top indefinitely.
     Runtime.getRuntime().addShutdownHook(new Thread(Sikulix::stopSplash, "oculix-splash-closer"));
 
-    File isRunning = new File(Commons.getTempFolder(), "s_i_k_u_l_i-ide-isrunning");
-    FileOutputStream isRunningFile = null;
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      @Override
+      public void run() {
+        if (ideIsRunningFile != null) {
+          try {
+            ideIsRunningStrean.close();
+          } catch (IOException ex) {
+          }
+          ideIsRunningFile.delete();
+        }
+      }
+    });
+
+    File ideLockFile = new File(Commons.getTempFolder(), "s_i_k_u_l_i-ide-isrunning");
     boolean shouldTerminate = false;
     String terminateMsg = null;
 
@@ -166,25 +186,26 @@ public class Sikulix {
     // the file is still on disk it is either a live IDE or a killed-JVM
     // leftover (typical after Ctrl+C). Try to delete it first - delete will
     // succeed only if no live process still has the file open.
-    if (isRunning.exists() && !isRunning.delete()) {
-      // File still open by a live process - give it a short moment (dying
-      // JVM may take a beat to release handles on Windows) and retry once.
-      try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
-      isRunning.delete();
-    }
+//    if (ideLockFile.exists() && !ideLockFile.delete()) {
+//      // File still open by a live process - give it a short moment (dying
+//      // JVM may take a beat to release handles on Windows) and retry once.
+//      try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
+//      ideLockFile.delete();
+//    }
 
     try {
-      isRunning.createNewFile();
-      isRunningFile = new FileOutputStream(isRunning);
-      if (null == isRunningFile.getChannel().tryLock()) {
+      boolean possibleSecondIDE = ! ideLockFile.createNewFile();
+      FileOutputStream fileOutputStream = new FileOutputStream(ideLockFile);
+      if (null == fileOutputStream.getChannel().tryLock()) {
         terminateMsg = "Terminating: another IDE instance is already running";
         shouldTerminate = true;
       } else {
-        Commons.setIsRunning(isRunning, isRunningFile);
+        if (possibleSecondIDE) {Commons.debug("IDE startup: Reusing an existing IDE lockfile");}
+        setIsRunning(ideLockFile, fileOutputStream);
       }
     } catch (Exception ex) {
       terminateMsg = "Terminating on FatalError: cannot access IDE lock\n"
-          + isRunning + "\n" + ex.getMessage();
+          + ideLockFile + "\n" + ex.getMessage();
       shouldTerminate = true;
     }
     if (shouldTerminate) {
@@ -194,6 +215,7 @@ public class Sikulix {
       SX.popError(terminateMsg);
       System.exit(1);
     }
+
     for (String aFile : Commons.getTempFolder().list()) {
       if ((aFile.startsWith("Sikulix"))
           || (aFile.startsWith("jffi") && aFile.endsWith(".tmp"))) {

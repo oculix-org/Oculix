@@ -74,9 +74,6 @@ public class Commons {
 
   private static long startMoment;
 
-  private static File isRunning = null;
-  private static FileOutputStream isRunningFile;
-
   private static void log(int level, String message, Object... args) {
     Debug.logx(level, "RunTime:" + message, args);
   }
@@ -89,24 +86,6 @@ public class Commons {
     if (level <= Debug.getDebugLevel()) {
       logp(message, args);
     }
-  }
-
-  private static void runShutdownHook() {
-    debug("***** final cleanup at System.exit() *****");
-    //TODO runShutdownHook cleanUp();
-
-    if (isRunning != null) {
-      try {
-        isRunningFile.close();
-      } catch (IOException ex) {
-      }
-      isRunning.delete();
-    }
-  }
-
-  public static void setIsRunning(File token, FileOutputStream tokenStream) {
-    isRunning = token;
-    isRunningFile = tokenStream;
   }
 
   private static final String osNameSysProp = System.getProperty("os.name");
@@ -192,13 +171,6 @@ public class Commons {
 
     sxversionjython = sxProps.getProperty("versionjython");
     sxversionjruby = sxProps.getProperty("versionjruby");
-
-    Runtime.getRuntime().addShutdownHook(new Thread() {
-      @Override
-      public void run() {
-        runShutdownHook();
-      }
-    });
 
     cleanStaleTempDirs();
 
