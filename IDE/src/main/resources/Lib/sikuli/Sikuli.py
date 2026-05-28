@@ -16,8 +16,8 @@ import inspect
 # Debug.log(3, "Jython: sikuli: Sikuli: backports from Version 2: Do")
 import org.sikuli.script.SX as SXclass
 
-# Debug.log(3, "Jython: sikuli: Sikuli: RunTime, Setting, Debug")
-import org.sikuli.support.RunTime as JRunTime
+# Debug.log(3, "Jython: sikuli: Sikuli: Commons, Setting, Debug")
+import org.sikuli.support.Commons as JCommons
 
 import org.sikuli.basics.Settings as Settings
 
@@ -188,8 +188,7 @@ def prepareRobot():
 
 
 def show():
-    import org.sikuli.support.Commons as SC
-    SC.show()
+    JCommons.show()
 
 
 ##
@@ -639,7 +638,7 @@ def exit(code=0):
 # @param cmd The given string command.
 # @return Returns the output from the executed command.
 def run(cmd):
-    return JRunTime.run(cmd)
+    return JCommons.run(cmd)
 
 
 # Runs the script given by absolute or relative path (./ same folder as calling script)
