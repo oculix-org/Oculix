@@ -176,7 +176,7 @@ public class PreferencesUser {
   }
 
   public int getStopHotkeyModifiers() {
-    return pref.getInt("GET_HOTKEY_MODIFIERS", defaultStopHotkeyModifiers());
+    return pref.getInt("STOP_HOTKEY_MODIFIERS", defaultStopHotkeyModifiers());
   }
 
   private int defaultStopHotkeyModifiers() {
