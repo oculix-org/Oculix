@@ -37,14 +37,22 @@ class RecorderImagePicker {
       options.add(_I("recorderImageSrcExisting"));
     }
 
-    int choice = JOptionPane.showOptionDialog(parent,
+    // Build the source-select dialog ourselves instead of JOptionPane.showOptionDialog:
+    // that helper creates an internal window we never get a handle to, so it survives
+    // parent.setVisible(false) (it is neither `parent` nor its owner) and ghosts into
+    // the capture overlay (#387). Owning the JDialog lets us dispose() it before we
+    // capture — same idea as hiding the recorder window, no timing hack needed.
+    JOptionPane optionPane = new JOptionPane(
         _I("recorderImageSrcDlgTitle", purpose),
-        purpose,
-        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+        JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
+    JDialog sourceDialog = optionPane.createDialog(parent, purpose);
+    sourceDialog.setVisible(true); // modal: blocks until the user picks
+    sourceDialog.dispose();        // tear the popup window down NOW, before any capture
 
-    if (choice < 0) return null;
-    String selected = (String) options.get(choice);
+    Object value = optionPane.getValue();
+    if (!(value instanceof String)) return null;
+    String selected = (String) value;
 
     if (_I("recorderImageSrcCapture").equals(selected)) {
       parent.setAlwaysOnTop(false);
