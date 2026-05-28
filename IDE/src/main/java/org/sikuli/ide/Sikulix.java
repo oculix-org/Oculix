@@ -182,17 +182,6 @@ public class Sikulix {
     boolean shouldTerminate = false;
     String terminateMsg = null;
 
-    // Stale-lock recovery: OS releases file locks when a process dies, so if
-    // the file is still on disk it is either a live IDE or a killed-JVM
-    // leftover (typical after Ctrl+C). Try to delete it first - delete will
-    // succeed only if no live process still has the file open.
-//    if (ideLockFile.exists() && !ideLockFile.delete()) {
-//      // File still open by a live process - give it a short moment (dying
-//      // JVM may take a beat to release handles on Windows) and retry once.
-//      try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
-//      ideLockFile.delete();
-//    }
-
     try {
       boolean possibleSecondIDE = ! ideLockFile.createNewFile();
       FileOutputStream fileOutputStream = new FileOutputStream(ideLockFile);
