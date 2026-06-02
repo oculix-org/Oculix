@@ -3972,7 +3972,21 @@ public class SikulixIDE extends JFrame {
     @Override
     public void actionPerformed(ActionEvent ae) {
       ideWindow.setVisible(false);
-      recorder.start();
+      try {
+        recorder.start();
+      } catch (SikuliXception e) {
+        // Recorder failed to start — typically JNativeHook's native lib
+        // could not load (missing libxkbcommon-x11-0 etc. on Linux). Bring
+        // the IDE back so the user is not stranded with a hidden window,
+        // and surface the actionable message from the exception body so
+        // they know exactly which apt install to run.
+        SikulixIDE.showAgain();
+        JOptionPane.showMessageDialog(
+            SikulixIDE.this,
+            e.getMessage(),
+            _I("btnRecordLabel"),
+            JOptionPane.ERROR_MESSAGE);
+      }
     }
 
     public void stopRecord() {
