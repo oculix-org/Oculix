@@ -205,24 +205,15 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   @Override
   public void afterThemeChange() {
-    // Resolve colors per active theme. Hardcoding Color.WHITE / Color.BLACK
-    // unconditionally was the source of the dark→light visual cascade
-    // (white background + black text forced on the JTextPane regardless of
-    // the FlatLaf swap that just ran — overrode the theme's own defaults
-    // and rippled through child painting).
-    String theme = PreferencesUser.get().getIdeTheme();
-    boolean dark = !PreferencesUser.THEME_LIGHT.equals(theme);
-    Color bg = dark ? UIManager.getColor("TextPane.background") : Color.WHITE;
-    Color fg = dark ? UIManager.getColor("TextPane.foreground") : Color.BLACK;
-    Color caret = dark ? UIManager.getColor("TextPane.caretForeground") : Color.BLACK;
-    if (bg == null) bg = dark ? new Color(0x0A, 0x10, 0x28) : Color.WHITE;
-    if (fg == null) fg = dark ? new Color(0xE6, 0xEA, 0xF2) : Color.BLACK;
-    if (caret == null) caret = fg;
-    setBackground(bg);
-    setForeground(fg);
-    setCaretColor(caret);
+    // The script editor surface is the user's canvas — its colours must not
+    // move under a Dark/Light toggle. Mirror initBeforeLoad() and updateUI()
+    // so the white background + black foreground + black caret + light blue
+    // selection are the single visual constant across theme switches.
+    setBackground(Color.WHITE);
+    setForeground(Color.BLACK);
+    setCaretColor(Color.BLACK);
     if (!Settings.isMac()) {
-      setSelectionColor(dark ? new Color(0x33, 0x47, 0x7A) : new Color(170, 200, 255));
+      setSelectionColor(new Color(170, 200, 255));
     }
     if (savedThumbButtons == null || savedThumbButtons.isEmpty()) return;
     if (!(getDocument() instanceof DefaultStyledDocument)) return;
