@@ -143,8 +143,21 @@ public class Sikulix {
     // (OculixDarkLaf / OculixLightLaf — FlatDarkLaf / FlatLightLaf subclasses
     // that layer the OculiX brand tokens on top).
     OculixFonts.setup();
-    FlatLaf.setPreferredFontFamily("Inter");
-    FlatLaf.setPreferredMonospacedFontFamily("JetBrains Mono");
+    // Brand families (Inter, JetBrains Mono) are Latin-only and produce
+    // tofu glyphs on CJK / Arabic / Cyrillic / Indic scripts. When the
+    // active user locale falls in that category, switch FlatLaf's preferred
+    // families to Java's logical "Dialog" / "Monospaced": those auto-
+    // composite with system fonts (Segoe UI on Windows, .AppleSystemUI on
+    // macOS, DejaVu / Noto on Linux) that all carry full Unicode coverage.
+    // Trade-off: the user loses the brand typography on their locale — an
+    // acceptable cost since unreadable boxes are the worst outcome.
+    if (OculixFonts.currentLocaleNeedsFallback()) {
+      FlatLaf.setPreferredFontFamily(java.awt.Font.DIALOG);
+      FlatLaf.setPreferredMonospacedFontFamily(java.awt.Font.MONOSPACED);
+    } else {
+      FlatLaf.setPreferredFontFamily("Inter");
+      FlatLaf.setPreferredMonospacedFontFamily("JetBrains Mono");
+    }
     String ideTheme = PreferencesUser.get().getIdeTheme();
     if (PreferencesUser.THEME_LIGHT.equals(ideTheme)) {
       OculixLightLaf.setup();

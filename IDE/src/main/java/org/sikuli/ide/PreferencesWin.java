@@ -576,6 +576,14 @@ public class PreferencesWin extends JFrame {
       _cmbLang.addItem(l);
     }
     _cmbLang.setRenderer(new LocaleListCellRenderer());
+    // The language selector always lists locale names in their native script
+    // ("中文", "日本語", "العربية", "Русский"...) regardless of the user's
+    // current locale. Force Java's logical "Dialog" family — which auto-
+    // composites system fonts with full Unicode coverage — so the user can
+    // pick a non-Latin locale even from a Latin one (otherwise the items
+    // they need to read are exactly the ones rendered as tofu).
+    Font cjkSafe = new Font(Font.DIALOG, Font.PLAIN, _cmbLang.getFont().getSize());
+    _cmbLang.setFont(cjkSafe);
     Locale curLocale = pref.getLocale();
     _cmbLang.setSelectedItem(curLocale);
     if (!_cmbLang.getSelectedItem().equals(curLocale)) {
@@ -677,8 +685,14 @@ class LocaleListCellRenderer extends DefaultListCellRenderer {
   public Component getListCellRendererComponent(JList list,
                                                 Object value, int index, boolean isSelected, boolean hasFocus) {
     Locale locale = (Locale) (value);
-    return super.getListCellRendererComponent(list,
+    Component c = super.getListCellRendererComponent(list,
         locale.getDisplayName(locale), index, isSelected, hasFocus);
+    // The text shown is locale.getDisplayName(locale) — the language name in
+    // its own native script. Inter (FlatLaf default) is Latin-only; force the
+    // Dialog logical family so the JVM composites with system fonts that
+    // cover CJK / Arabic / Cyrillic / Indic.
+    c.setFont(new Font(Font.DIALOG, Font.PLAIN, c.getFont().getSize()));
+    return c;
   }
 }
 //</editor-fold>

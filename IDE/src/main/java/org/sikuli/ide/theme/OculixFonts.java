@@ -134,8 +134,18 @@ public final class OculixFonts {
       "ru", "uk", "bg", "sr"            // Cyrillic
   );
 
-  /** True when the active user locale needs the Unicode fallback chain. */
-  static boolean currentLocaleNeedsFallback() {
+  /**
+   * True when the active user locale needs the Unicode fallback chain.
+   *
+   * <p>Public so the FlatLaf bootstrap in {@code Sikulix.startup} can
+   * decide whether to set Inter / JetBrains Mono as the preferred UI
+   * font families or switch to Java's logical {@code Dialog} /
+   * {@code Monospaced} families (which auto-composite the locale's
+   * script via the OS font registry). Without this branch, FlatLaf
+   * paints the whole UI with Inter even on CJK / Arabic / Cyrillic
+   * locales, producing tofu boxes everywhere.
+   */
+  public static boolean currentLocaleNeedsFallback() {
     try {
       java.util.Locale loc = org.sikuli.basics.PreferencesUser.get().getLocale();
       return loc != null && NON_LATIN_LANGS.contains(loc.getLanguage());
