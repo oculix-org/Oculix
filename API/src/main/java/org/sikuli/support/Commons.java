@@ -2954,13 +2954,13 @@ public class Commons {
     Class<?> classSup = null;
     if (reference == null || (reference instanceof String && ((String) reference).contains("org.python"))) {
       try {
-        classSup = Class.forName("org.sikuli.support.ide.JythonSupport");
+        classSup = Class.forName("org.sikuli.support.runnerSupport.JythonSupport");
       } catch (ClassNotFoundException e) {
         terminate(999, "Commons: JythonSupport: %s", e.getMessage());
       }
     } else if (reference instanceof String && ((String) reference).contains("org.jruby")) {
       try {
-        classSup = Class.forName("org.sikuli.support.ide.JRubySupport");
+        classSup = Class.forName("org.sikuli.support.runnerSupport.JRubySupport");
       } catch (ClassNotFoundException e) {
         terminate(999, "Commons: JRubySupport: %s", e.getMessage());
       }
@@ -2977,8 +2977,8 @@ public class Commons {
         method = classSup.getMethod(function, (Class<?>[]) null);
         returnSup = method.invoke(instanceSup);
       } else {
-        method = classSup.getMethod(function, new Class[]{Object[].class});
-        returnSup = method.invoke(instanceSup, args);
+        method = classSup.getMethod(function, args.getClass());
+        returnSup = method.invoke(instanceSup, new Object[]{ args });
       }
     } catch (NoSuchMethodException e) {
       error = e.toString();

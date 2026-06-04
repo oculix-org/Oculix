@@ -1138,11 +1138,14 @@ public class JythonSupport implements IRunnerSupport {
    * it can only be used with load()/import, but you might provide a simple script that does load()/import
    * and then runs something based on available functions in the jar code.
    *
-   * @param fpSource absolute path to a folder/folder-tree containing the stuff to be copied/compiled
-   * @param fpTarget the folder that will contain the copied/compiled stuff (folder is first deleted)
+   * @param parms fpSource, fpTarget
+   * fpSource absolute path to a folder/folder-tree containing the stuff to be copied/compiled
+   * fpTarget the folder that will contain the copied/compiled stuff (folder is first deleted)
    * @return false if anything goes wrong, true means should have worked
    */
-  public static boolean compileJythonFolder(String fpSource, String fpTarget) {
+  public static boolean compileJythonFolder(Object[] parms) {
+    String fpSource = parms[0].toString();
+    String fpTarget = parms[1].toString();
     JythonSupport jython = JythonSupport.get();
     if (jython != null) {
       File fTarget = new File(fpTarget);

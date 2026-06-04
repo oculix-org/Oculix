@@ -875,7 +875,8 @@ public class FileManager {
     return target;
   }
 
-  private static String doMakeScriptjar(List<String> options, File fSikulixTemp) {
+  private static String doMakeScriptjar(List<String> optionsIn, File fSikulixTemp) {
+    List<String> options = new ArrayList<>(optionsIn);
     boolean makingScriptjarPlain = false;
     if (options.size() > 0 && "plain".equals(options.get(0))) {
       makingScriptjarPlain = true;
@@ -936,7 +937,7 @@ public class FileManager {
       }
       xcopy(scriptFolderSikuli, fScriptSource, skipCompiled);
       String script = "";
-      String prolog = "import org.sikuli.script.SikulixForJython\n" +
+      String prolog = "import org.sikuli.suport.SikulixForJython\n" +
           "from sikuli import *\n" +
           "Debug.on(3)\n" +
           "for e in sys.path:\n" +
