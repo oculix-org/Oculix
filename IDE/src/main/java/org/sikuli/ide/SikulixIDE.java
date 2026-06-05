@@ -619,7 +619,7 @@ public class SikulixIDE extends JFrame {
     scriptDependentItems.add(sub.addItem(_I("menuFileSaveAs"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> { PaneContext ctx = getActiveContext(); if (ctx != null) ctx.saveAs(); }));
-    scriptDependentItems.add(sub.addItem(_I("menuFileExport"),
+    scriptDependentItems.add(sub.addItem("Export packed source...",
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_E, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> { exportAsZip(); }));
 
@@ -2736,10 +2736,18 @@ public class SikulixIDE extends JFrame {
             new FileAction(FileAction.SAVE_AS)));
     jmi.setName("SAVE_AS");
 
-    _fileMenu.add(createMenuItem(_I("menuFileExport"),
+    JMenu exportSubMenu = new JMenu("Export");
+    exportSubMenu.add(createMenuItem("As .zip (workspace)",
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_E,
                     InputEvent.SHIFT_DOWN_MASK | scMask),
             new FileAction(FileAction.EXPORT)));
+    exportSubMenu.add(createMenuItem("As .jar (script library)",
+            null,
+            new FileAction(FileAction.ASJAR)));
+    exportSubMenu.add(createMenuItem("As runnable .jar",
+            null,
+            new FileAction(FileAction.ASRUNJAR)));
+    _fileMenu.add(exportSubMenu);
 
     _fileMenu.addSeparator();
 
