@@ -51,17 +51,22 @@ class RecorderActions {
       options.add(_I("recorderImageSrcExisting"));
     }
 
-    int choice = JOptionPane.showOptionDialog(assistant,
+    // Own the source-select dialog instead of JOptionPane.showOptionDialog: the helper
+    // leaves an internal window we cannot reference, so it lingers and ghosts into the
+    // capture overlay (#387). Holding the JDialog lets us dispose() it for real.
+    JOptionPane optionPane = new JOptionPane(
         _I("recorderImageSrcDlgTitle", actionType),
-        actionType,
-        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+        JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
-
-    if (choice < 0) {
+    javax.swing.JDialog sourceDialog = optionPane.createDialog(assistant, actionType);
+    sourceDialog.setVisible(true); // modal: blocks until the user picks
+    sourceDialog.dispose();        // tear the popup window down NOW
+    Object value = optionPane.getValue();
+    if (!(value instanceof String)) {
       workflow.reset();
       return;
     }
-    String selected = (String) options.get(choice);
+    String selected = (String) value;
 
     if (_I("recorderImageSrcBrowse").equals(selected)) {
       String imagePath = imagePicker.browseImage();
@@ -78,7 +83,10 @@ class RecorderActions {
 
     assistant.hideForCapture();
 
-    new Thread(() -> {
+    // Defer the capture to the next EDT tick so the popup dispose + the recorder hide are
+    // actually repainted before userCapture() grabs the overlay backdrop — guarantees the
+    // source-select dialog is gone, no race, no arbitrary pause. #387
+    SwingUtilities.invokeLater(() -> new Thread(() -> {
       ScreenImage capture = new Screen().userCapture("Select region for " + actionType);
 
       SwingUtilities.invokeLater(() -> {
@@ -112,7 +120,7 @@ class RecorderActions {
           RecorderNotifications.error("Action failed: " + ex.getMessage());
         }
       });
-    }).start();
+    }).start());
   }
 
   private void finishImageCapture(String actionType, String imagePath) {
@@ -209,13 +217,19 @@ class RecorderActions {
     if (!capturedImages.isEmpty()) {
       options.add(_I("recorderImageSrcExisting"));
     }
-    int choice = JOptionPane.showOptionDialog(assistant,
+    // Own the source-select dialog instead of JOptionPane.showOptionDialog: the helper
+    // leaves an internal window we cannot reference, so it lingers and ghosts into the
+    // capture overlay (#387). Holding the JDialog lets us dispose() it for real.
+    JOptionPane optionPane = new JOptionPane(
         _I("recorderImageSrcDlgTitle", purpose),
-        purpose,
-        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+        JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
-    if (choice < 0) { callback.accept(null); return; }
-    String selected = (String) options.get(choice);
+    javax.swing.JDialog sourceDialog = optionPane.createDialog(assistant, purpose);
+    sourceDialog.setVisible(true); // modal: blocks until the user picks
+    sourceDialog.dispose();        // tear the popup window down NOW
+    Object value = optionPane.getValue();
+    if (!(value instanceof String)) { callback.accept(null); return; }
+    String selected = (String) value;
 
     if (_I("recorderImageSrcBrowse").equals(selected)) {
       callback.accept(imagePicker.browseImage());
@@ -227,7 +241,10 @@ class RecorderActions {
     }
 
     assistant.hideForCapture();
-    new Thread(() -> {
+    // Defer the capture to the next EDT tick so the popup dispose + the recorder hide are
+    // actually repainted before userCapture() grabs the overlay backdrop — guarantees the
+    // source-select dialog is gone, no race, no arbitrary pause. #387
+    SwingUtilities.invokeLater(() -> new Thread(() -> {
       ScreenImage capture = new Screen().userCapture("Select region for " + purpose);
       SwingUtilities.invokeLater(() -> {
         assistant.showAfterCapture();
@@ -253,7 +270,7 @@ class RecorderActions {
           RecorderNotifications.error("Action failed: " + ex.getMessage());
         }
       });
-    }, "RecorderDragDrop-" + purpose).start();
+    }, "RecorderDragDrop-" + purpose).start());
   }
 
   void handleSwipe() {
