@@ -111,6 +111,7 @@ public final class ToolRegistry {
     // Outcome-only tools — always safe, registered in both modes.
     r.register(new FindImageTool());
     r.register(new ClickImageTool());
+    r.register(new ClickAtPointTool());
     r.register(new ExistsImageTool());
     r.register(new WaitForImageTool());
     r.register(new TypeTextTool());
