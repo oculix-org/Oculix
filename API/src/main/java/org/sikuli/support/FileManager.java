@@ -937,7 +937,7 @@ public class FileManager {
       }
       xcopy(scriptFolderSikuli, fScriptSource, skipCompiled);
       String script = "";
-      String prolog = "import org.sikuli.suport.SikulixForJython\n" +
+      String prolog = "import org.sikuli.support.SikulixForJython\n" +
           "from sikuli import *\n" +
           "Debug.on(3)\n" +
           "for e in sys.path:\n" +
