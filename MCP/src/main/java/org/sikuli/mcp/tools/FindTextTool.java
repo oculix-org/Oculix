@@ -3,19 +3,24 @@
  */
 package org.sikuli.mcp.tools;
 
-import com.sikulix.ocr.OCREngine;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.sikuli.script.FindFailed;
+import org.sikuli.script.Match;
 import org.sikuli.script.Region;
 import org.sikuli.script.Screen;
-
-import java.io.File;
 
 /**
  * Locate a text string on screen via OCR and return its bounding box.
  *
  * <p>Complements {@link ReadTextInRegionTool} which extracts text;
  * this tool searches for a specific text and returns where it is.
+ *
+ * <p>Uses {@link Region#findText(String)} directly, which goes through the
+ * historical SikuliX OCR pipeline (capture + upscale via {@code largeImageFactor},
+ * PSM/OEM from {@code OCR.globalOptions()}, Legerix-bundled tessdata). This
+ * is the path proven to read modern UI fonts that the raw {@code OCR.readWords}
+ * on a fixed BufferedImage misses for lack of upscale.
  * @author Julien Mer (julienmerconsulting)
  * @author Claude (Anthropic)
  * @since 3.0.3
@@ -49,25 +54,21 @@ public final class FindTextTool implements Tool {
       Screen s = new Screen();
       region = Region.create(s.x, s.y, s.w, s.h, s);
     }
-    File tmp = OcrHelper.captureToTempFile(region);
     try {
-      OCREngine engine = OcrHelper.engine();
-      String json = engine.recognize(tmp.getAbsolutePath());
-      int[] coords = engine.findTextCoordinates(json, text);
-      if (coords == null) {
-        return Tool.textResult(new JSONObject()
-            .put("found", false).put("engine", engine.getName()).toString());
-      }
+      Match m = region.findText(text);
       return Tool.textResult(new JSONObject()
           .put("found", true)
-          .put("engine", engine.getName())
-          .put("x", region.x + coords[0])
-          .put("y", region.y + coords[1])
-          .put("width", coords[2])
-          .put("height", coords[3])
+          .put("engine", "sikulix-region")
+          .put("x", m.x)
+          .put("y", m.y)
+          .put("width", m.w)
+          .put("height", m.h)
           .toString());
-    } finally {
-      tmp.delete();
+    } catch (FindFailed ff) {
+      return Tool.textResult(new JSONObject()
+          .put("found", false)
+          .put("engine", "sikulix-region")
+          .toString());
     }
   }
 }
