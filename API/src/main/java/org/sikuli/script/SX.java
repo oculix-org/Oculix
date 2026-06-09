@@ -24,10 +24,6 @@ import java.util.concurrent.TimeUnit;
 
 public class SX {
 
-  //TODO placeholder for eventually a main entry in the future - for now simply does nothing
-  public static void main(String[] args) {
-  }
-
   static public class Log {
     public static void error(String msg, Object... args) {
       Debug.error("SX: " + msg, args);
@@ -581,12 +577,4 @@ public class SX {
   public static boolean isNull(Object obj) {
     return null == obj;
   }
-
-  //<editor-fold desc="10 Python support">
-  public void reset() {
-    Debug.log(3, "SX.reset()");
-    Screen.resetMonitorsQuiet();
-    Mouse.reset();
-  }
-  //</editor-fold>
 }
