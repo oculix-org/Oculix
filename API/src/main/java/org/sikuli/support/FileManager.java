@@ -877,11 +877,6 @@ public class FileManager {
 
   private static String doMakeScriptjar(List<String> optionsIn, File fSikulixTemp) {
     List<String> options = new ArrayList<>(optionsIn);
-    boolean makingScriptjarPlain = false;
-    if (options.size() > 0 && "plain".equals(options.get(0))) {
-      makingScriptjarPlain = true;
-      options.remove(0);
-    }
     File scriptFile = null;
     File scriptFolder = null;
     File scriptFolderSikuli = null;
@@ -965,42 +960,6 @@ public class FileManager {
     fileList[0] = fSikulixTemp.getAbsolutePath();
 
     String[] jarsList = new String[]{null, null};
-    if (!makingScriptjarPlain) {
-//      File fJarRunner = new File(runTime.fSikulixExtensions, "archiv");
-//      fJarRunner = new File(fJarRunner, "JarRunner.class");
-//      File fJarRunnerDir = new File(fSikulixTemp, "org/python/util");
-//      fJarRunnerDir.mkdirs();
-//      FileManager.xcopy(fJarRunner, fJarRunnerDir);
-
-      String manifest = "Manifest-Version: 1.0\nMain-Class: org.sikuli.support.SikulixRun\n";
-      File fMetaInf = new File(fSikulixTemp, "META-INF");
-      fMetaInf.mkdir();
-      FileManager.writeStringToFile(manifest, new File(fMetaInf, "MANIFEST.MF"));
-      Class<?> cSikulixRun = null;
-      try {
-        cSikulixRun = Class.forName("org.sikuli.support.support.SikulixRun");
-      } catch (ClassNotFoundException e) {
-      }
-      if (null != cSikulixRun) {
-        InputStream resourceAsStream = cSikulixRun.getResourceAsStream("SikulixRun.class");
-        File targetFile = new File(fSikulixTemp, "org/sikuli/support/support");
-        targetFile.mkdirs();
-        targetFile = new File(targetFile, "SikulixRun.class");
-        try {
-          byte[] buffer = new byte[resourceAsStream.available()];
-          resourceAsStream.read(buffer);
-          OutputStream outStream = new FileOutputStream(targetFile);
-          outStream.write(buffer);
-          outStream.close();
-        } catch (IOException e) {
-          cSikulixRun = null;
-        }
-      }
-      if (null == cSikulixRun) {
-        log(-1, "makingRunnableScriptJar: problems creating main class org.sikuli.support.SikulixRun");
-        return null;
-      }
-    }
 
     String targetJar = (new File(fWorkdir, fpScriptJar)).getAbsolutePath();
     if (!buildJar(targetJar, jarsList, fileList, preList, new FileManager.JarFileFilter() {

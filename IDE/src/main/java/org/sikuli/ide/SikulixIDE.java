@@ -2744,9 +2744,6 @@ public class SikulixIDE extends JFrame {
     exportSubMenu.add(createMenuItem("As .jar (script library)",
             null,
             new FileAction(FileAction.ASJAR)));
-    exportSubMenu.add(createMenuItem("As runnable .jar",
-            null,
-            new FileAction(FileAction.ASRUNJAR)));
     _fileMenu.add(exportSubMenu);
 
     _fileMenu.addSeparator();
@@ -2785,7 +2782,6 @@ public class SikulixIDE extends JFrame {
     static final String SAVE_ALL = "doSaveAll";
     static final String EXPORT = "doExport";
     static final String ASJAR = "doAsJar";
-    static final String ASRUNJAR = "doAsRunJar";
     static final String CLOSE_TAB = "doCloseTab";
     static final String PREFERENCES = "doPreferences";
     static final String QUIT = "doQuit";
@@ -2848,32 +2844,12 @@ public class SikulixIDE extends JFrame {
       } else {
         File fScript = codePane.saveAndGetCurrentFile();
         List<String> options = new ArrayList<>();
-        options.add("plain");
         options.add(fScript.getParentFile().getAbsolutePath());
         String fpJar = FileManager.makeScriptjar(options);
         if (null != fpJar) {
           SX.popup(fpJar, "Export as jar ...");
         } else {
           SX.popError("did not work for: " + orgName, "Export as jar");
-        }
-      }
-    }
-
-    public void doAsRunJar(ActionEvent ae) {
-      EditorPane codePane = getCurrentCodePane();
-      String orgName = codePane.getCurrentShortFilename();
-      log("doAsRunJar requested: %s", orgName);
-      if (codePane.isDirty()) {
-        SX.popError("Please save script before!", "Export as runnable jar");
-      } else {
-        File fScript = codePane.saveAndGetCurrentFile();
-        List<String> options = new ArrayList<>();
-        options.add(fScript.getParentFile().getAbsolutePath());
-        String fpJar = FileManager.makeScriptjar(options);
-        if (null != fpJar) {
-          SX.popup(fpJar, "Export as runnable jar ...");
-        } else {
-          SX.popError("did not work for: " + orgName, "Export as runnable jar");
         }
       }
     }
