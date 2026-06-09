@@ -48,8 +48,10 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <sikuli.jartype>plain.xml</sikuli.jartype>
+<!--
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
+-->
     <apertix.opencv.version>4.10.0-3</apertix.opencv.version>
     <legerix.version>5.5.0-8</legerix.version>
     <versiontess4j>5.18.0</versiontess4j>
@@ -59,6 +61,7 @@
   </properties>
 
   <dependencies>
+<!--
     <dependency>
       <groupId>org.python</groupId>
       <artifactId>jython-slim</artifactId>
@@ -70,6 +73,7 @@
       <version>${sikulixjrubyversion}</version>
       <optional>true</optional>
     </dependency>
+-->
     <dependency>
       <groupId>org.json</groupId>
       <artifactId>json</artifactId>
@@ -188,11 +192,12 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-              <archive>
+         <!--     <archive>
                 <manifest>
                   <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
+-->
               <descriptors>
                 <descriptor>makeapi.xml</descriptor>
               </descriptors>
@@ -222,11 +227,13 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
+<!--
               <archive>
                 <manifest>
                   <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
+-->
               <descriptors>
                 <descriptor>makeapi-win.xml</descriptor>
               </descriptors>
@@ -256,11 +263,13 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
+<!--
               <archive>
                 <manifest>
                   <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
+-->
               <descriptors>
                 <descriptor>makeapi-mac.xml</descriptor>
               </descriptors>
@@ -291,9 +300,11 @@
             <version>3.8.0</version>
             <configuration>
               <archive>
+<!--
                 <manifest>
                   <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
+-->
                 <manifestSections>
                   <manifestSection>
                     <name>io/github/julienmerconsulting/legerix/</name>
