@@ -930,14 +930,24 @@ public class Finder implements Iterator<Match> {
         Mat whereGray = new Mat();
         try {
           Imgproc.cvtColor(findInput.getTarget(), whatGray, Imgproc.COLOR_BGR2GRAY);
-          Imgproc.cvtColor(findWhere, whereGray, Imgproc.COLOR_BGR2GRAY);
-          Mat mResultGray = Commons.getNewMat();
-          Imgproc.matchTemplate(whereGray, whatGray, mResultGray, Imgproc.TM_CCOEFF_NORMED);
-          mMinMax = Core.minMaxLoc(mResultGray);
-          if (mMinMax.maxVal > originalScore) {
-            findResult = new FindResult2(mResultGray, findInput);
-            log.trace("OculiX Mode 4 smart: match %%%.4f (threshold=%%%.4f) %d msec",
-                mMinMax.maxVal * 100, originalScore * 100, new Date().getTime() - begin_lap);
+          // OculiX #395: guard against TM_CCOEFF_NORMED's degenerate Scalar::all(1)
+          // on zero-variance grayscale templates (uniform color or iso-luminant).
+          // Primary search routes plain colors via doFindMatch → TM_SQDIFF_NORMED;
+          // Mode 4 calls matchTemplate directly and must self-guard.
+          MatOfDouble grayStdDev = new MatOfDouble();
+          Core.meanStdDev(whatGray, new MatOfDouble(), grayStdDev);
+          if (grayStdDev.toArray()[0] >= 1.0) {
+            Imgproc.cvtColor(findWhere, whereGray, Imgproc.COLOR_BGR2GRAY);
+            Mat mResultGray = Commons.getNewMat();
+            Imgproc.matchTemplate(whereGray, whatGray, mResultGray, Imgproc.TM_CCOEFF_NORMED);
+            mMinMax = Core.minMaxLoc(mResultGray);
+            if (mMinMax.maxVal > originalScore) {
+              findResult = new FindResult2(mResultGray, findInput);
+              log.trace("OculiX Mode 4 smart: match %%%.4f (threshold=%%%.4f) %d msec",
+                  mMinMax.maxVal * 100, originalScore * 100, new Date().getTime() - begin_lap);
+            }
+          } else {
+            log.trace("OculiX Mode 4 smart: skip — grayscale template variance ≈ 0 (#395)");
           }
         } catch (Exception e) {
           log.trace("OculiX Mode 4 smart: grayscale conversion error: %s", e.getMessage());
