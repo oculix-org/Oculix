@@ -25,6 +25,14 @@ For each staging file (translation/IDE_<locale>.properties):
   - preserve the existing live bundle content untouched (so RaiMan's
     historical hand translations stay as-is — we only add new keys,
     never overwrite)
+  - restore translate-bundles' <xN/> sentinels to the EXACT MessageFormat
+    placeholder used by IDE_en_US for that key ({0}, {0,number,integer}, …)
+    — the live bundle must never carry raw sentinels (pt_BR/zh_CN/zh_TW
+    shipped broken on 2026-05-23, fixed by hand in 0fb5a710; the root cause
+    lives here)
+  - double bare apostrophes on placeholder-carrying values: those go through
+    MessageFormat in SikuliIDEI18N._I(), where a lone ' opens a quoted
+    section and swallows the {0}
   - re-encode the value as Java legacy ASCII (\\uXXXX for non-ASCII)
     so the .properties file works on every JDK locale
 
@@ -69,6 +77,79 @@ def java_encode(s: str) -> str:
     return "".join(out)
 
 
+def java_decode(s: str) -> str:
+    """Exact inverse of java_encode — decodes \\uXXXX AND \\n/\\r/\\t/\\\\.
+
+    The old parser only decoded \\uXXXX: a staged "…{0}.\\n\\nRestart…" was
+    read with a literal backslash+n, which java_encode then re-escaped into
+    \\\\n — Properties.load() rendered it as the two characters "\\n" in the
+    UI instead of a newline.
+    """
+    out = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt == "u" and i + 5 < len(s):
+                try:
+                    out.append(chr(int(s[i + 2:i + 6], 16)))
+                    i += 6
+                    continue
+                except ValueError:
+                    pass
+            if nxt == "n":
+                out.append("\n"); i += 2; continue
+            if nxt == "r":
+                out.append("\r"); i += 2; continue
+            if nxt == "t":
+                out.append("\t"); i += 2; continue
+            if nxt == "\\":
+                out.append("\\"); i += 2; continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+_SENTINEL_RE = re.compile(r"<x(\d+)\s*/>")
+_PLACEHOLDER_RE = re.compile(r"\{(\d+)[^{}]*\}")
+
+
+def restore_placeholders(key: str, val: str, en_base: dict[str, str]) -> str:
+    """Restore translate-bundles' <xN/> sentinels to the EXACT MessageFormat
+    placeholder the EN base uses for that key.
+
+    EN-aware on purpose: sidebarImageCountSingular is {0,number,integer},
+    not {0} — a naive <xN/> → {N} substitution would lose the format spec.
+    Falls back to plain {N} when the key is unknown to the EN base.
+    """
+    if "<x" not in val:
+        return val
+    forms = {m.group(1): m.group(0)
+             for m in _PLACEHOLDER_RE.finditer(en_base.get(key, ""))}
+    return _SENTINEL_RE.sub(
+        lambda m: forms.get(m.group(1), "{" + m.group(1) + "}"), val)
+
+
+def messageformat_quote(val: str) -> str:
+    """Double bare apostrophes on placeholder-carrying values.
+
+    SikuliIDEI18N._I() routes those through MessageFormat, where a lone '
+    opens a quoted section: "l'interfaccia {0}" displays as "linterfaccia"
+    and can swallow the placeholder. Values without placeholders are
+    returned verbatim (_I() returns them raw — doubling would show '').
+    Idempotent: already-doubled '' stays ''.
+    """
+    if not _PLACEHOLDER_RE.search(val):
+        return val
+    return re.sub(r"''|'", "''", val)
+
+
+def promote_value(key: str, raw: str, en_base: dict[str, str]) -> str:
+    """Staging value → live value: sentinel restoration + MessageFormat quoting."""
+    return messageformat_quote(restore_placeholders(key, raw, en_base))
+
+
 def parse_properties_keys(path: Path) -> dict[str, str]:
     """Read a .properties file (UTF-8 encoded) and return key→value dict.
     Decodes Java \\uXXXX escapes back to characters."""
@@ -84,10 +165,9 @@ def parse_properties_keys(path: Path) -> dict[str, str]:
         if not m:
             continue
         key = m.group("key").strip()
-        val = m.group("val")
-        # Decode \\uXXXX back to characters so we can re-encode consistently
-        val = re.sub(r"\\u([0-9a-fA-F]{4})", lambda mm: chr(int(mm.group(1), 16)), val)
-        out[key] = val
+        # Full escape decoding (\\uXXXX AND \\n/\\r/\\t/\\\\) so re-encoding
+        # round-trips instead of double-escaping backslashes.
+        out[key] = java_decode(m.group("val"))
     return out
 
 
@@ -116,6 +196,7 @@ def merge_locale(locale_suffix: str, dry_run: bool,
 
     staging_keys = parse_properties_keys(staging)
     live_keys = parse_properties_keys(live) if live.exists() else {}
+    en_base = parse_properties_keys(LIVE_DIR / "IDE_en_US.properties")
 
     missing = [k for k in staging_keys if k not in live_keys]
     common = [k for k in staging_keys if k in live_keys]
@@ -145,7 +226,7 @@ def merge_locale(locale_suffix: str, dry_run: bool,
             m = _KV_RE.match(line)
             if m and m.group("key").strip() in update_set:
                 k = m.group("key").strip()
-                body_lines[i] = f"{k}={java_encode(staging_keys[k])}"
+                body_lines[i] = f"{k}={java_encode(promote_value(k, staging_keys[k], en_base))}"
     else:
         # Brand-new locale (e.g. hi/bn/te) — write a header from scratch.
         body_lines = [
@@ -165,7 +246,7 @@ def merge_locale(locale_suffix: str, dry_run: bool,
         body_lines.append("# ── Native-speaker corrections welcome via the GitHub")
         body_lines.append("# ── 'i18n-Languages' issue tracker / Translation issue template.")
         for k in missing:
-            body_lines.append(f"{k}={java_encode(staging_keys[k])}")
+            body_lines.append(f"{k}={java_encode(promote_value(k, staging_keys[k], en_base))}")
 
     new_content = "\n".join(body_lines).rstrip("\n") + "\n"
     live.parent.mkdir(parents=True, exist_ok=True)
