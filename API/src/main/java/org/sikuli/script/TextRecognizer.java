@@ -347,6 +347,8 @@ public class TextRecognizer {
     // (-1 mot mesuré sur cleaned full-HD vs baseline) with ~×1.4 speedup.
     // Tunable via OCR.globalOptions().largeImageFactor(...) — Auchan-style
     // dashboards (text >= 14 px) can set 0.8 for ~×4 speedup.
+    // Supersedes the original hardcoded 0.8 on this branch (commit 26d30979);
+    // see #378 thread for the empirical justification.
     if ((long) mimg.cols() * mimg.rows() > 1_000_000L) {
       rFactor = options.largeImageFactor();
     }

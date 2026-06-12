@@ -2350,7 +2350,7 @@ public class Region extends Element {
         if (isOtherScreen()) {
           lastMatch.setOtherScreen();
         } else if (img != null) {
-          img.setLastSeen(lastMatch.getRect(), lastMatch.getScore());
+          img.setLastSeenAndPersist(lastMatch.getRect(), lastMatch.getScore());
         }
         log(logLevel, "wait: %s appeared (%s)", img.getName(), lastMatch);
         return lastMatch;
@@ -2424,7 +2424,7 @@ public class Region extends Element {
         if (isOtherScreen()) {
           lastMatch.setOtherScreen();
         } else if (img != null) {
-          img.setLastSeen(lastMatch.getRect(), lastMatch.getScore());
+          img.setLastSeenAndPersist(lastMatch.getRect(), lastMatch.getScore());
         }
         log(logLevel, "find: %s appeared (%s)", targetStr, lastMatch);
         break;
@@ -3017,9 +3017,10 @@ public class Region extends Element {
   }
 
   private Finder doCheckLastSeenAndCreateFinder(ScreenImage base, Image img, double findTimeout, Pattern ptn) {
-    if (base == null) {
-      base = getScreen().capture(this);
-    }
+    // #353: the position is known (PNG -> lastSeen at load). Do NOT capture the full
+    // screen to locate it — capture ONLY the small ROI around it (the PoC's approach,
+    // source of the ~x6.5 win; wait() inherits it on every poll). The full-screen
+    // capture is deferred to the fallback path (no chunk / moved / not-found).
     boolean shouldCheckLastSeen = false;
     double score = 0;
     if (Settings.CheckLastSeen && null != img.getLastSeen()) {
@@ -3032,6 +3033,18 @@ public class Region extends Element {
     }
     if (shouldCheckLastSeen) {
       Region r = Region.create(img.getLastSeen());
+      // #353: expand the known position x2.5 around its center (clamped to this
+      // region) so small UI drift between runs still hits the ROI.
+      {
+        int dW = (int) (r.w * 2.5);
+        int dH = (int) (r.h * 2.5);
+        int dCx = r.x + r.w / 2;
+        int dCy = r.y + r.h / 2;
+        Region drift = Region.create(dCx - dW / 2, dCy - dH / 2, dW, dH).intersection(this);
+        if (drift != null && drift.w >= r.w && drift.h >= r.h) {
+          r = drift;
+        }
+      }
       // OculiX: if the cached region is smaller than the template, it's the
       // footprint of a Mode 2/5 scaled match (e.g. 40x40 for an 80x80 template
       // at scale=0.5 on a retina display). Searching exactly that subregion
@@ -3060,11 +3073,18 @@ public class Region extends Element {
           // Expansion didn't fit (edge of region) — fall through to full search.
           log(logLevel, "checkLastSeen: skipping (scaled cache %dx%d cannot expand to fit template %dx%d in region)",
               r.w, r.h, imgSize.width, imgSize.height);
+          if (base == null) {
+            base = getScreen().capture(this);
+          }
           return new Finder(base, this);
         }
       }
       if (this.contains(r)) {
-        Finder f = new Finder(base.getSub(r.getRect()), r);
+        // #353: capture ONLY the ROI when no base was provided (single-find path) —
+        // ~ROI capture + match, no full-screen BitBlt. Multi-find passes a base.
+        ScreenImage roiShot = (base != null) ? base.getSub(r.getRect())
+                                             : getScreen().capture(r.x, r.y, r.w, r.h);
+        Finder f = new Finder(roiShot, r);
         if (Debug.shouldHighlight()) {
           if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
             highlight(2, "#000255000");
@@ -3082,6 +3102,10 @@ public class Region extends Element {
         }
         log(logLevel, "checkLastSeen: not there");
       }
+    }
+    // #353: fallback full-screen search — capture now if we deferred it above.
+    if (base == null) {
+      base = getScreen().capture(this);
     }
     return new Finder(base, this);
   }
@@ -3457,7 +3481,7 @@ public class Region extends Element {
     if (finder.hasNext()) {
       match = finder.next();
       //match.setImage(img);
-      img.setLastSeen(match.getRect(), match.getScore());
+      img.setLastSeenAndPersist(match.getRect(), match.getScore());
     }
     return match;
   }
