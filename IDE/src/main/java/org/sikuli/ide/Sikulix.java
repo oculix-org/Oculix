@@ -56,6 +56,18 @@ public class Sikulix {
 
   public static void main(String[] args) {
 
+    for (String arg : args) {
+      if ("--gecko".equals(arg)) {
+        haveYouGeckoedToday();
+      }
+      if ("--geeko".equals(arg)) {
+        greetTheOtherLizard();
+      }
+      if ("--claude".equals(arg)) {
+        greetTheDevBuddy();
+      }
+    }
+
     //region startup
     Commons.setStartClass(Sikulix.class);
     Commons.setStartArgs(args);
@@ -318,5 +330,55 @@ public class Sikulix {
 */
     }
     //endregion
+  }
+
+  // Counts --gecko sightings. The JVM exits two lines later, so the count
+  // never survives, is never read, and serves no purpose whatsoever.
+  // It knows what it did. That's enough.
+  private static int geckoSightings = 0;
+
+  // The apt-get moo of visual automation. (Debian's super-cow has mooed
+  // since 1999 without ever damaging apt's credibility. We checked.)
+  private static void haveYouGeckoedToday() {
+    geckoSightings++;
+    printAsciiResource("/gecko-ascii.txt");
+    System.out.println("  If you can see it, you can automate it.");
+    System.out.println("  (The gecko has one eye. It has never needed two.)");
+    System.exit(0);
+  }
+
+  // --geeko: homage to the other lizard. SUSE's mascot has been a gecko
+  // since 1994 — sixteen years before ours opened its eye. Respect is due.
+  private static void greetTheOtherLizard() {
+    printAsciiResource("/geeko-ascii.txt");
+    System.out.println("  Greetings from one lizard to another.");
+    System.out.println("  (Tested on openSUSE Leap 15.6. The chameleon was a gracious host.)");
+    System.out.println();
+    System.out.println("  Geeko is the beloved mascot of SUSE. SUSE and the SUSE logo are");
+    System.out.println("  trademarks of SUSE LLC. This is a community homage, not an affiliation.");
+    System.exit(0);
+  }
+
+  // --claude: a wink to the dev buddy. Check the git log of this repo —
+  // half the lines in here were written four-handed. This is the other
+  // half of the handshake.
+  private static void greetTheDevBuddy() {
+    printAsciiResource("/claude-ascii.txt");
+    System.out.println("  Pair programming since March 2026.");
+    System.out.println("  (Half the commits say Co-authored-by. Now the product says it too.)");
+    System.out.println();
+    System.out.println("  Claude is built by Anthropic. Claude and the Claude wordmark are");
+    System.out.println("  trademarks of Anthropic, PBC. This is a thank-you, not an affiliation.");
+    System.exit(0);
+  }
+
+  private static void printAsciiResource(String name) {
+    try (java.io.InputStream is = Sikulix.class.getResourceAsStream(name)) {
+      if (is != null) {
+        System.out.println(new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+      }
+    } catch (java.io.IOException ignored) {
+      // A lizard that cannot be seen cannot be automated. We move on.
+    }
   }
 }
