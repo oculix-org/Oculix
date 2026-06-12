@@ -33,6 +33,9 @@ public class Runner {
 
   private static boolean isReady = false;
 
+  // #371: identifiers already flagged for a missing engine — see getRunner().
+  private static final java.util.Set<String> noticedMissingEngine = new java.util.HashSet<>();
+
   public static void initRunners() {
     synchronized (runners) {
       if (isReady) {
@@ -65,6 +68,12 @@ public class Runner {
               log(lvl, "added: %s %s %s (%4.1f)", current.getName(), Arrays.toString(current.getExtensions()),
                   current.getType(), Commons.getSinceStart());
               supportedRunners.add(current);
+            } else {
+              // #371: the runner exists but its engine is absent — note it
+              // quietly here, complain loudly later (getRunner) when someone
+              // actually opens a file it would have handled.
+              log(lvl, "not available: %s %s (engine missing on classpath)",
+                  current.getName(), Arrays.toString(current.getExtensions()));
             }
           }
         }
@@ -82,6 +91,24 @@ public class Runner {
       for (IRunner runner : supportedRunners) {
         if (runner.canHandle(identifier)) {
           return runner;
+        }
+      }
+      // #371: a runner exists for this file type but its engine is not on the
+      // classpath. JRuby is deliberately not bundled (~34 MB, <optional>true>) —
+      // so without this notice, a Ruby user's first contact with OculiX is a
+      // silent fall to plain text. Say what happened and how to fix it.
+      for (IRunner runner : runners) {
+        if (runner.canHandle(identifier)) {
+          // Once per file: said once it informs, said twice it nags.
+          // 7-bit ASCII on purpose: this line's whole job is to be readable
+          // in the kind of console that still defaults to cp1252.
+          if (noticedMissingEngine.add(identifier)) {
+            log(-1, "getRunner: %s could run %s, but its engine is not on the classpath"
+                + " (not bundled with OculiX) -- opening as plain text. To enable it:"
+                + " java -cp <oculix-ide-jar>%s<engine-jar> org.sikuli.ide.Sikulix",
+                runner.getName(), identifier, java.io.File.pathSeparator);
+          }
+          break;
         }
       }
       return new InvalidRunner();
