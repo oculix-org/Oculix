@@ -622,6 +622,8 @@ public class SikulixIDE extends JFrame {
     scriptDependentItems.add(sub.addItem("Export packed source...",
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_E, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> { exportAsZip(); }));
+    scriptDependentItems.add(sub.addItem("Export as .jar (script library)", null,
+        e -> { exportAsJar(); }));
 
     sub.addSeparator();
 
@@ -2082,6 +2084,37 @@ public class SikulixIDE extends JFrame {
     }
   }
 
+  // #393: single implementation for the .jar export, serving both the sidebar
+  // and the JMenuBar FileAction. The JMenuBar has been invisible since the
+  // sidebar migration (Phase 1b) — so this feature spent its revival fully
+  // implemented, correctly wired, and reachable by absolutely no one.
+  // It works better with users.
+  public void exportAsJar() {
+    PaneContext context = getActiveContext();
+    // makeScriptjar packs a .sikuli bundle — a never-saved temp script has no
+    // bundle to pack. (The legacy path trusted EditorPane.editorPaneFile, a
+    // field declared, initialized to null, and then left alone since the
+    // PaneContext refactor. It never hurt anyone. It also never worked.)
+    if (context == null || context.isTemp() || !context.isBundle()) {
+      SX.popError("Please save your script as a .sikuli bundle first!", "Export as jar");
+      return;
+    }
+    if (!context.save()) {
+      SX.popError("Saving the script failed.", "Export as jar");
+      return;
+    }
+    String orgName = context.getFileName();
+    log("exportAsJar requested: %s", orgName);
+    List<String> options = new ArrayList<>();
+    options.add(context.getFolder().getAbsolutePath());
+    String fpJar = FileManager.makeScriptjar(options);
+    if (null != fpJar) {
+      SX.popup(fpJar, "Export as jar ...");
+    } else {
+      SX.popError("did not work for: " + orgName, "Export as jar");
+    }
+  }
+
   private static void zipDir(File zipDir, File zipFile, String fScript) throws IOException {
     ZipOutputStream zos = null;
     try {
@@ -2836,22 +2869,7 @@ public class SikulixIDE extends JFrame {
     }
 
     public void doAsJar(ActionEvent ae) {
-      EditorPane codePane = getCurrentCodePane();
-      String orgName = codePane.getCurrentShortFilename();
-      log("doAsJar requested: %s", orgName);
-      if (codePane.isDirty()) {
-        SX.popError("Please save script before!", "Export as jar");
-      } else {
-        File fScript = codePane.saveAndGetCurrentFile();
-        List<String> options = new ArrayList<>();
-        options.add(fScript.getParentFile().getAbsolutePath());
-        String fpJar = FileManager.makeScriptjar(options);
-        if (null != fpJar) {
-          SX.popup(fpJar, "Export as jar ...");
-        } else {
-          SX.popError("did not work for: " + orgName, "Export as jar");
-        }
-      }
+      exportAsJar();
     }
 
     public void doCloseTab(ActionEvent ae) {
