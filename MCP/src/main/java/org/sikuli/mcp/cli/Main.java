@@ -9,6 +9,7 @@ import org.sikuli.mcp.crypto.KeyManager;
 import org.sikuli.mcp.gate.AutoApproveGate;
 import org.sikuli.mcp.server.McpDispatcher;
 import org.sikuli.mcp.server.McpServer;
+import org.sikuli.mcp.server.OcrBootstrap;
 import org.sikuli.mcp.server.SessionStore;
 import org.sikuli.mcp.server.StartupCheck;
 import org.sikuli.mcp.tools.ToolRegistry;
@@ -84,6 +85,8 @@ public final class Main {
       return;
     }
 
+    OcrBootstrap.applyDefaultLanguage();
+
     try (JournalWriter journal = new JournalWriter(journalDir, keys,
              MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS)) {
       McpServer server = new McpServer(
@@ -155,6 +158,8 @@ public final class Main {
           + ("127.0.0.1".equals(host) ? "loopback" : host + ":" + port)
           + " can call initialize. Set OCULIX_MCP_TOKEN to require a pre-shared client credential.";
     }
+
+    OcrBootstrap.applyDefaultLanguage();
 
     ToolRegistry.Mode mode = ToolRegistry.Mode.fromEnv();
     ToolRegistry registry = ToolRegistry.defaultRegistry(mode);
