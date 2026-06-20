@@ -13,6 +13,18 @@ public enum CommandArgsEnum {
 	 */
 	HELP("help", "h", null, "print this help message"),
 	/**
+	 * Prints all errormessages to stdout
+	 */
+	CONSOLE("console", "c", null, "print all output to commandline (IDE message area)"),
+	/**
+	 * special debugging during startup
+	 */
+	VERBOSE("verbose", "v", null, "Debug level 3 and elapsed time during startup"),
+	/**
+	 * special debugging during startup
+	 */
+	QUIET("quiet", "q", null, "show nothing"),
+	/**
 	 * set debug level
 	 */
 	DEBUG("debug", "d", "debug level", "positive integer (1)", true),
@@ -29,18 +41,6 @@ public enum CommandArgsEnum {
 	 */
 	RUN("run", "r", "foobar.sikuli", "run script", true),
 	/**
-	 * Prints all errormessages to stdout
-	 */
-	CONSOLE("console", "c", null, "print all output to commandline (IDE message area)"),
-	/**
-	 * special debugging during startup
-	 */
-	VERBOSE("verbose", "v", null, "Debug level 3 and elapsed time during startup"),
-	/**
-	 * special debugging during startup
-	 */
-	QUIET("quiet", "q", null, "show nothing"),
-	/**
 	 * Preloads script in IDE
 	 */
 	LOAD("load", "l", "one or more foobar.sikuli", "preload scripts in IDE", true),
@@ -56,10 +56,6 @@ public enum CommandArgsEnum {
 	XTRAS("xtras", "x", "ip,ip,...|file.txt",
 	      "server IP allow-list (strict, no auto-localhost). " +
 	      "Example: -x localhost,192.168.1.10 or -x /path/to/allowed-ips.txt", true),
-	/**
-	 * run the server for Python
-	 */
-	PYTHONSERVER("pythonserver", "p", "Python support", "use SikuliX features from Python"),
 
 	/**
 	 * allow multiple IDE

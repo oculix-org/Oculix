@@ -81,8 +81,6 @@ public class CommandArgs {
     cmdArgs.addOption(makeOption(CommandArgsEnum.GROUPS));
     cmdArgs.addOption(makeOption(CommandArgsEnum.XTRAS));
 
-    cmdArgs.addOption(makeOption(CommandArgsEnum.PYTHONSERVER));
-
     cmdArgs.addOption(makeOption(CommandArgsEnum.APPDATA));
   }
 
