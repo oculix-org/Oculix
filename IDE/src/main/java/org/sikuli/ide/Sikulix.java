@@ -7,7 +7,6 @@ package org.sikuli.ide;
 import org.sikuli.basics.*;
 import org.sikuli.script.SX;
 import org.sikuli.support.FileManager;
-import org.sikuli.support.runner.SikulixServer;
 import org.sikuli.script.SikuliXception;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.Runner;
@@ -121,28 +120,6 @@ public class Sikulix {
       }
       Commons.terminate(exitCode, "");
     }
-
-    if (Commons.hasOption(SERVER)) {
-      SikulixServer.run();
-      Commons.terminate();
-    }
-    //TODO obsolete?
-    // Mode serveur: java -jar oculixapi.jar -s
-    // Demarre le ServerRunner legacy sur le port 50001
-    //    for (String arg : args) {
-    //      if ("-s".equals(arg)) {
-    //        try {
-    //          Class<?> cServer = Class.forName("org.sikuli.support.runner.ServerRunner");
-    //          cServer.getMethod("run").invoke(null);
-    //          System.exit(0);
-    //        } catch (Exception e) {
-    //          System.err.println("[ERROR] Failed to start ServerRunner: " + e.getMessage());
-    //          e.printStackTrace();
-    //          System.exit(1);
-    //        }
-    //      }
-    //    }
-
 
     Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
     //endregion
@@ -264,71 +241,6 @@ public class Sikulix {
     // apple.laf.useScreenMenuBar removed — FlatLaf handles macOS menu integration natively
 
     SikulixIDE.start();
-
-    //TODO start IDE in subprocess?
-    //region IDE subprocess
-    if (false) {
-      /*
-      if (false) {
-        RunTime.terminate(999, "//TODO start IDE in subprocess?");
-        List<String> cmd = new ArrayList<>();
-        System.getProperty("java.home");
-        if (Commons.runningWindows()) {
-          cmd.add(System.getProperty("java.home") + "\\bin\\java.exe");
-        } else {
-          cmd.add(System.getProperty("java.home") + "/bin/java");
-        }
-        if (!Commons.isJava8()) {
-      */
-//      Suppress Java 9+ warnings
-//      --add-opens
-//      java.desktop/javax.swing.plaf.basic=ALL-UNNAMED
-//      --add-opens
-//      java.base/sun.nio.ch=ALL-UNNAMED
-//      --add-opens
-//      java.base/java.io=ALL-UNNAMED
-/*
-
-//TODO IDE start: --add-opens supress warnings
-          cmd.add("--add-opens");
-          cmd.add("java.desktop/javax.swing.plaf.basic=ALL-UNNAMED");
-          cmd.add("--add-opens");
-          cmd.add("java.base/sun.nio.ch=ALL-UNNAMED");
-          cmd.add("--add-opens");
-          cmd.add("java.base/java.io=ALL-UNNAMED");
-        }
-
-        cmd.add("-Dfile.encoding=UTF-8");
-        cmd.add("-Dsikuli.IDE_should_run");
-
-        if (!classPath.isEmpty()) {
-          cmd.add("-cp");
-          cmd.add(classPath);
-        }
-
-        cmd.add("org.sikuli.ide.SikulixIDE");
-//      cmd.addAll(finalArgs);
-
-        RunTime.startLog(3, "*********************** leaving start");
-        //TODO detach IDE: for what does it make sense?
-*/
-/*
-    if (shouldDetach()) {
-      ProcessRunner.detach(cmd);
-      System.exit(0);
-    } else {
-      int exitCode = ProcessRunner.runBlocking(cmd);
-      System.exit(exitCode);
-    }
-*/
-/*
-
-        int exitCode = ProcessRunner.runBlocking(cmd);
-        System.exit(exitCode);
-      }
-      //endregion
-*/
-    }
     //endregion
   }
 
