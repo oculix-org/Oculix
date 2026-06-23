@@ -16,7 +16,6 @@ public class CommandArgs {
   private Options cmdArgs;
   ArrayList<String> userArgs = new ArrayList<String>();
   ArrayList<String> sikuliArgs = new ArrayList<String>();
-  static String argsOrg = "";
 
   public CommandArgs() {
     init();
@@ -77,10 +76,6 @@ public class CommandArgs {
 
     cmdArgs.addOption(makeOption(CommandArgsEnum.RUN));
 
-    cmdArgs.addOption(makeOption(CommandArgsEnum.SERVER));
-    cmdArgs.addOption(makeOption(CommandArgsEnum.GROUPS));
-    cmdArgs.addOption(makeOption(CommandArgsEnum.XTRAS));
-
     cmdArgs.addOption(makeOption(CommandArgsEnum.APPDATA));
   }
 
@@ -119,6 +114,8 @@ public class CommandArgs {
             + "----------------------------------------------------------------",
         true);
   }
+
+  static String argsOrg = "";
 
   public static String[] scanArgs(String[] args) {
 //TODO detect leading and/or trailing blanks

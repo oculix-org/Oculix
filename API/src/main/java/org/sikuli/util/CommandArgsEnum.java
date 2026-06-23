@@ -49,15 +49,6 @@ public enum CommandArgsEnum {
 	 */
 	EXECUTE("execute", "e", null, "auto-run the preloaded script (requires a single -l file)"),
 	/**
-	 * run as server
-	 */
-	SERVER("server", "s", "ip : port or spec file", "run as server", true),
-	GROUPS("groups", "g", "group name or spec file", "group names to run", true),
-	XTRAS("xtras", "x", "ip,ip,...|file.txt",
-	      "server IP allow-list (strict, no auto-localhost). " +
-	      "Example: -x localhost,192.168.1.10 or -x /path/to/allowed-ips.txt", true),
-
-	/**
 	 * allow multiple IDE
 	 */
 	APPDATA("appdata", "a", "appdata path", "path for SikuliX appdata", true);
