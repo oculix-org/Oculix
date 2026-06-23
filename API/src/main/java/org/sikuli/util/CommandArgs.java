@@ -60,9 +60,9 @@ public class CommandArgs {
 
     cmdArgs.addOption(makeOption(CommandArgsEnum.VERBOSE));
 
-    cmdArgs.addOption(makeOption(CommandArgsEnum.QUIET));
-
     cmdArgs.addOption(makeOption(CommandArgsEnum.DEBUG));
+
+    cmdArgs.addOption(makeOption(CommandArgsEnum.QUIET));
 
     cmdArgs.addOption(makeOption(CommandArgsEnum.LOGFILE));
 

@@ -4,6 +4,7 @@
 
 package org.sikuli.ide;
 
+import org.apache.commons.cli.CommandLine;
 import org.sikuli.basics.*;
 import org.sikuli.script.SX;
 import org.sikuli.support.FileManager;
@@ -18,6 +19,8 @@ import com.formdev.flatlaf.FlatLaf;
 import org.sikuli.ide.theme.OculixDarkLaf;
 import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.ide.theme.OculixLightLaf;
+import org.sikuli.util.CommandArgs;
+import org.sikuli.util.CommandArgsEnum;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -53,6 +56,50 @@ public class Sikulix {
     ideIsRunningStrean = tokenStream;
   }
 
+  public static String[] scriptsPreloaded = null;
+  public static boolean shouldExecuteOnStart = false;
+  public static File scriptToStart = null;
+
+
+  private static String[] startArgs = null;
+  private static CommandLine cmdLine = null;
+  private static CommandArgs cmdArgs = null;
+  private static String[] userArgs = new String[0];
+
+  public static void setStartArgs(String[] args) {
+    startArgs = args;
+    cmdArgs = new CommandArgs();
+    cmdLine = cmdArgs.getCommandLine(args);
+    userArgs = cmdArgs.getUserArgs();
+  }
+
+  public static String[] getUserArgs() {
+    return userArgs;
+  }
+
+  public static void setUserArgs(String[] args) {
+    userArgs = args;
+  }
+
+  public static void printHelp() {
+    cmdArgs.printHelp();
+  }
+
+  public static boolean hasArg(String arg) {
+    return cmdLine != null && cmdLine.hasOption(arg);
+  }
+
+  public static String getArg(String arg) {
+    return cmdLine.getOptionValue(arg);
+  }
+
+  public static String[] getArgs(String arg) {
+    String[] args = cmdLine.getOptionValues(arg);
+    return args;
+  }
+
+  public static boolean ideWithConsole = true;
+
   public static void main(String[] args) {
 
     for (String arg : args) {
@@ -69,52 +116,80 @@ public class Sikulix {
 
     //region startup
     Commons.setStartClass(Sikulix.class);
-    Commons.setStartArgs(args);
+    setStartArgs(args);
 
-    if (Commons.hasArg("h")) {
-      Commons.printHelp();
+    if (hasArg(HELP.shortname())) {
+      printHelp();
       System.exit(0);
     }
 
-    //TODO CmdArgs vs. Options
-    Commons.initOptions();
+    if (hasArg(VERBOSE.shortname())) {
+      Debug.globalDebugOn();
+    }
 
-    Commons.globals().setOption("SX_LOCALE", SikuliIDEI18N.getLocaleShow());
+    if (hasArg(DEBUG.shortname())) {
+      String dLevel = getArg(DEBUG.shortname());
+      Debug.setDebugLevel(Commons.getStringAsInteger(dLevel, 3));
+    }
 
-    if (Commons.hasOption(APPDATA)) {
-      String argValue = Commons.globals().getOption(APPDATA);
-      File path = Commons.setAppDataPath(argValue);
-      Commons.setTempFolder(new File(path, "Temp"));
+    if (hasArg(QUIET.shortname())) {
+      Debug.quietOn();
+    }
+
+    if (hasArg(APPDATA.shortname())) {
+      String argValue = getArg(APPDATA.shortname());
+      if (argValue != null) {
+        File path = Commons.setAppDataPath(argValue);
+        Commons.setTempFolder(new File(path, "Temp"));
+      } else {
+        Commons.setTempFolder();
+      }
     } else {
       Commons.setTempFolder();
     }
 
-    if (Commons.hasOption(VERBOSE)) {
-      Debug.globalDebugOn();
+    if (hasArg(LOGFILE.shortname())) {
+      Debug.setLogFile(getArg(LOGFILE.shortname()));
     }
 
-    if (Commons.hasOption(CONSOLE)) {
-      System.setProperty("sikuli.console", "false");
+    if (hasArg(USERLOGFILE.shortname())) {
+      Debug.setUserLogFile(getArg(USERLOGFILE.shortname()));
     }
 
-    if (Commons.hasOption(DEBUG)) {
-      Commons.globals().getOptionInteger("ARG_DEBUG", 3);
-      Debug.setDebugLevel(3);
+    String ideConsole = System.getProperty("sikuli.console", "true"); // default: messages go to the IDE console pane
+    if (ideConsole.toLowerCase().startsWith("t")) {
+      ideWithConsole = true;
+    } else {
+      if (ideConsole.toLowerCase().startsWith("f")) {
+        ideWithConsole = false;
+      }
     }
 
-    if (Commons.hasOption(RUN)) {
+    if (hasArg(CONSOLE.shortname())) {
+      ideWithConsole = false;
+    }
+
+    if (hasArg(LOAD.shortname())) {
+      scriptsPreloaded = Runner.resolveRelativeFiles(getArgs(LOAD.shortname()));
+    }
+
+    if (hasArg(EXECUTE.shortname())) {
+      shouldExecuteOnStart = true;
+    }
+
+    if (hasArg(RUN.shortname())) {
       Commons.loadOpenCV();
       HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
         @Override
         public void hotkeyPressed(HotkeyEvent e) {
-          if (Commons.hasOption(RUN)) {
+          if (Sikulix.hasArg("r")) {
             Runner.abortAll();
             Commons.terminate(254, "AbortKey was pressed: aborting all running scripts");
           }
         }
       });
-      String[] scripts = Runner.resolveRelativeFiles(Commons.getArgs("r"));
-      int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(), new IRunner.Options());
+      String[] scripts = Runner.resolveRelativeFiles(getArgs(RUN.shortname()));
+      int exitCode = Runner.runScripts(scripts, getUserArgs(), new IRunner.Options());
       if (exitCode > 255) {
         exitCode = 254;
       }
@@ -157,9 +232,8 @@ public class Sikulix {
     ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
     ideSplash.run();
 
-    if (Commons.hasOption(VERBOSE)) {
+    if (Debug.isGlobalDebug()) {
       Commons.show();
-      Commons.showOptions("ARG_");
     }
 
     // Belt-and-suspenders: make sure the splash is dismissed on any JVM exit

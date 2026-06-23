@@ -13,23 +13,23 @@ public enum CommandArgsEnum {
 	 */
 	HELP("help", "h", null, "print this help message"),
 	/**
-	 * Prints all errormessages to stdout
+	 * Prints all (error, ...) messages to stdout
 	 */
-	CONSOLE("console", "c", null, "print all output to commandline (IDE message area)"),
+	CONSOLE("console", "c", null, "print all output to stdout / CLI (not to IDE message area)"),
 	/**
-	 * special debugging during startup
+	 * special debugging especially during startup
 	 */
 	VERBOSE("verbose", "v", null, "Debug level 3 and elapsed time during startup"),
 	/**
 	 * special debugging during startup
 	 */
-	QUIET("quiet", "q", null, "show nothing"),
-	/**
-	 * set debug level
-	 */
 	DEBUG("debug", "d", "debug level", "positive integer (1)", true),
 	/**
 	 * outputfile for Sikuli logging messages
+	 */
+	QUIET("quiet", "q", null, "show nothing (switches of -v -d"),
+	/**
+	 * set debug level
 	 */
 	LOGFILE("logfile", "f", "Sikuli logfile", "a valid filename (WorkingDir/SikuliLog.txt)", true),
 	/**

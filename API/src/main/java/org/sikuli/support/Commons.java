@@ -4,7 +4,6 @@
 
 package org.sikuli.support;
 
-import org.apache.commons.cli.CommandLine;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.opencv.core.*;
@@ -15,8 +14,6 @@ import org.sikuli.basics.HotkeyManager;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.*;
 import org.sikuli.support.devices.HelpDevice;
-import org.sikuli.util.CommandArgs;
-import org.sikuli.util.CommandArgsEnum;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -194,7 +191,7 @@ public class Commons {
 
   //<editor-fold desc="01 logging">
   public static void info(String msg, Object... args) {
-    if (hasOption(VERBOSE)) {
+    if (Debug.isGlobalDebug()) {
       System.out.printf("[SXINFO] " + msg + "%n", args);
     }
   }
@@ -267,10 +264,10 @@ public class Commons {
 
   public static void startLog(int level, String msg, Object... args) {
     if (level < 3) {
-      if (!hasOption(VERBOSE)) {
+      if (!Debug.isGlobalDebug()) {
         return;
       }
-      if (hasOption(QUIET)) {
+      if (Debug.isBeQuiet()) {
         return;
       }
     }
@@ -318,43 +315,6 @@ public class Commons {
       jarFile = new File(jarName);
     }
     return jarFile;
-  }
-
-  private static String[] startArgs = null;
-  private static CommandLine cmdLine = null;
-  private static CommandArgs cmdArgs = null;
-  private static String[] userArgs = new String[0];
-
-  public static void setStartArgs(String[] args) {
-    startArgs = args;
-    cmdArgs = new CommandArgs();
-    cmdLine = cmdArgs.getCommandLine(args);
-    userArgs = cmdArgs.getUserArgs();
-  }
-
-  public static String[] getUserArgs() {
-    return userArgs;
-  }
-
-  public static void setUserArgs(String[] args) {
-    userArgs = args;
-  }
-
-  public static void printHelp() {
-    cmdArgs.printHelp();
-  }
-
-  public static boolean hasArg(String arg) {
-    return cmdLine != null && cmdLine.hasOption(arg);
-  }
-
-  public static String getArg(String arg) {
-    return cmdLine.getOptionValue(arg);
-  }
-
-  public static String[] getArgs(String arg) {
-    String[] args = cmdLine.getOptionValues(arg);
-    return args;
   }
 
   static boolean jythonReady = false;
@@ -2442,8 +2402,7 @@ public class Commons {
     info("app data folder: %s", Commons.getAppDataPath());
     info("work dir: %s", Commons.getWorkDir());
     info("user.home: %s", Commons.getUserHome());
-    info("active locale: %s", globalOptions.getOption("SX_LOCALE"));
-    if (hasOption(CommandArgsEnum.VERBOSE) || isJythonReady()) {
+    if (Debug.isGlobalDebug() || isJythonReady()) {
 //      dumpClassPath("sikulix");
       if (isJythonReady()) {
         int saveLvl = Debug.getDebugLevel();
@@ -2455,103 +2414,6 @@ public class Commons {
     }
     info("***** show environment end");
   }
-
-  private static Options globalOptions = null;
-
-  public static Options globals() {
-    return globalOptions;
-  }
-
-  public static void showOptions() {
-    showOptions("");
-  }
-
-  public static void showOptions(String prefix) {
-    Map<String, String> options = globals().getOptions();
-    TreeMap<String, String> sortedOptions = new TreeMap<>();
-    sortedOptions.putAll(options);
-    int len = 0;
-    for (String key : sortedOptions.keySet()) {
-      if (!key.startsWith(prefix)) {
-        continue;
-      }
-      if (key.length() < len) {
-        continue;
-      }
-      len = key.length();
-    }
-    String formKey = "%-" + len + "s";
-    String formVal = " = %s";
-    for (String key : sortedOptions.keySet()) {
-      if (!key.startsWith(prefix)) {
-        continue;
-      }
-      String val = sortedOptions.get(key);
-      if (val.isEmpty()) {
-        info(formKey, key);
-      } else {
-        info(formKey + formVal, key, val);
-      }
-    }
-  }
-
-  public static void initOptions() {
-    if (globalOptions == null) {
-      Options options = Options.create();
-      // *************** add commandline args
-      for (CommandArgsEnum arg : CommandArgsEnum.values()) {
-        String val = "";
-        if (hasArg(arg.shortname())) {
-          if (arg.hasArgs()) {
-            String[] args = getArgs(arg.shortname());
-            if (args.length > 1) {
-              for (int n = 0; n < args.length; n++) {
-                val += "|" + args[n];
-              }
-            } else {
-              val = args[0];
-            }
-          }
-          options.setOption("ARG_" + arg.toString(), (val == null ? "" : val));
-        }
-      }
-      options.setOption("SX_JAR", getMainClassLocation().getAbsolutePath());
-      String prop = System.getProperty("sikuli.Debug");
-      if (prop != null) {
-        options.setOption("SX_DEBUG_LEVEL", prop);
-      }
-      prop = System.getProperty("sikuli.console");
-      if (prop != null) {
-        if (prop.equals("false")) {
-          if (!hasOption(CONSOLE)) {
-            options.setOption("ARG_" + CONSOLE.name(), "");
-          }
-        }
-      }
-      globalOptions = options;
-    }
-  }
-
-  public static boolean hasOption(CommandArgsEnum option) {
-    return hasOption("ARG_" + option.name());
-  }
-
-  public static boolean hasOption(String option) {
-    if (globalOptions == null) {
-      return false;
-    }
-    return globalOptions.hasOption(option);
-  }
-
-  public static Options getOptions() {
-    return sxOptions;
-  }
-
-  public static void setOptions(Options options) {
-    sxOptions = options;
-  }
-
-  private static Options sxOptions = null;
   //</editor-fold>
 
   //<editor-fold desc="80 image handling">
@@ -3036,6 +2898,19 @@ public class Commons {
       return false;
     }
     return true;
+  }
+
+  public static int getStringAsInteger(String pVal, Integer nDefault) {
+    int nVal = nDefault;
+    try {
+      nVal = Integer.decode(pVal);
+    } catch (Exception ex) {
+    }
+    return nVal;
+  }
+
+  public static int getStringAsInteger(String pVal) {
+    return getStringAsInteger(pVal, 0);
   }
 
   public static int[] reverseIntArray(int[] anArray) {
