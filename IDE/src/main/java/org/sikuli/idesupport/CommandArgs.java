@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
-package org.sikuli.util;
+package org.sikuli.idesupport;
 
 import org.apache.commons.cli.*;
 import org.sikuli.support.Commons;
@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 
 public class CommandArgs {
 
+  public static ArrayList<String> skippedArgs  = new ArrayList<String>();
   private Options cmdArgs;
   ArrayList<String> userArgs = new ArrayList<String>();
   ArrayList<String> sikuliArgs = new ArrayList<String>();
@@ -27,6 +28,9 @@ public class CommandArgs {
 
     boolean isUserArg = false;
     for (int i = 0; i < args.length; i++) {
+      if (skippedArgs.contains(args[i])) {
+        continue;
+      }
       if (!isUserArg && args[i].startsWith("--")) {
         isUserArg = true;
         continue;
@@ -49,6 +53,9 @@ public class CommandArgs {
     return userArgs.toArray(new String[0]);
   }
 
+  public String[] getArgs() {
+    return sikuliArgs.toArray(new String[0]);
+  }
   /**
    * Adds all options to the Options object
    */
@@ -104,7 +111,9 @@ public class CommandArgs {
     formatter.printHelp(80, "\n",
         "----- Running SikuliX " + "-------------",
         cmdArgs,
-        "-----\n<foobar.sikuli> (.sikuli might be omitted, is assumed)\n"
+        "-----\n-r or -l: one script file per -l or -r, multiple -l or -r allowed\n"
+            + "file as folder: the base folder for the following -l or -r\n"
+            + ".sikuli, .py can be omitted\n"
             + "path relative to current working directory or absolute path\n"
             + "though deprecated: so called executables .skl can be used too\n"
             + "------\nanything after --\nor after something beginning with --\n"

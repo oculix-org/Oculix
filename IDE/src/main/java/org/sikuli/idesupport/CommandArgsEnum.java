@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
-package org.sikuli.util;
+package org.sikuli.idesupport;
 
 /**
  * Enum that stores the info about the commandline args
@@ -27,7 +27,7 @@ public enum CommandArgsEnum {
 	/**
 	 * outputfile for Sikuli logging messages
 	 */
-	QUIET("quiet", "q", null, "show nothing (switches of -v -d"),
+	QUIET("quiet", "q", null, "show nothing (switches of -v -d)"),
 	/**
 	 * set debug level
 	 */
@@ -39,15 +39,15 @@ public enum CommandArgsEnum {
 	/**
 	 * Runs the script
 	 */
-	RUN("run", "r", "foobar.sikuli", "run script", true),
+	RUN("run", "r", "null", "run script (see details below)", true),
 	/**
 	 * Preloads script in IDE
 	 */
-	LOAD("load", "l", "one or more foobar.sikuli", "preload scripts in IDE", true),
+	LOAD("load", "l", "null", "preload script in IDE (see details below)", true),
 	/**
 	 * Auto-runs the preloaded script (requires a single -l file)
 	 */
-	EXECUTE("execute", "e", null, "auto-run the preloaded script (requires a single -l file)"),
+	EXECUTE("execute", "e", null, "auto-run the preloaded script (requires -l file)"),
 	/**
 	 * allow multiple IDE
 	 */
