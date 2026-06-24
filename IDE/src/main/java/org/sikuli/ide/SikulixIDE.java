@@ -2385,7 +2385,6 @@ public class SikulixIDE extends JFrame {
       }
     }
     String[] loadScripts = Sikulix.scriptsPreloaded;
-    int preloadedFromCli = 0;
     // Diagnostic — surfaces exactly what the CLI parser saw, so a tester
     // hitting "-e doesn't auto-run" on Windows can paste the message panel
     // and we know whether -l grabbed -e by mistake (the historical
@@ -2417,10 +2416,10 @@ public class SikulixIDE extends JFrame {
 //TODO already loaded: solution? currently: remove and add
         if (filesToLoad.remove(f)) {
           Commons.startLog(3,"Preload: file already loaded (moved to end of list): %s", loadScript);
+        } else {
+          Commons.startLog(3,"Preload: %s", f);
         }
-        Commons.startLog(3,"Preload: %s", f);
         filesToLoad.add(f);
-        preloadedFromCli++;
       }
     }
     if (Sikulix.shouldExecuteOnStart) {
