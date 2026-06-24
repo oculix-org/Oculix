@@ -1228,6 +1228,10 @@ public class SikulixIDE extends JFrame {
       return name + "." + ext;
     }
 
+    public String getName() {
+      return name;
+    }
+
     private void setFile() {
       name = tempName + tempIndex++;
       folder = new File(Commons.getIDETemp(), name);
@@ -2365,6 +2369,7 @@ public class SikulixIDE extends JFrame {
   private static boolean shouldExecuteOnStart = false;
 
   private List<File> restoreSession() {
+    Debug.quietOff();
     String session_str = prefs.getIdeSession();
     List<File> filesToLoad = new ArrayList<>();
 //TODO IDEDesktopSupport.filesToOpen
@@ -2384,6 +2389,7 @@ public class SikulixIDE extends JFrame {
         }
       }
     }
+    String[] parsedValues = Sikulix.scriptsPreloadParsedValues;
     String[] loadScripts = Sikulix.scriptsPreloaded;
     // Diagnostic — surfaces exactly what the CLI parser saw, so a tester
     // hitting "-e doesn't auto-run" on Windows can paste the message panel
@@ -2393,16 +2399,16 @@ public class SikulixIDE extends JFrame {
     // sub-3 levels) so the line shows in the IDE message panel without the
     // tester needing -v.
     Commons.startLog(3, "CLI -l parsed values: %s",
-        loadScripts == null ? "null" : java.util.Arrays.toString(loadScripts));
+        loadScripts == null ? "null" : java.util.Arrays.toString(parsedValues));
     Commons.startLog(3, "CLI -e present: %s", Sikulix.shouldExecuteOnStart);
     if (loadScripts != null && loadScripts.length > 0) {
-      log("Preload given scripts (-l)");
+      Commons.startLog(3,"Preload given scripts (-l)");
       for (String loadScript : loadScripts) {
         if (loadScript == null || loadScript.isEmpty()) {
           continue;
         }
         if (loadScript.startsWith("!")) {
-          Commons.startLog(3,"Preload: folder ignored: %s", loadScript);
+          Commons.startLog(3,"Preload: folder: base for next -l: %s", loadScript.substring(1));
           continue;
         }
         File f = new File(loadScript);
@@ -4074,6 +4080,7 @@ public class SikulixIDE extends JFrame {
     void runCurrentScript() {
       log("************** before RunScript"); //TODO
       //doBeforeQuitOrRun();
+      Debug.quietOff();
 
       SikulixIDE.getStatusbar().resetMessage();
       SikulixIDE.doHide();
@@ -4084,6 +4091,7 @@ public class SikulixIDE extends JFrame {
         log("Run script not possible: Script is empty");
         return;
       }
+      String contextName = context.getName();
       context.save();
 
       new Thread(new Runnable() {
@@ -4106,8 +4114,8 @@ public class SikulixIDE extends JFrame {
           Commons.pause(0.1f);
           resetErrorMark();
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
-          System.out.println(String.format("──────── Run started @ %s ────────", runStamp));
           doBeforeRun();
+          Debug.info(String.format("──────── Run started @ %s ──── %s ────", runStamp, contextName));
 
           long runStart = System.currentTimeMillis();
 

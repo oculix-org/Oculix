@@ -13,20 +13,21 @@ import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.Runner;
 import org.sikuli.support.Commons;
 import org.sikuli.support.gui.SXDialog;
-import org.sikuli.support.ide.SikuliIDEI18N;
 
 import com.formdev.flatlaf.FlatLaf;
 import org.sikuli.ide.theme.OculixDarkLaf;
 import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.ide.theme.OculixLightLaf;
-import org.sikuli.util.CommandArgs;
-import org.sikuli.util.CommandArgsEnum;
+import org.sikuli.idesupport.CommandArgs;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-import static org.sikuli.util.CommandArgsEnum.*;
+import static org.sikuli.idesupport.CommandArgsEnum.*;
 
 public class Sikulix {
 
@@ -56,10 +57,11 @@ public class Sikulix {
     ideIsRunningStrean = tokenStream;
   }
 
+  public static String[] scriptsPreloadParsedValues = null;
   public static String[] scriptsPreloaded = null;
   public static boolean shouldExecuteOnStart = false;
   public static File scriptToStart = null;
-
+  static String[] sikuliArgs = null;
 
   private static String[] startArgs = null;
   private static CommandLine cmdLine = null;
@@ -104,37 +106,48 @@ public class Sikulix {
 
     for (String arg : args) {
       if ("--gecko".equals(arg)) {
+        CommandArgs.skippedArgs.add(arg);
         haveYouGeckoedToday();
       }
       if ("--geeko".equals(arg)) {
+        CommandArgs.skippedArgs.add(arg);
         greetTheOtherLizard();
       }
       if ("--claude".equals(arg)) {
+        CommandArgs.skippedArgs.add(arg);
         greetTheDevBuddy();
+      }
+      if ("-q".equals(arg)) {
+        Debug.quietOn();
       }
     }
 
     //region startup
     Commons.setStartClass(Sikulix.class);
     setStartArgs(args);
+    sikuliArgs = cmdArgs.getArgs();
 
     if (hasArg(HELP.shortname())) {
       printHelp();
       System.exit(0);
     }
 
+    // -q is acknowledged in preflight at start of main()
+
     if (hasArg(VERBOSE.shortname())) {
-      Debug.globalDebugOn();
+      if (!Debug.isBeQuiet()) {
+        Debug.globalDebugOn();
+      }
     }
 
     if (hasArg(DEBUG.shortname())) {
       String dLevel = getArg(DEBUG.shortname());
-      Debug.setDebugLevel(Commons.getStringAsInteger(dLevel, 3));
+      if (!Debug.isBeQuiet()) {
+        Debug.setDebugLevel(Commons.getStringAsInteger(dLevel, 3));
+      }
     }
 
-    if (hasArg(QUIET.shortname())) {
-      Debug.quietOn();
-    }
+    Commons.startLog(3, "final runtime CLI args: [%s]", Arrays.stream(sikuliArgs).filter(Objects::nonNull).collect(Collectors.joining(" ")) );
 
     if (hasArg(APPDATA.shortname())) {
       String argValue = getArg(APPDATA.shortname());
@@ -170,10 +183,17 @@ public class Sikulix {
     }
 
     if (hasArg(LOAD.shortname())) {
-      scriptsPreloaded = Runner.resolveRelativeFiles(getArgs(LOAD.shortname()));
+      if (hasArg(RUN.shortname())) {
+        Commons.terminate(99, "CLI arg error: -r and -l are mutually exclusive --- terminating");
+      }
+      scriptsPreloadParsedValues = getArgs(LOAD.shortname());
+      scriptsPreloaded = Runner.resolveRelativeFiles(scriptsPreloadParsedValues);
     }
 
     if (hasArg(EXECUTE.shortname())) {
+      if (!hasArg(LOAD.shortname())) {
+        Commons.terminate(99, "CLI arg error: -e needs at least one -l --- terminating");
+      }
       shouldExecuteOnStart = true;
     }
 
