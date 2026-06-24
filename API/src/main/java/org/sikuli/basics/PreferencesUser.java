@@ -430,7 +430,7 @@ public class PreferencesUser {
   }
 
   public void setPrefMoreLogDebug(boolean flag) {
-    pref.putBoolean("PREF_MORE_LOG_INFO", flag);
+    pref.putBoolean("PREF_MORE_LOG_DEBUG", flag);
   }
 
   public boolean getPrefMoreLogDebug() {
