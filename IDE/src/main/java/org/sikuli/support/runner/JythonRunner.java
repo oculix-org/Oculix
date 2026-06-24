@@ -9,9 +9,8 @@ import org.sikuli.ide.SikulixIDE;
 import org.sikuli.script.SX;
 import org.sikuli.support.runnerSupport.JythonSupport;
 import org.sikuli.support.Commons;
-import org.sikuli.util.CommandArgsEnum;
 
-import static org.sikuli.util.CommandArgsEnum.*;
+import static org.sikuli.idesupport.CommandArgsEnum.*;
 import java.io.File;
 import java.io.PrintStream;
 import java.util.Arrays;
