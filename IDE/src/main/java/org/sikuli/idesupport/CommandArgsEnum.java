@@ -27,7 +27,7 @@ public enum CommandArgsEnum {
 	/**
 	 * outputfile for Sikuli logging messages
 	 */
-	QUIET("quiet", "q", null, "show nothing (switches of -v -d)"),
+	QUIET("quiet", "q", null, "show nothing at startup (switches of -v -d)"),
 	/**
 	 * set debug level
 	 */

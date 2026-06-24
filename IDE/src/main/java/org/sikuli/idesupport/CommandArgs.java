@@ -120,6 +120,7 @@ public class CommandArgs {
             + "go to script as user parameters (respecting enclosing \")\n"
             + "------\n-d use this option if you encounter any weird problems\n"
             + "DebugLevel=3 and all output goes to <workingFolder>/SikuliLog.text\n"
+            + "BE CAREFUL with -q only use it if you do not need the startup infos\n"
             + "----------------------------------------------------------------",
         true);
   }
