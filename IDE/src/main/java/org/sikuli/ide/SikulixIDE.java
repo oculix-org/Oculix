@@ -2414,9 +2414,9 @@ public class SikulixIDE extends JFrame {
         if (Sikulix.shouldExecuteOnStart) {
           Sikulix.scriptToStart = f;
         }
-        if (filesToLoad.contains(f)) {
-          Commons.startLog(3,"Preload: file already loaded (possible session restore): %s", loadScript);
-          continue;
+//TODO already loaded: solution? currently: remove and add
+        if (filesToLoad.remove(f)) {
+          Commons.startLog(3,"Preload: file already loaded (moved to end of list): %s", loadScript);
         }
         Commons.startLog(3,"Preload: %s", f);
         filesToLoad.add(f);
