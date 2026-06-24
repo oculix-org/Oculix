@@ -40,8 +40,6 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.sikuli.util.CommandArgsEnum.*;
-
 public class Commons {
 
   public static final int FILE_NOT_FOUND = 256;
@@ -132,8 +130,8 @@ public class Commons {
     }
 
     if (runningArm64()) {
-      System.out.println("[OculiX] Running on ARM64/Apple Silicon (" + osArch + ")");
-      System.out.println("[OculiX] Native library path: " + getNativeLibDir());
+      startLog(3, "[OculiX] Running on ARM64/Apple Silicon (" + osArch + ")");
+      startLog(3, "[OculiX] Native library path: " + getNativeLibDir());
     }
 
     Properties sxProps = new Properties();
@@ -267,9 +265,9 @@ public class Commons {
       if (!Debug.isGlobalDebug()) {
         return;
       }
-      if (Debug.isBeQuiet()) {
-        return;
-      }
+    }
+    if (Debug.isBeQuiet()) {
+      return;
     }
     System.out.println(String.format("[DEBUG STARTUP] " + msg, args));
   }
@@ -1323,19 +1321,19 @@ public class Commons {
           try {
             opencvClass.getMethod(m).invoke(null);
             libOpenCVloaded = true;
-            System.err.println("[OculiX] OpenCV loaded via " + libOpenCVclassref + "." + m + "()");
+            startLog(3, "[OculiX] OpenCV loaded via " + libOpenCVclassref + "." + m + "()");
             return;
           } catch (NoSuchMethodException nsme) {
-            System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() not found, trying next");
+            startLog(3, "[OculiX] " + libOpenCVclassref + "." + m + "() not found, trying next");
           } catch (Throwable e) {
-            System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() threw: "
+            startLog(3, "[OculiX] " + libOpenCVclassref + "." + m + "() threw: "
                 + e.getClass().getSimpleName() + ": " + e.getMessage());
           }
         }
       } catch (ClassNotFoundException cnfe) {
-        System.err.println("[OculiX] " + libOpenCVclassref + " not on classpath (Apertix jar missing?)");
+        startLog(3, "[OculiX] " + libOpenCVclassref + " not on classpath (Apertix jar missing?)");
       } catch (Throwable e) {
-        System.err.println("[OculiX] Apertix stage failed: "
+        startLog(3, "[OculiX] Apertix stage failed: "
             + e.getClass().getSimpleName() + ": " + e.getMessage());
       }
     }
@@ -1344,10 +1342,10 @@ public class Commons {
     try {
       System.loadLibrary(libName);
       libOpenCVloaded = true;
-      System.err.println("[OculiX] OpenCV loaded via System.loadLibrary(" + libName + ")");
+      startLog(3, "[OculiX] OpenCV loaded via System.loadLibrary(" + libName + ")");
       return;
     } catch (Throwable e) {
-      System.err.println("[OculiX] System.loadLibrary(" + libName + ") failed: " + e.getMessage());
+      startLog(3, "[OculiX] System.loadLibrary(" + libName + ") failed: " + e.getMessage());
     }
 
     // 3. Manual extraction fallback for macOS / Windows (Linux already
@@ -1367,7 +1365,7 @@ public class Commons {
       return;
     }
 
-    System.err.println("[OculiX] FATAL: OpenCV native library '" + libName + "' could NOT be loaded. "
+    startLog(3, "[OculiX] FATAL: OpenCV native library '" + libName + "' could NOT be loaded. "
         + "Next new Mat() call will throw UnsatisfiedLinkError.");
   }
 
@@ -1406,11 +1404,11 @@ public class Commons {
       reason = "glibc " + glibc[0] + "." + glibc[1] + " >= "
           + OPENCV_MODERN_GLIBC_MAJOR + "." + OPENCV_MODERN_GLIBC_MINOR + ", using modern tier";
     }
-    System.err.println("[OculiX] " + reason);
+    startLog(3, "[OculiX] " + reason);
 
     String firstTier = useLegacy ? archDir + "-legacy" : archDir;
     if (extractAndLoad(firstTier + "/" + fileName, fileName)) {
-      System.err.println("[OculiX] OpenCV loaded from " + firstTier + "/");
+      startLog(3, "[OculiX] OpenCV loaded from " + firstTier + "/");
       return true;
     }
 
@@ -1419,9 +1417,9 @@ public class Commons {
     // libstdc++ is too old, or where detection misread the runtime.
     if (!useLegacy) {
       String fallbackTier = archDir + "-legacy";
-      System.err.println("[OculiX] modern tier load failed, retrying with " + fallbackTier + "/");
+      startLog(3, "[OculiX] modern tier load failed, retrying with " + fallbackTier + "/");
       if (extractAndLoad(fallbackTier + "/" + fileName, fileName)) {
-        System.err.println("[OculiX] OpenCV loaded from " + fallbackTier + "/ (cascade fallback)");
+        startLog(3, "[OculiX] OpenCV loaded from " + fallbackTier + "/ (cascade fallback)");
         return true;
       }
     }
@@ -1513,7 +1511,7 @@ public class Commons {
         // unusable, Tess4J's own bundled DLLs (also in the fat-jar) handle the
         // OCR runtime — we just need the .traineddata files.
         Throwable cause = e.getCause() != null ? e.getCause() : e;
-        System.err.println("[OculiX] Legerix.loadNatives() failed: "
+        startLog(3, "[OculiX] Legerix.loadNatives() failed: "
             + cause.getClass().getSimpleName() + ": " + cause.getMessage());
       }
       try {
@@ -1540,23 +1538,23 @@ public class Commons {
         }
       }
     } catch (ClassNotFoundException cnfe) {
-      System.err.println("[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
+      startLog(3, "[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
           + "OCR will fall back to system tesseract if available.");
       return;
     }
     if (nativesLoaded) {
       libTesseractLoaded = true;
-      System.err.println("[OculiX] Tesseract loaded via Legerix (Tesseract " + version
+      startLog(3, "[OculiX] Tesseract loaded via Legerix (Tesseract " + version
           + ", tessdata=" + libTesseractDataPath + ")");
     } else if (libTesseractDataPath != null) {
       // Tess4J ships its own self-contained Tesseract DLLs/dylibs/sos and will
       // load them lazily via JNA on first new Tesseract1(). We don't flip
       // libTesseractLoaded — that flag tracks Legerix specifically — but the
       // tessdata path is enough for TextRecognizer to find the language data.
-      System.err.println("[OculiX] Legerix natives unavailable — using Tess4J bundled binaries with "
+      startLog(3, "[OculiX] Legerix natives unavailable — using Tess4J bundled binaries with "
           + "Legerix-bundled tessdata (" + libTesseractDataPath + ")");
     } else {
-      System.err.println("[OculiX] No Tesseract available — OCR will require a system install.");
+      startLog(3, "[OculiX] No Tesseract available — OCR will require a system install.");
     }
   }
 
@@ -1593,7 +1591,7 @@ public class Commons {
         }
         extracted++;
       } catch (Throwable e) {
-        System.err.println("[OculiX] Failed to extract " + resource + ": " + e.getMessage());
+        startLog(3, "[OculiX] Failed to extract " + resource + ": " + e.getMessage());
       }
     }
     return extracted > 0 ? target : null;
@@ -1634,7 +1632,7 @@ public class Commons {
         is = Commons.class.getResourceAsStream("/" + resourcePath);
       }
       if (is == null) {
-        System.err.println("[OculiX] jar resource not found on classpath: " + resourcePath);
+        startLog(3, "[OculiX] jar resource not found on classpath: " + resourcePath);
         return false;
       }
       String pid = String.valueOf(ProcessHandle.current().pid());
@@ -1653,10 +1651,10 @@ public class Commons {
         is.close();
       }
       System.load(tempLib.getAbsolutePath());
-      System.err.println("[OculiX] native loaded from jar resource: " + tempLib);
+      startLog(3, "[OculiX] native loaded from jar resource: " + tempLib);
       return true;
     } catch (Throwable e) {
-      System.err.println("[OculiX] jar extraction of " + resourcePath + " failed: "
+      startLog(3, "[OculiX] jar extraction of " + resourcePath + " failed: "
           + e.getClass().getSimpleName() + ": " + e.getMessage());
       return false;
     }

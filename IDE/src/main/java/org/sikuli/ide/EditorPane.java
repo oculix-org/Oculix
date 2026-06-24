@@ -1153,7 +1153,7 @@ public class EditorPane extends JTextPane implements ThemeAware {
           // "Clear messages" or trigger ide.clearMessageArea() explicitly.
           ide.resetErrorMark();
           String stamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
-          System.out.println(String.format("──────── Run started @ %s ────────", stamp));
+          Debug.info(String.format("──────── Run started @ %s ────────", stamp));
 
           if (null != context.getSupport()) {
             context.getRunner().runLines(context.getSupport().normalizePartialScript(lines), null);

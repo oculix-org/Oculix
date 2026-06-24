@@ -3,6 +3,8 @@
  */
 package org.sikuli.ide.theme;
 
+import org.sikuli.support.Commons;
+
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.io.IOException;
@@ -65,7 +67,7 @@ public final class OculixFonts {
     for (String path : resources) {
       try (InputStream in = OculixFonts.class.getResourceAsStream(path)) {
         if (in == null) {
-          System.err.println("[OculixFonts] resource not found: " + path);
+          Commons.startLog(3, "[OculixFonts] resource not found: " + path);
           continue;
         }
         Font font = Font.createFont(Font.TRUETYPE_FONT, in);
@@ -73,10 +75,10 @@ public final class OculixFonts {
           registered++;
         }
       } catch (IOException | java.awt.FontFormatException e) {
-        System.err.println("[OculixFonts] failed to register " + path + ": " + e.getMessage());
+        Commons.startLog(3, "[OculixFonts] failed to register " + path + ": " + e.getMessage());
       }
     }
-    System.err.println("[OculixFonts] registered " + registered + "/" + resources.length + " bundled font files");
+    Commons.startLog(3, "[OculixFonts] registered " + registered + "/" + resources.length + " bundled font files");
   }
 
   // ── Convenience accessors (rare — most components should let FlatLaf
