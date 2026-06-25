@@ -457,9 +457,7 @@ public class SikulixIDE extends JFrame {
       new Thread(() -> {
         try {
           doHide();
-          Commons.startLog(3, "-e: thread spawned");
           Commons.loadOpenCV();
-          Commons.startLog(3, "-e: loadOpenCV returned");
           String[] scripts = new String[] {Sikulix.scriptToStart.getAbsolutePath()};
           Commons.startLog(3, "-e: resolved script: %s",
               scripts == null ? "null" : java.util.Arrays.toString(scripts));
@@ -485,6 +483,7 @@ public class SikulixIDE extends JFrame {
         showAgain();
       }, "auto-run-e").start();
     }
+    Debug.quietOff();
   }
 
   //TODO initShortcutKey
@@ -2369,7 +2368,6 @@ public class SikulixIDE extends JFrame {
   private static boolean shouldExecuteOnStart = false;
 
   private List<File> restoreSession() {
-    Debug.quietOff();
     String session_str = prefs.getIdeSession();
     List<File> filesToLoad = new ArrayList<>();
 //TODO IDEDesktopSupport.filesToOpen
