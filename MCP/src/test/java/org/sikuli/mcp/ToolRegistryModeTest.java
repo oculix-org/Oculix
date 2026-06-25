@@ -51,13 +51,16 @@ class ToolRegistryModeTest {
       assertNotNull(r.get("oculix_exists_image"), mode + " missing exists_image");
       assertNotNull(r.get("oculix_wait_for_image"), mode + " missing wait_for_image");
       assertNotNull(r.get("oculix_find_text"), mode + " missing find_text");
+      assertNotNull(r.get("oculix_click_text"), mode + " missing click_text");
+      assertNotNull(r.get("oculix_scroll"), mode + " missing scroll");
+      assertNotNull(r.get("oculix_wait_for_stable"), mode + " missing wait_for_stable");
     }
   }
 
   @Test
   void registrySizeMatchesExpectedCount() {
-    assertEquals(10, ToolRegistry.defaultRegistry(ToolRegistry.Mode.OPEN).size());
-    assertEquals(10, ToolRegistry.defaultRegistry(ToolRegistry.Mode.CONFIDENTIAL).size());
+    assertEquals(13, ToolRegistry.defaultRegistry(ToolRegistry.Mode.OPEN).size());
+    assertEquals(13, ToolRegistry.defaultRegistry(ToolRegistry.Mode.CONFIDENTIAL).size());
   }
 
   @Test
