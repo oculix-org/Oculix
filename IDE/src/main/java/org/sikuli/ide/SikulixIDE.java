@@ -404,6 +404,35 @@ public class SikulixIDE extends JFrame {
         PreferencesUser.get().setIdeLocation(ideWindow.getLocation());
       }
     });
+
+    // Restore-from-maximize override : when the user clicks the Restore button
+    // (or double-clicks the title bar to leave maximised state), Windows
+    // restores the window to whatever pre-maximize size it had — often glued
+    // to a screen edge and awkward to resize. We instead snap to a comfy
+    // 70% × 70% of the screen, centred, leaving 15% margin on every side so
+    // the user can grab any border to resize. Only fires on the
+    // MAXIMIZED_BOTH → NORMAL transition; minimize (NORMAL → ICONIFIED) and
+    // restore-from-icon are left alone.
+    ideWindow.addWindowStateListener(new java.awt.event.WindowStateListener() {
+      @Override
+      public void windowStateChanged(java.awt.event.WindowEvent e) {
+        int oldState = e.getOldState();
+        int newState = e.getNewState();
+        boolean wasMaximised = (oldState & java.awt.Frame.MAXIMIZED_BOTH) != 0;
+        boolean isNormal     = (newState & (java.awt.Frame.MAXIMIZED_BOTH | java.awt.Frame.ICONIFIED)) == 0;
+        if (wasMaximised && isNormal) {
+          java.awt.Rectangle screen = ideWindow.getGraphicsConfiguration().getBounds();
+          int w = (int) (screen.width  * 0.70);
+          int h = (int) (screen.height * 0.70);
+          int x = screen.x + (screen.width  - w) / 2;
+          int y = screen.y + (screen.height - h) / 2;
+          SwingUtilities.invokeLater(() -> {
+            ideWindow.setSize(w, h);
+            ideWindow.setLocation(x, y);
+          });
+        }
+      }
+    });
     ToolTipManager.sharedInstance().setDismissDelay(30000);
 
     if (messages != null) {
@@ -432,7 +461,7 @@ public class SikulixIDE extends JFrame {
     org.sikuli.ide.Sikulix.stopSplash();
     ideWindow.setVisible(true);
     if (sikulixIDE.mainPane != null) {
-      sikulixIDE.mainPane.setDividerLocation(0.6); //TODO saved value
+      sikulixIDE.mainPane.setDividerLocation(0.7); //TODO saved value — 0.7 keeps the Welcome footer visible at default IDE proportions
     }
     if (!sikulixIDE.contexts.isEmpty()) {
       sikulixIDE.getActiveContext().focus();
