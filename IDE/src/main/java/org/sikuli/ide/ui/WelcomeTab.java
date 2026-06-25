@@ -59,7 +59,13 @@ public class WelcomeTab extends JPanel {
     this.onOpen = onOpen;
     this.onNewWorkspace = onNewWorkspace;
     this.onOpenWorkspace = onOpenWorkspace;
-    setLayout(new MigLayout("fill, wrap 1", "[center]", "push[]push"));
+    // Two-row layout : the content column (centred horizontally, ~580px) sits
+    // in the middle, the footer docks at the bottom with full window width so
+    // its links can breathe without being truncated by the 580px constraint.
+    // `fillx` keeps the cell stretchy horizontally so the footer's growx works,
+    // while `[center]` centres anything that does NOT set growx — the column
+    // stays centred at its preferred 652 px, the footer overrides with growx.
+    setLayout(new MigLayout("fillx, wrap 1", "[center]", "push[]push[]"));
     setOpaque(true);
     // Welcome is the brand surface in both modes — always navy with cyan /
     // violet haze + white text, but a touch lighter in OculiX Light so the
@@ -92,24 +98,39 @@ public class WelcomeTab extends JPanel {
     eyebrow.setForeground(OculixColors.OX_CYAN_500);
     column.add(eyebrow, "gapbottom 14");
 
-    // ── Hero quote (RaiMan's words from the SikuliX1 README) ──
-    // Sans-serif bold, "Raiman style 2010" — utilitarian, no flourish.
-    // The translated value embeds the <br> from the bundle (preserved
-    // through translation by translate-bundles.py's HTML sentinel).
-    String hero = "<html><div style='line-height:1.05'>" + _I("welcomeHero") + "</div></html>";
-    JLabel heroLabel = new JLabel(hero);
-    heroLabel.setFont(OculixFonts.uiBold(36));
-    // Hardcoded brand color — Welcome is brand-locked, so the hero stays light
-    // even when the user picks the OculiX Light theme (otherwise the Light
-    // theme's UIManager.Label.foreground = dark navy = invisible on our navy bg).
-    heroLabel.setForeground(OculixColors.OX_INK_100);
-    column.add(heroLabel, "gapbottom 10");
+    // ── Hero quote ──
+    // JTextArea with line-wrap : the box sizes the text (column's MigLayout
+    // imposes the width via `growx`, JTextArea wraps inside whatever it gets).
+    // No HTML width hint, no per-locale `<br>` calibration — robust for any
+    // language. The brand color hard-coded so the hero stays light even on
+    // the OculiX Light theme (Welcome is brand-locked navy + light text).
+    JTextArea heroArea = new JTextArea(_I("welcomeHero"));
+    heroArea.setLineWrap(true);
+    heroArea.setWrapStyleWord(true);
+    heroArea.setEditable(false);
+    heroArea.setFocusable(false);
+    heroArea.setOpaque(false);
+    heroArea.setBorder(null);
+    heroArea.setFont(OculixFonts.uiBold(36));
+    heroArea.setForeground(OculixColors.OX_INK_100);
+    column.add(heroArea, "growx, gapbottom 10");
 
-    String body = "<html><div style='width:540px; line-height:1.5'>" + _I("welcomeBody") + "</div></html>";
-    JLabel bodyLabel = new JLabel(body);
-    bodyLabel.setFont(OculixFonts.ui(13));
-    bodyLabel.setForeground(OculixColors.OX_INK_200);
-    column.add(bodyLabel, "gapbottom 4");
+    // Same pattern as Hero : JTextArea wraps to the width MigLayout grants.
+    // The earlier `<div style='width:540px'>` was 32 px wider than the column
+    // content area (580 − 36×2 = 508) so the last word on the first line slid
+    // silently off-canvas (RaiMan diagnosed in #403 as "part of text invisible
+    // at line end"). Width-hint pattern dropped entirely : the box sizes the
+    // text, not the reverse.
+    JTextArea bodyArea = new JTextArea(_I("welcomeBody"));
+    bodyArea.setLineWrap(true);
+    bodyArea.setWrapStyleWord(true);
+    bodyArea.setEditable(false);
+    bodyArea.setFocusable(false);
+    bodyArea.setOpaque(false);
+    bodyArea.setBorder(null);
+    bodyArea.setFont(OculixFonts.ui(13));
+    bodyArea.setForeground(OculixColors.OX_INK_200);
+    column.add(bodyArea, "growx, gapbottom 4");
 
     JLabel attribution = new JLabel(_I("welcomeAttribution"));
     attribution.setFont(OculixFonts.ui(11).deriveFont(Font.ITALIC));
@@ -139,7 +160,11 @@ public class WelcomeTab extends JPanel {
     // "v3.0.x" + "MIT" + "github.com/oculix-org" stay un-translated (version
     // string, license code, URL display). "fork of SikuliX1", "Docs",
     // "Release notes" go through _I().
-    JPanel footer = new JPanel(new MigLayout("insets 0, gap 12", "[]12[]12[]push[]12[]12[]"));
+    // Footer takes the full WelcomeTab width (via the growx constraint when
+    // added below), but the 9 items are centred as a group with `alignx
+    // center` — version + license + lineage + links read horizontally in the
+    // middle of the screen, not glued to a side or split by a push.
+    JPanel footer = new JPanel(new MigLayout("insets 0, gap 12, alignx center"));
     footer.setOpaque(false);
     footer.add(footerText("v" + Commons.getSXVersionShort()));
     footer.add(footerSep());
@@ -150,9 +175,11 @@ public class WelcomeTab extends JPanel {
     footer.add(footerLink(_I("welcomeFooterReleaseNotes"), "https://github.com/oculix-org/Oculix/releases"));
     footer.add(footerLink(_I("welcomeFooterReportTranslation"), buildReportTranslationUrl()));
     footer.add(footerLink("github.com/oculix-org", "https://github.com/oculix-org/Oculix"));
-    column.add(footer, "growx");
 
+    // Column centred horizontally by the [center] cell constraint; footer
+    // overrides with growx so it takes the full WelcomeTab width.
     add(column);
+    add(footer, "growx, gap 36 36 0 20");
   }
 
   // ── Footer helpers ──────────────────────────────────────────────
@@ -272,7 +299,13 @@ public class WelcomeTab extends JPanel {
     // Target ~58% of panel height, capped at 520px so it doesn't scream on
     // big screens. Positioned slightly past the centered text column so it
     // reads as part of the same composition rather than glued to the edge.
-    int targetH = Math.min((int) (h * 0.58), 520);
+    // Gecko fixed at 360 px — independent of WelcomeTab height. The previous
+    // `h * 0.58` made the gecko grow when the SplitPane gave the WelcomeTab
+    // more vertical room (e.g. footer-friendly 70/30 ratios), which then
+    // overlapped the text column. Fixed size keeps the mascot stable
+    // regardless of the IDE's vertical split, matching the visual baseline
+    // at the previous 60/40 split.
+    int targetH = 360;
     double scale = (double) targetH / geckoSource.getHeight();
     int targetW = (int) (geckoSource.getWidth() * scale);
     // Centered column is 580px wide; place the gecko's center near 78% of
