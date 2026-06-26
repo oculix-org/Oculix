@@ -33,12 +33,15 @@ import org.sikuli.support.devices.ScreenDevice;
 import org.sikuli.support.recorder.generators.ICodeGenerator;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.recorder.actions.IRecordedAction;
-import org.sikuli.util.*;
 import org.sikuli.ide.ui.OculixSidebar;
 import org.sikuli.ide.ui.ScriptExplorer;
 import org.sikuli.ide.ui.SidebarSubmenu;
 import org.sikuli.ide.ui.WelcomeTab;
 import org.sikuli.ide.ui.WorkspaceDialog;
+import org.sikuli.util.EventObserver;
+import org.sikuli.util.EventSubject;
+import org.sikuli.util.OverlayCapturePrompt;
+import org.sikuli.util.SikulixFileChooser;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -202,7 +205,7 @@ public class SikulixIDE extends JFrame {
     IDETaskbarSupport.setTaskbarIcon(getIconResource("/icons/gecko_cyclope_icon.png").getImage());
     sikulixIDE.setIconImage(getIconResource("/icons/gecko_cyclope_icon.png").getImage());
     IDESupport.initIDESupport();
-    if (!Commons.hasOption(CommandArgsEnum.CONSOLE)) {
+    if (Sikulix.ideWithConsole) {
       get().messages = new EditorConsolePane();
     }
     IDESupport.initRunners();
@@ -466,7 +469,7 @@ public class SikulixIDE extends JFrame {
     if (!sikulixIDE.contexts.isEmpty()) {
       sikulixIDE.getActiveContext().focus();
     }
-    if (shouldExecuteOnStart) {
+    if (Sikulix.shouldExecuteOnStart) {
       // Mirrors the -r flow at Sikulix.start verbatim — same loadOpenCV +
       // resolveRelativeFiles + runScripts sequence — minus the
       // RunTime.terminate(...) at the end so the IDE stays open after the
@@ -482,14 +485,12 @@ public class SikulixIDE extends JFrame {
       // last visible "-e: ..." line in the panel is the breakpoint.
       new Thread(() -> {
         try {
-          Commons.startLog(3, "-e: thread spawned");
+          doHide();
           Commons.loadOpenCV();
-          Commons.startLog(3, "-e: loadOpenCV returned");
-          String[] scripts = Runner.resolveRelativeFiles(
-              Commons.getArgs(CommandArgsEnum.LOAD.shortname()));
-          Commons.startLog(3, "-e: resolved scripts: %s",
+          String[] scripts = new String[] {Sikulix.scriptToStart.getAbsolutePath()};
+          Commons.startLog(3, "-e: resolved script: %s",
               scripts == null ? "null" : java.util.Arrays.toString(scripts));
-          int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(),
+          int exitCode = Runner.runScripts(scripts, Sikulix.getUserArgs(),
               new IRunner.Options());
           if (exitCode > 255) {
             exitCode = 254;
@@ -508,8 +509,10 @@ public class SikulixIDE extends JFrame {
               sw.toString());
         }
         // No RunTime.terminate(): -e leaves the IDE running for the user.
+        showAgain();
       }, "auto-run-e").start();
     }
+    Debug.quietOff();
   }
 
   //TODO initShortcutKey
@@ -1251,6 +1254,10 @@ public class SikulixIDE extends JFrame {
 
     public String getFileName() {
       return name + "." + ext;
+    }
+
+    public String getName() {
+      return name;
     }
 
     private void setFile() {
@@ -2409,8 +2416,8 @@ public class SikulixIDE extends JFrame {
         }
       }
     }
-    String[] loadScripts = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
-    int preloadedFromCli = 0;
+    String[] parsedValues = Sikulix.scriptsPreloadParsedValues;
+    String[] loadScripts = Sikulix.scriptsPreloaded;
     // Diagnostic — surfaces exactly what the CLI parser saw, so a tester
     // hitting "-e doesn't auto-run" on Windows can paste the message panel
     // and we know whether -l grabbed -e by mistake (the historical
@@ -2419,32 +2426,36 @@ public class SikulixIDE extends JFrame {
     // sub-3 levels) so the line shows in the IDE message panel without the
     // tester needing -v.
     Commons.startLog(3, "CLI -l parsed values: %s",
-        loadScripts == null ? "null" : java.util.Arrays.toString(loadScripts));
-    Commons.startLog(3, "CLI -e present: %s", Commons.hasArg(CommandArgsEnum.EXECUTE.shortname()));
+        loadScripts == null ? "null" : java.util.Arrays.toString(parsedValues));
+    Commons.startLog(3, "CLI -e present: %s", Sikulix.shouldExecuteOnStart);
     if (loadScripts != null && loadScripts.length > 0) {
-      log("Preload given scripts (-l)");
+      Commons.startLog(3,"Preload given scripts (-l)");
       for (String loadScript : loadScripts) {
         if (loadScript == null || loadScript.isEmpty()) {
           continue;
         }
+        if (loadScript.startsWith("!")) {
+          Commons.startLog(3,"Preload: folder: base for next -l: %s", loadScript.substring(1));
+          continue;
+        }
         File f = new File(loadScript);
         if (!f.exists()) {
-          log("Preload: file does not exist: %s", loadScript);
+          Commons.startLog(3,"Preload: file does not exist: %s", loadScript);
           continue;
         }
-        if (filesToLoad.contains(f)) {
-          continue;
+        if (Sikulix.shouldExecuteOnStart) {
+          Sikulix.scriptToStart = f;
         }
-        if (f.getName().endsWith(".py")) {
-          Debug.info("Python script: %s", f.getName());
+//TODO already loaded: solution? currently: remove and add
+        if (filesToLoad.remove(f)) {
+          Commons.startLog(3,"Preload: file already loaded (moved to end of list): %s", loadScript);
         } else {
-          log("Sikuli script: %s", f);
+          Commons.startLog(3,"Preload: %s", f);
         }
         filesToLoad.add(f);
-        preloadedFromCli++;
       }
     }
-    if (Commons.hasArg(CommandArgsEnum.EXECUTE.shortname())) {
+    if (Sikulix.shouldExecuteOnStart) {
       // Validate -e directly against the CLI args, NOT against the
       // preloadedFromCli counter that the loop above maintains. The
       // counter is incremented only AFTER the duplicate check skips
@@ -2458,15 +2469,22 @@ public class SikulixIDE extends JFrame {
       // whether it was already open" — so the gating predicate is
       // purely on the CLI args being well-formed and pointing at an
       // existing file.
-      String[] eArgs = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
+      /*String[] eArgs = Sikulix.scriptsPreloaded;
       if (eArgs != null && eArgs.length == 1 && new File(eArgs[0]).exists()) {
-        shouldExecuteOnStart = true;
+        Sikulix.shouldExecuteOnStart = true;
       } else if (eArgs == null || eArgs.length == 0) {
         log("-e (--execute) has no effect without a valid -l file; ignoring");
       } else if (eArgs.length > 1) {
         log("-e (--execute) requires exactly one -l file but got %d; ignoring -e", eArgs.length);
       } else {
         log("-e (--execute): -l file does not exist on disk: %s; ignoring", eArgs[0]);
+      }
+*/
+      if (Sikulix.scriptToStart == null) {
+        Sikulix.shouldExecuteOnStart = false;
+        Commons.startLog(3,"-e (--execute) has no effect without a valid -l file; ignoring");
+      } else {
+        Commons.startLog(3,"-e (--execute) candidate to execute: %s", Sikulix.scriptToStart);
       }
     }
     if (filesToLoad.size() > 0) {
@@ -4089,6 +4107,7 @@ public class SikulixIDE extends JFrame {
     void runCurrentScript() {
       log("************** before RunScript"); //TODO
       //doBeforeQuitOrRun();
+      Debug.quietOff();
 
       SikulixIDE.getStatusbar().resetMessage();
       SikulixIDE.doHide();
@@ -4099,6 +4118,7 @@ public class SikulixIDE extends JFrame {
         log("Run script not possible: Script is empty");
         return;
       }
+      String contextName = context.getName();
       context.save();
 
       new Thread(new Runnable() {
@@ -4121,8 +4141,8 @@ public class SikulixIDE extends JFrame {
           Commons.pause(0.1f);
           resetErrorMark();
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
-          System.out.println(String.format("──────── Run started @ %s ────────", runStamp));
           doBeforeRun();
+          Debug.info(String.format("──────── Run started @ %s ──── %s ────", runStamp, contextName));
 
           long runStart = System.currentTimeMillis();
 
@@ -4136,7 +4156,7 @@ public class SikulixIDE extends JFrame {
             if (runner.getType().equals(JythonRunner.TYPE)) {
               JythonSupport.get().reloadImported();
             }
-            exitValue = runner.runScript(context.getFile().getAbsolutePath(), Commons.getUserArgs(), runOptions);
+            exitValue = runner.runScript(context.getFile().getAbsolutePath(), Sikulix.getUserArgs(), runOptions);
           } catch (Exception e) {
             log("Run Script: internal error:");
             e.printStackTrace();

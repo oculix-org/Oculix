@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
  */
-package org.sikuli.util;
+package org.sikuli.idesupport;
 
 /**
  * Enum that stores the info about the commandline args
@@ -13,11 +13,23 @@ public enum CommandArgsEnum {
 	 */
 	HELP("help", "h", null, "print this help message"),
 	/**
-	 * set debug level
+	 * Prints all (error, ...) messages to stdout
+	 */
+	CONSOLE("console", "c", null, "print all output to stdout / CLI (not to IDE message area)"),
+	/**
+	 * special debugging especially during startup
+	 */
+	VERBOSE("verbose", "v", null, "Debug level 3 and elapsed time during startup"),
+	/**
+	 * special debugging during startup
 	 */
 	DEBUG("debug", "d", "debug level", "positive integer (1)", true),
 	/**
 	 * outputfile for Sikuli logging messages
+	 */
+	QUIET("quiet", "q", null, "show nothing at startup (switches of -v -d)"),
+	/**
+	 * set debug level
 	 */
 	LOGFILE("logfile", "f", "Sikuli logfile", "a valid filename (WorkingDir/SikuliLog.txt)", true),
 	/**
@@ -27,40 +39,15 @@ public enum CommandArgsEnum {
 	/**
 	 * Runs the script
 	 */
-	RUN("run", "r", "foobar.sikuli", "run script", true),
-	/**
-	 * Prints all errormessages to stdout
-	 */
-	CONSOLE("console", "c", null, "print all output to commandline (IDE message area)"),
-	/**
-	 * special debugging during startup
-	 */
-	VERBOSE("verbose", "v", null, "Debug level 3 and elapsed time during startup"),
-	/**
-	 * special debugging during startup
-	 */
-	QUIET("quiet", "q", null, "show nothing"),
+	RUN("run", "r", "null", "run script (see details below)", true),
 	/**
 	 * Preloads script in IDE
 	 */
-	LOAD("load", "l", "one or more foobar.sikuli", "preload scripts in IDE", true),
+	LOAD("load", "l", "null", "preload script in IDE (see details below)", true),
 	/**
 	 * Auto-runs the preloaded script (requires a single -l file)
 	 */
-	EXECUTE("execute", "e", null, "auto-run the preloaded script (requires a single -l file)"),
-	/**
-	 * run as server
-	 */
-	SERVER("server", "s", "ip : port or spec file", "run as server", true),
-	GROUPS("groups", "g", "group name or spec file", "group names to run", true),
-	XTRAS("xtras", "x", "ip,ip,...|file.txt",
-	      "server IP allow-list (strict, no auto-localhost). " +
-	      "Example: -x localhost,192.168.1.10 or -x /path/to/allowed-ips.txt", true),
-	/**
-	 * run the server for Python
-	 */
-	PYTHONSERVER("pythonserver", "p", "Python support", "use SikuliX features from Python"),
-
+	EXECUTE("execute", "e", null, "auto-run the preloaded script (requires -l file)"),
 	/**
 	 * allow multiple IDE
 	 */
