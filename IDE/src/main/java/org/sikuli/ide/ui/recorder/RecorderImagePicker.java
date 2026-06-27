@@ -74,6 +74,12 @@ class RecorderImagePicker {
   String captureImage(String purpose) {
     parent.setVisible(false);
     parent.getOwner().setVisible(false);
+    // Wayland buffers unmap events: setVisible(false) returns before the compositor
+    // actually unmaps the window, so the just-hidden Recorder still paints in the
+    // capture overlay (#387). Toolkit.sync() forces a flush + round-trip (XSync on
+    // X11, wl_display_roundtrip on Wayland, no-op on Windows). Same spirit as the
+    // source-select dialog dispose, generalised to the recorder windows.
+    java.awt.Toolkit.getDefaultToolkit().sync();
     final ScreenImage[] captured = new ScreenImage[1];
     try {
       captured[0] = new Screen().userCapture("Select region for " + purpose);
