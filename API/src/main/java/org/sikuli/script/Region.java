@@ -2915,6 +2915,8 @@ public class Region extends Element {
     Match match = null;
     //IScreen screen = null;
     boolean findingText = false;
+    boolean shouldCacheTextHit = false;
+    Region cachedRoiUsed = null;
     ScreenImage simg;
     double findTimeout = autoWaitTimeout;
     String someText = "";
@@ -2953,9 +2955,29 @@ public class Region extends Element {
         }
         if (findingText) {
           log(logLevel, "doFind: Switching to TextSearch");
-          finder = new Finder(this);
-          lastSearchTime = (new Date()).getTime();
-          finder.findText(someText);
+          // Try the persisted last-seen cache first: scan a tight ROI
+          // instead of the full region. Falls back to the full region
+          // on miss. See org.sikuli.support.TesseractLastSeen.
+          Region cachedRoi = TesseractLastSeen.getRegion(this, someText);
+          if (cachedRoi != null) {
+            finder = new Finder(cachedRoi);
+            lastSearchTime = (new Date()).getTime();
+            finder.findText(someText);
+            if (!finder.hasNext()) {
+              TesseractLastSeen.invalidate(this, someText);
+              finder = new Finder(this);
+              lastSearchTime = (new Date()).getTime();
+              finder.findText(someText);
+              shouldCacheTextHit = true;
+            } else {
+              cachedRoiUsed = cachedRoi;
+            }
+          } else {
+            finder = new Finder(this);
+            lastSearchTime = (new Date()).getTime();
+            finder.findText(someText);
+            shouldCacheTextHit = true;
+          }
         }
       } else if (ptn instanceof Pattern) {
         if (img.isValid()) {
@@ -2987,12 +3009,24 @@ public class Region extends Element {
       if (finder.hasNext()) {
         lastFindTime = (new Date()).getTime() - lastFindTime;
         match = finder.next();
+        // Coords returned by Finder are relative to the image it scanned.
+        // When that image was a cached sub-ROI rather than `this`, translate
+        // the match so it stays expressed relative to `this`. The caller's
+        // relocate() will then yield the same absolute screen coordinates
+        // a full-region scan would have produced.
+        if (cachedRoiUsed != null) {
+          match.x += cachedRoiUsed.x - this.x;
+          match.y += cachedRoiUsed.y - this.y;
+        }
         match.setTimes(lastFindTime, lastSearchTime);
         if (Settings.Highlight) {
           match.highlight(Settings.DefaultHighlightTime);
         }
         if (Settings.FindProfiling) {
           Debug.logp("[FindProfiling] Region.doFind final: %d msec", lastSearchTime);
+        }
+        if (shouldCacheTextHit && findingText) {
+          TesseractLastSeen.put(this, someText, match);
         }
       }
     }
@@ -4719,7 +4753,14 @@ public class Region extends Element {
   private static boolean containsNonAscii(String text) {
     if (text == null) return false;
     for (int i = 0; i < text.length(); i++) {
-      if (text.charAt(i) > 127) return true;
+      char c = text.charAt(i);
+      // Exclude SikuliX special-key markers in the Unicode Private Use Area
+      // (U+E000..U+F8FF). Key.F1..F12, Key.HOME (U+E008), arrow keys, etc.
+      // are NOT real characters — they are command markers that must be
+      // dispatched via typeKey(VK_*) on the keystroke path, never through
+      // a paste that just writes an unprintable glyph to the clipboard.
+      // See issue #396 — silent failure on tn5250j / VNC / IBM ACS / POS.
+      if (c > 127 && (c < 0xE000 || c > 0xF8FF)) return true;
     }
     return false;
   }
