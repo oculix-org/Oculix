@@ -1,0 +1,22 @@
+name: "OculiX CodeQL Config"
+
+# Exclude paths from analysis to keep alerts focused on the active runtime
+# and avoid re-flagging vendored / parked code on every scan.
+paths-ignore:
+  # Code parked for final deletion or reuse — not in the active runtime path.
+  # Already documented as such in the directory name itself.
+  - 'Support/ParkedForFinalDeletionOrReused/**'
+
+  # Vendored upstream JSch (Java SSH library, com.jcraft.jsch.*) — legacy
+  # cryptographic algorithms / static IVs / short keys are present by design
+  # for backward-compatible SSH protocol negotiation. Not modifying upstream.
+  - 'API/src/main/java/com/jcraft/jsch/**'
+
+  # Vendored upstream jzlib (Java port of zlib, com.jcraft.jzlib.*) — bytes
+  # packing / narrowing conversions are intentional in this 1998-era code.
+  - 'API/src/main/java/com/jcraft/jzlib/**'
+
+  # Build outputs, generated code, third-party.
+  - '**/build/**'
+  - '**/target/**'
+  - '**/generated-sources/**'
