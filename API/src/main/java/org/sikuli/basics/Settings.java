@@ -137,6 +137,18 @@ public class Settings {
   public static boolean TraceLogs = false;
   public static boolean LogTime = false;
 
+  /**
+   * Personality of the action/error log lines.
+   * <p>Recognised values (case-insensitive): {@code CLEAR}, {@code MASKED},
+   * {@code SILENT}, {@code GECKO}, {@code COMPETITOR}, {@code AI_BURLESQUE}.
+   * <p>Rendering happens in {@code org.sikuli.support.ActionLogRenderer}.
+   * <p>Defaults to {@code CLEAR} for backward compatibility — but ship with
+   * {@code MASKED} for any production CI run, and turn {@code GECKO} on for
+   * conference demos.
+   * @since 4.0
+   */
+  public static String ActionLogMode = "CLEAR";
+
   public static boolean UserLogs = true;
   public static String UserLogPrefix = "user";
   public static boolean UserLogTime = true;
