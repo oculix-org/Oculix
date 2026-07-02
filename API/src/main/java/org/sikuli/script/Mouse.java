@@ -60,7 +60,11 @@ public class Mouse {
       mouse.device = new Device(mouse);
       mouse.device.isMouse = true;
       mouse.device.lastPos = null;
-      MouseDevice.start();
+      //TODO for now: Fallback if called before Screen.initScreens
+      // MouseDevice.start() avoids double run
+      if (Commons.runningMac()) {
+        MouseDevice.start();
+      }
     }
   }
 
@@ -307,10 +311,10 @@ public class Mouse {
     if (shouldMove) {
       if (Settings.isShowActions() && !screen.isOtherScreen()) {
         Highlight highlight = new Highlight(loc).doShow();
-        RunTime.pause(0.3f);
+        Commons.pause(0.3f);
         ((RobotDesktop) robot).smoothMoveSlow(loc);
         highlight.close();
-        RunTime.pause(0.2f);
+        Commons.pause(0.2f);
       } else {
         robot.smoothMove(loc);
       }

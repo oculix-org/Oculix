@@ -5,8 +5,8 @@ package org.sikuli.support.runner;
 
 import org.apache.commons.io.FileUtils;
 import org.sikuli.basics.Debug;
-import org.sikuli.support.ide.JRubySupport;
-import org.sikuli.support.ide.Runner;
+import org.sikuli.support.Commons;
+import org.sikuli.support.runnerSupport.JRubySupport;
 
 import java.io.*;
 import java.util.regex.Matcher;
@@ -59,8 +59,6 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
     synchronized (JRubyRunner.class) {
       if (null == jrubySupport) {
         jrubySupport = JRubySupport.get();
-        // execute script headers to already do the warmup during init
-        jrubySupport.executeScriptHeader(codeBefore);
       }
     }
   }
@@ -68,7 +66,7 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
 
   private String injectAbortWatcher(String script) {
     return "Thread.new(){\n"
-         + "  runner = org.sikuli.support.ide.Runner.getRunner(\"" + NAME + "\")\n"
+         + "  runner = org.sikuli.support.runner.Runner.getRunner(\"" + NAME + "\")\n"
          + "  while runner.isRunning()\n"
          + "    sleep(0.1)\n"
          + "    if runner.isAborted()\n"
@@ -101,7 +99,7 @@ public class JRubyRunner extends AbstractLocalFileScriptRunner {
         script = FileUtils.readFileToString(rubyFile, "UTF-8");
       } catch (IOException ex) {
         log(-1, "reading script: %s", ex.getMessage());
-        return Runner.FILE_NOT_FOUND;
+        return Commons.FILE_NOT_FOUND;
       }
 
       script = injectAbortWatcher(script);

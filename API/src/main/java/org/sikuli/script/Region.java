@@ -15,6 +15,10 @@ import org.sikuli.util.Highlight;
 import java.awt.Rectangle;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -285,6 +289,145 @@ public class Region extends Element {
 
   private int repeatWaitTimeDefault = Settings.RepeatWaitTime;
   private int repeatWaitTime = repeatWaitTimeDefault;
+
+  /**
+   * Wait for this region to visually stabilize by comparing successive captures.
+   * Useful after UI transitions (page navigation, modal opening, animation,
+   * filter re-render) to ensure the rendered pixels have settled before
+   * proceeding with the next action.
+   * <p>
+   * Pattern: capture -&gt; compare to previous capture -&gt; if (almost) identical
+   * for stabilityMs consecutive milliseconds, return true. Otherwise reset
+   * the stability timer and retry.
+   *
+   * @param maxWaitMs      maximum time to wait in milliseconds
+   * @param stabilityMs    how long the region must remain (almost) pixel-identical
+   *                       to be considered stable
+   * @param pixelTolerance fraction of pixels allowed to differ between two
+   *                       captures and still be considered "stable" (0.0 = exact
+   *                       match required, 0.02 = up to 2% pixels can differ).
+   *                       Useful for pages with permanent micro-animations
+   *                       (blinking cursor, sparkline, carousel autoplay) where
+   *                       exact pixel equality would never be reached.
+   * @return true if region stabilized within timeout, false otherwise
+   */
+  public boolean waitForStable(long maxWaitMs, long stabilityMs, double pixelTolerance) {
+    long startTime = System.currentTimeMillis();
+    long lastChangeTime = startTime;
+    BufferedImage previousImage = null;
+
+    while (System.currentTimeMillis() - startTime < maxWaitMs) {
+      ScreenImage shot = getScreen().capture(this);
+      BufferedImage currentImage = shot == null ? null : shot.getImage();
+      if (currentImage == null) {
+        try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+        continue;
+      }
+
+      if (previousImage != null && imageDistance(previousImage, currentImage) <= pixelTolerance) {
+        if (System.currentTimeMillis() - lastChangeTime >= stabilityMs) {
+          Debug.log(3, "Region: stable after %d ms (tolerance=%.3f)",
+              System.currentTimeMillis() - startTime, pixelTolerance);
+          return true;
+        }
+      } else {
+        lastChangeTime = System.currentTimeMillis();
+      }
+      previousImage = currentImage;
+      try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+    }
+    Debug.log(3, "Region: did not stabilize within %d ms (tolerance=%.3f)",
+        maxWaitMs, pixelTolerance);
+    return false;
+  }
+
+  /**
+   * Wait for stability requiring exact pixel match (no tolerance).
+   * Equivalent to {@link #waitForStable(long, long, double)} with tolerance 0.
+   *
+   * @param maxWaitMs   maximum time to wait in milliseconds
+   * @param stabilityMs how long the region must remain pixel-identical
+   * @return true if region stabilized within timeout, false otherwise
+   */
+  public boolean waitForStable(long maxWaitMs, long stabilityMs) {
+    return waitForStable(maxWaitMs, stabilityMs, 0.0);
+  }
+
+  /**
+   * Wait for stability with default thresholds: 5000ms max wait, 500ms stable,
+   * 1% pixel tolerance (handles common micro-animations like blinking cursors
+   * without forcing the caller to think about it).
+   *
+   * @return true if region stabilized within 5s, false otherwise
+   */
+  public boolean waitForStable() {
+    return waitForStable(5000, 500, 0.01);
+  }
+
+  /**
+   * Compute the fraction of pixels that differ between two BufferedImages.
+   * Returns 1.0 if dimensions mismatch or either is null.
+   * Uses DataBuffer fast path (byte/int) when available, falls back to per-pixel.
+   */
+  protected static double imageDistance(BufferedImage a, BufferedImage b) {
+    if (a == null || b == null) return 1.0;
+    if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) return 1.0;
+    int totalPixels = a.getWidth() * a.getHeight();
+    if (totalPixels == 0) return 0.0;
+    int diffCount = 0;
+    try {
+      DataBuffer da = a.getRaster().getDataBuffer();
+      DataBuffer db = b.getRaster().getDataBuffer();
+      if (da instanceof DataBufferInt && db instanceof DataBufferInt) {
+        int[] aa = ((DataBufferInt) da).getData();
+        int[] bb = ((DataBufferInt) db).getData();
+        int len = Math.min(aa.length, bb.length);
+        for (int i = 0; i < len; i++) {
+          if (aa[i] != bb[i]) diffCount++;
+        }
+        return (double) diffCount / Math.max(len, 1);
+      }
+      if (da instanceof DataBufferByte && db instanceof DataBufferByte) {
+        byte[] aa = ((DataBufferByte) da).getData();
+        byte[] bb = ((DataBufferByte) db).getData();
+        int len = Math.min(aa.length, bb.length);
+        int bpp = Math.max(1, len / Math.max(totalPixels, 1));
+        for (int i = 0; i + bpp <= len; i += bpp) {
+          for (int j = 0; j < bpp; j++) {
+            if (aa[i + j] != bb[i + j]) { diffCount++; break; }
+          }
+        }
+        return (double) diffCount / Math.max(totalPixels, 1);
+      }
+    } catch (Throwable ignored) {}
+    for (int y = 0; y < a.getHeight(); y++) {
+      for (int x = 0; x < a.getWidth(); x++) {
+        if (a.getRGB(x, y) != b.getRGB(x, y)) diffCount++;
+      }
+    }
+    return (double) diffCount / Math.max(totalPixels, 1);
+  }
+
+  protected static boolean imagesEqual(BufferedImage a, BufferedImage b) {
+    if (a == null || b == null) return false;
+    if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) return false;
+    try {
+      DataBuffer da = a.getRaster().getDataBuffer();
+      DataBuffer db = b.getRaster().getDataBuffer();
+      if (da instanceof DataBufferByte && db instanceof DataBufferByte) {
+        return Arrays.equals(((DataBufferByte) da).getData(), ((DataBufferByte) db).getData());
+      }
+      if (da instanceof DataBufferInt && db instanceof DataBufferInt) {
+        return Arrays.equals(((DataBufferInt) da).getData(), ((DataBufferInt) db).getData());
+      }
+    } catch (Throwable ignored) {}
+    for (int y = 0; y < a.getHeight(); y++) {
+      for (int x = 0; x < a.getWidth(); x++) {
+        if (a.getRGB(x, y) != b.getRGB(x, y)) return false;
+      }
+    }
+    return true;
+  }
   //</editor-fold>
 
   //<editor-fold desc="004 housekeeping">
@@ -2207,7 +2350,7 @@ public class Region extends Element {
         if (isOtherScreen()) {
           lastMatch.setOtherScreen();
         } else if (img != null) {
-          img.setLastSeen(lastMatch.getRect(), lastMatch.getScore());
+          img.setLastSeenAndPersist(lastMatch.getRect(), lastMatch.getScore());
         }
         log(logLevel, "wait: %s appeared (%s)", img.getName(), lastMatch);
         return lastMatch;
@@ -2281,7 +2424,7 @@ public class Region extends Element {
         if (isOtherScreen()) {
           lastMatch.setOtherScreen();
         } else if (img != null) {
-          img.setLastSeen(lastMatch.getRect(), lastMatch.getScore());
+          img.setLastSeenAndPersist(lastMatch.getRect(), lastMatch.getScore());
         }
         log(logLevel, "find: %s appeared (%s)", targetStr, lastMatch);
         break;
@@ -2772,6 +2915,8 @@ public class Region extends Element {
     Match match = null;
     //IScreen screen = null;
     boolean findingText = false;
+    boolean shouldCacheTextHit = false;
+    Region cachedRoiUsed = null;
     ScreenImage simg;
     double findTimeout = autoWaitTimeout;
     String someText = "";
@@ -2810,9 +2955,29 @@ public class Region extends Element {
         }
         if (findingText) {
           log(logLevel, "doFind: Switching to TextSearch");
-          finder = new Finder(this);
-          lastSearchTime = (new Date()).getTime();
-          finder.findText(someText);
+          // Try the persisted last-seen cache first: scan a tight ROI
+          // instead of the full region. Falls back to the full region
+          // on miss. See org.sikuli.support.TesseractLastSeen.
+          Region cachedRoi = TesseractLastSeen.getRegion(this, someText);
+          if (cachedRoi != null) {
+            finder = new Finder(cachedRoi);
+            lastSearchTime = (new Date()).getTime();
+            finder.findText(someText);
+            if (!finder.hasNext()) {
+              TesseractLastSeen.invalidate(this, someText);
+              finder = new Finder(this);
+              lastSearchTime = (new Date()).getTime();
+              finder.findText(someText);
+              shouldCacheTextHit = true;
+            } else {
+              cachedRoiUsed = cachedRoi;
+            }
+          } else {
+            finder = new Finder(this);
+            lastSearchTime = (new Date()).getTime();
+            finder.findText(someText);
+            shouldCacheTextHit = true;
+          }
         }
       } else if (ptn instanceof Pattern) {
         if (img.isValid()) {
@@ -2844,12 +3009,24 @@ public class Region extends Element {
       if (finder.hasNext()) {
         lastFindTime = (new Date()).getTime() - lastFindTime;
         match = finder.next();
+        // Coords returned by Finder are relative to the image it scanned.
+        // When that image was a cached sub-ROI rather than `this`, translate
+        // the match so it stays expressed relative to `this`. The caller's
+        // relocate() will then yield the same absolute screen coordinates
+        // a full-region scan would have produced.
+        if (cachedRoiUsed != null) {
+          match.x += cachedRoiUsed.x - this.x;
+          match.y += cachedRoiUsed.y - this.y;
+        }
         match.setTimes(lastFindTime, lastSearchTime);
         if (Settings.Highlight) {
           match.highlight(Settings.DefaultHighlightTime);
         }
         if (Settings.FindProfiling) {
           Debug.logp("[FindProfiling] Region.doFind final: %d msec", lastSearchTime);
+        }
+        if (shouldCacheTextHit && findingText) {
+          TesseractLastSeen.put(this, someText, match);
         }
       }
     }
@@ -2874,9 +3051,10 @@ public class Region extends Element {
   }
 
   private Finder doCheckLastSeenAndCreateFinder(ScreenImage base, Image img, double findTimeout, Pattern ptn) {
-    if (base == null) {
-      base = getScreen().capture(this);
-    }
+    // #353: the position is known (PNG -> lastSeen at load). Do NOT capture the full
+    // screen to locate it — capture ONLY the small ROI around it (the PoC's approach,
+    // source of the ~x6.5 win; wait() inherits it on every poll). The full-screen
+    // capture is deferred to the fallback path (no chunk / moved / not-found).
     boolean shouldCheckLastSeen = false;
     double score = 0;
     if (Settings.CheckLastSeen && null != img.getLastSeen()) {
@@ -2889,8 +3067,58 @@ public class Region extends Element {
     }
     if (shouldCheckLastSeen) {
       Region r = Region.create(img.getLastSeen());
+      // #353: expand the known position x2.5 around its center (clamped to this
+      // region) so small UI drift between runs still hits the ROI.
+      {
+        int dW = (int) (r.w * 2.5);
+        int dH = (int) (r.h * 2.5);
+        int dCx = r.x + r.w / 2;
+        int dCy = r.y + r.h / 2;
+        Region drift = Region.create(dCx - dW / 2, dCy - dH / 2, dW, dH).intersection(this);
+        if (drift != null && drift.w >= r.w && drift.h >= r.h) {
+          r = drift;
+        }
+      }
+      // OculiX: if the cached region is smaller than the template, it's the
+      // footprint of a Mode 2/5 scaled match (e.g. 40x40 for an 80x80 template
+      // at scale=0.5 on a retina display). Searching exactly that subregion
+      // would either crash Finder.isValid() ("image to search larger than image
+      // to search in") or skip the optimization on every find on HiDPI — both
+      // were regressions vs. SikuliX1. Restore the SikuliX1-era behavior by
+      // expanding the search rect to at least the template size, centered on
+      // the cached match, so the cascade can re-locate the scaled object via
+      // Modes 2/5 within the expanded area. Mouse/click coordinates are still
+      // taken from the returned Match (scale-correct), so hover precision is
+      // preserved.
+      java.awt.Dimension imgSize = img.getSize();
+      if (r.w < imgSize.width || r.h < imgSize.height) {
+        int cx = r.x + r.w / 2;
+        int cy = r.y + r.h / 2;
+        int ew = Math.max(r.w, imgSize.width);
+        int eh = Math.max(r.h, imgSize.height);
+        Region expanded = Region.create(cx - ew / 2, cy - eh / 2, ew, eh);
+        // Clamp to this region's bounds so getSub() succeeds.
+        expanded = expanded.intersection(this);
+        if (expanded != null && expanded.w >= imgSize.width && expanded.h >= imgSize.height) {
+          log(logLevel, "checkLastSeen: expanding scaled cache %dx%d -> %dx%d for template %dx%d",
+              r.w, r.h, expanded.w, expanded.h, imgSize.width, imgSize.height);
+          r = expanded;
+        } else {
+          // Expansion didn't fit (edge of region) — fall through to full search.
+          log(logLevel, "checkLastSeen: skipping (scaled cache %dx%d cannot expand to fit template %dx%d in region)",
+              r.w, r.h, imgSize.width, imgSize.height);
+          if (base == null) {
+            base = getScreen().capture(this);
+          }
+          return new Finder(base, this);
+        }
+      }
       if (this.contains(r)) {
-        Finder f = new Finder(base.getSub(r.getRect()), r);
+        // #353: capture ONLY the ROI when no base was provided (single-find path) —
+        // ~ROI capture + match, no full-screen BitBlt. Multi-find passes a base.
+        ScreenImage roiShot = (base != null) ? base.getSub(r.getRect())
+                                             : getScreen().capture(r.x, r.y, r.w, r.h);
+        Finder f = new Finder(roiShot, r);
         if (Debug.shouldHighlight()) {
           if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
             highlight(2, "#000255000");
@@ -2908,6 +3136,10 @@ public class Region extends Element {
         }
         log(logLevel, "checkLastSeen: not there");
       }
+    }
+    // #353: fallback full-screen search — capture now if we deferred it above.
+    if (base == null) {
+      base = getScreen().capture(this);
     }
     return new Finder(base, this);
   }
@@ -3283,7 +3515,7 @@ public class Region extends Element {
     if (finder.hasNext()) {
       match = finder.next();
       //match.setImage(img);
-      img.setLastSeen(match.getRect(), match.getScore());
+      img.setLastSeenAndPersist(match.getRect(), match.getScore());
     }
     return match;
   }
@@ -4521,7 +4753,14 @@ public class Region extends Element {
   private static boolean containsNonAscii(String text) {
     if (text == null) return false;
     for (int i = 0; i < text.length(); i++) {
-      if (text.charAt(i) > 127) return true;
+      char c = text.charAt(i);
+      // Exclude SikuliX special-key markers in the Unicode Private Use Area
+      // (U+E000..U+F8FF). Key.F1..F12, Key.HOME (U+E008), arrow keys, etc.
+      // are NOT real characters — they are command markers that must be
+      // dispatched via typeKey(VK_*) on the keystroke path, never through
+      // a paste that just writes an unprintable glyph to the clipboard.
+      // See issue #396 — silent failure on tn5250j / VNC / IBM ACS / POS.
+      if (c > 127 && (c < 0xE000 || c > 0xF8FF)) return true;
     }
     return false;
   }

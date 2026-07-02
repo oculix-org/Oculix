@@ -10,7 +10,7 @@
 
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculixapi</artifactId>
-  <version>3.0.4</version>
+  <version>4.0.0</version>
 
   <packaging>jar</packaging>
 
@@ -48,17 +48,20 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <sikuli.jartype>plain.xml</sikuli.jartype>
+<!--
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
-    <legerix.version>5.5.0-6</legerix.version>
+-->
+    <apertix.opencv.version>4.10.0-3</apertix.opencv.version>
+    <legerix.version>5.5.0-8</legerix.version>
     <versiontess4j>5.18.0</versiontess4j>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd_HH:mm</maven.build.timestamp.format>
     <!--suppress UnresolvedMavenProperty -->
-    <buildnumber>${env.GITHUB_RUN_NUMBER}</buildnumber>
   </properties>
 
   <dependencies>
+<!--
     <dependency>
       <groupId>org.python</groupId>
       <artifactId>jython-slim</artifactId>
@@ -70,6 +73,7 @@
       <version>${sikulixjrubyversion}</version>
       <optional>true</optional>
     </dependency>
+-->
     <dependency>
       <groupId>org.json</groupId>
       <artifactId>json</artifactId>
@@ -89,7 +93,7 @@
     <dependency>
       <groupId>io.github.julienmerconsulting.apertix</groupId>
       <artifactId>opencv</artifactId>
-      <version>4.10.0-3</version>
+      <version>${apertix.opencv.version}</version>
       <!-- https://github.com/julienmerconsulting/Apertix
            4.10.0-3 ships dual Linux native builds: modern (glibc >= 2.38) at
            linux-{x86-64,aarch64}/ and legacy (manylinux_2_28, glibc >= 2.28)
@@ -171,7 +175,7 @@
     <dependency>
       <groupId>io.github.oculix-org</groupId>
       <artifactId>legerix</artifactId>
-      <version>5.5.0-6</version>
+      <version>${legerix.version}</version>
     </dependency>
   </dependencies>
 
@@ -188,11 +192,12 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-              <archive>
+         <!--     <archive>
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
+-->
               <descriptors>
                 <descriptor>makeapi.xml</descriptor>
               </descriptors>
@@ -222,11 +227,13 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
+<!--
               <archive>
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
+-->
               <descriptors>
                 <descriptor>makeapi-win.xml</descriptor>
               </descriptors>
@@ -256,11 +263,13 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
+<!--
               <archive>
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
               </archive>
+-->
               <descriptors>
                 <descriptor>makeapi-mac.xml</descriptor>
               </descriptors>
@@ -291,9 +300,11 @@
             <version>3.8.0</version>
             <configuration>
               <archive>
+<!--
                 <manifest>
-                  <mainClass>org.sikuli.script.Sikulix</mainClass>
+                  <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
+-->
                 <manifestSections>
                   <manifestSection>
                     <name>io/github/julienmerconsulting/legerix/</name>
@@ -518,7 +529,7 @@
         <configuration>
           <archive>
             <manifest>
-              <mainClass>org.sikuli.script.Sikulix</mainClass>
+              <mainClass>org.sikuli.script.SX</mainClass>
             </manifest>
           </archive>
         </configuration>

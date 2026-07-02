@@ -9,7 +9,6 @@ import org.sikuli.support.ide.IButton;
 import org.sikuli.script.Location;
 import org.sikuli.script.Pattern;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.gui.SXDialogPaneImage;
 import org.sikuli.support.gui.SXDialogPaneImageMenu;
@@ -221,7 +220,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
       try {
         img = ImageIO.read(SikulixIDE.class.getResource("/icons/sxcapture.png"));
       } catch (Exception e) {
-        RunTime.terminate(999, "EditorImageButton: createThumbnailImage: possible? %s", e.getMessage());
+        Commons.terminate(999, "EditorImageButton: createThumbnailImage: possible? %s", e.getMessage());
       }
     }
     int w = img.getWidth();

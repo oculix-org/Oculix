@@ -9,6 +9,7 @@ import java.awt.FileDialog;
 import java.awt.Frame;
 import java.io.File;
 //import java.io.FilenameFilter;
+import java.util.ResourceBundle;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -132,9 +133,27 @@ public class SikulixFileChooser {
   }
 
   public File loadImage() {
-    File ret = show("Load Image File", LOAD, FILES,
-            new FileNameExtensionFilter("Image files (jpg, png)", "jpg", "jpeg", "png"));
+    File ret = show(tr("Load Image File", "fileChooserLoadImageTitle"), LOAD, FILES,
+            new FileNameExtensionFilter(
+                tr("Image files (jpg, png)", "fileChooserImageFilesFilter"),
+                "jpg", "jpeg", "png"));
     return ret;
+  }
+
+  /**
+   * i18n lookup with safe English fallback. Reads the IDE resource bundle
+   * lazily — when this class runs in pure-API headless context (no IDE
+   * bundle on classpath), the fallback English text is used. When loaded
+   * from inside the IDE, the user's locale-resolved bundle wins.
+   */
+  private static String tr(String fallback, String key) {
+    try {
+      ResourceBundle rb = ResourceBundle.getBundle("i18n/IDE",
+          PreferencesUser.get().getLocale());
+      return rb.getString(key);
+    } catch (Exception e) {
+      return fallback;
+    }
   }
 
   private File show(final String title, final int mode, final int theSelectionMode, Object... filters) {

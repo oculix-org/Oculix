@@ -9,14 +9,13 @@ import org.sikuli.basics.Settings;
 import org.sikuli.script.Image;
 import org.sikuli.script.Key;
 import org.sikuli.script.ScreenImage;
-import org.sikuli.support.RunTime;
+import org.sikuli.support.Commons;
 import org.sikuli.support.devices.ScreenDevice;
 import org.sikuli.support.ide.SikuliIDEI18N;
 import org.sikuli.util.EventObserver;
 import org.sikuli.util.EventSubject;
 import org.sikuli.util.OverlayCapturePrompt;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
@@ -68,8 +67,8 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
 
     givenName = SikulixIDE.get().getImageNameFromLine();
 
-    RunTime.pause(delay);
-    OverlayCapturePrompt.capturePrompt(this, "Select an image");
+    Commons.pause(delay);
+    OverlayCapturePrompt.capturePrompt(this, SikulixIDE._I("captureOverlayPrompt"));
 
 //TODO capture on Android
 //    defaultScreen = SikulixIDE.getDefaultScreen();

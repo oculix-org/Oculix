@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Auto-credit collaboration on commits, in both directions:
+#   - Mode "web/SDK": Claude is the Author → credit the human pair-programmer
+#     (configured per clone: `git config oculix.coauthor "Your Name <you@example.com>"`)
+#   - Mode "CLI-assisted": the human is the Author → always credit Claude
+#     (no toggle: this repo's workflow assumes every human commit is Claude-assisted)
+#
+# If the relevant trailer is already in the message, it is not duplicated.
+
+set -e
+
+COMMIT_MSG_FILE=$1
+
+AUTHOR_EMAIL=$(git var GIT_AUTHOR_IDENT | sed -n 's/.*<\([^>]*\)>.*/\1/p')
+CLAUDE_EMAIL="noreply@anthropic.com"
+CLAUDE_TRAILER="Co-authored-by: Claude (Anthropic) <$CLAUDE_EMAIL>"
+
+# Mode 1 — Claude is the Author → credit the human pair-programmer
+COAUTHOR=$(git config --get oculix.coauthor 2>/dev/null || true)
+if [ "$AUTHOR_EMAIL" = "$CLAUDE_EMAIL" ] && [ -n "$COAUTHOR" ]; then
+  trailer="Co-authored-by: $COAUTHOR"
+  if ! grep -qF "$trailer" "$COMMIT_MSG_FILE"; then
+    printf "\n%s\n" "$trailer" >> "$COMMIT_MSG_FILE"
+  fi
+fi
+
+# Mode 2 — human is the Author → always credit Claude (CLI-assisted)
+if [ "$AUTHOR_EMAIL" != "$CLAUDE_EMAIL" ]; then
+  if ! grep -qF "$CLAUDE_TRAILER" "$COMMIT_MSG_FILE"; then
+    printf "\n%s\n" "$CLAUDE_TRAILER" >> "$COMMIT_MSG_FILE"
+  fi
+fi

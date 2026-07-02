@@ -4,11 +4,13 @@
 package org.sikuli.support.runner;
 
 import org.sikuli.basics.Debug;
+import org.sikuli.ide.Sikulix;
 import org.sikuli.ide.SikulixIDE;
-import org.sikuli.support.ide.JythonSupport;
-import org.sikuli.script.Sikulix;
+import org.sikuli.script.SX;
+import org.sikuli.support.runnerSupport.JythonSupport;
 import org.sikuli.support.Commons;
-import static org.sikuli.util.CommandArgsEnum.*;
+
+import static org.sikuli.idesupport.CommandArgsEnum.*;
 import java.io.File;
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -91,13 +93,13 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       jythonSupport.addSitePackages();
       jythonSupport.showSysPath();
       jythonSupport.interpreterExecString("import sys");
-      jythonSupport.interpreterExecString("import org.sikuli.support.ide.Runner as Runner");
+      jythonSupport.interpreterExecString("import org.sikuli.support.runner.Runner as Runner");
       String interpreterVersion = jythonSupport.interpreterEval("sys.version.split(\"(\")[0]\n").toString();
       if (interpreterVersion.isEmpty()) {
         interpreterVersion = "could not be evaluated";
       }
       Commons.startLog(3, "Jython ready: version %s (%4.1f sec)", interpreterVersion, Commons.getSinceStart());
-      if (!Commons.hasOption(RUN)) {
+      if (!Sikulix.hasArg(RUN.shortname())) {
         SwingUtilities.invokeLater(() -> SikulixIDE.showAfterStart());
       }
     }
@@ -130,6 +132,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
       initAbort();
+      redirectToCurrentConsole();
       jythonSupport.interpreterExecString(script);
       return 0;
     }
@@ -149,6 +152,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
       initAbort();
+      redirectToCurrentConsole();
 
       File pyFile = new File(scriptFile);
 
@@ -185,7 +189,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       }
 
       if (System.out.checkError()) {
-        Sikulix.popError("System.out is broken (console output)!" + "\nYou will not see any messages anymore!"
+        SX.popError("System.out is broken (console output)!" + "\nYou will not see any messages anymore!"
                 + "\nSave your work and restart the IDE!", "Fatal Error");
       }
 
@@ -198,6 +202,7 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
     // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
       initAbort();
+      redirectToCurrentConsole();
       jythonSupport.executeScriptHeader(codeBefore);
 
       try {
@@ -214,18 +219,58 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
   //<editor-fold desc="20 redirect">
   private static boolean redirected = false;
 
+  /**
+   * Pipe Jython's {@code sys.stdout} / {@code sys.stderr} to the streams the
+   * IDE has already wired to its Messages pane (#272).
+   *
+   * <p>Without this, Jython captures the JVM's {@code System.out} once at
+   * interpreter construction time — which happens before
+   * {@code EditorConsolePane.initRedirect()} runs {@code System.setOut(piped)}.
+   * Result: {@code print "..."} statements write to the original terminal
+   * stdout instead of the Messages pane, while {@code Debug.on(3)} (which
+   * routes through Java's {@code System.out} at call time) lands correctly
+   * in the Messages pane. Mac surfaces this loudly because GUI apps there
+   * keep their terminal-attached stdout visible.
+   *
+   * <p>Mirrors the API-side {@code JythonRunner.doRedirect} used in CLI mode.
+   * The redirect is synchronized + idempotent because the {@code PythonInterpreter}
+   * is a process-wide singleton — we want exactly one retarget of its streams,
+   * not one per script run.
+   */
   @Override
   protected boolean doRedirect(PrintStream stdout, PrintStream stderr) {
-    //TODO extra redirect for interpreter needed? for what?
-    // Since we have a static interpreter, we have to synchronize class wide
-//    synchronized (JythonRunner.class) {
-//      if (!redirected) {
-//        redirected = true;
-//        return jythonSupport.interpreterRedirect(stdout, stderr);
-//      }
-//      return true;
-//    }
-    return true;
+    synchronized (JythonRunner.class) {
+      if (!redirected) {
+        redirected = true;
+        return jythonSupport.interpreterRedirect(stdout, stderr);
+      }
+      return true;
+    }
+  }
+
+  /**
+   * Re-point Jython's {@code sys.stdout} / {@code sys.stderr} at the IDE's
+   * <em>current</em> {@code System.out} / {@code System.err} right before every
+   * run.
+   *
+   * <p>The one-shot startup redirect ({@code EditorConsolePane.initRedirect()} →
+   * {@code srunner.redirect(null,null)}) fires at {@code SikulixIDE} l.410, i.e.
+   * <em>before</em> the Jython interpreter exists: "IDE ready" precedes
+   * "Jython ready" by ~0.5s (see the startup log), so at redirect time
+   * {@code interpreter == null} and {@code interpreterRedirect} is a no-op.
+   * Nothing re-applied it afterwards, so {@code print} stayed bound to the JVM's
+   * original terminal stdout, while {@code Debug.on(3)} — routed through
+   * {@code System.out} at call time — correctly reached the Messages pane. That
+   * is the print/debug asymmetry reported in #272 and re-surfaced in #273.
+   *
+   * <p>Re-applying here, when both invariants hold (the interpreter exists AND
+   * {@code System.out} is the Messages-pane pipe in the IDE / the real stdout in
+   * CLI mode), guarantees {@code print} lands where the IDE is actually listening
+   * on every OS and every run — not just on the run that happens to win the
+   * warm-up race. Idempotent and cheap (two {@code setOut/setErr} calls).
+   */
+  private void redirectToCurrentConsole() {
+    jythonSupport.interpreterRedirect(System.out, System.err);
   }
   //</editor-fold>
 

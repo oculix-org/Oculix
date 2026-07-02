@@ -602,10 +602,14 @@ public class Debug {
       if (doRedirect(CallbackType.ACTION, "", message, args)) {
         return;
       }
+      // Apply ActionLogMode personality (CLEAR/MASKED/SILENT/GECKO/COMPETITOR/AI_BURLESQUE)
+      String rendered = org.sikuli.support.ActionLogRenderer.render(
+          message, args, Settings.ActionLogMode, false);
+      if (rendered == null) return;  // SILENT mode swallows the line
       if (is(3)) {
-        logx(3, message, args);
+        logx(3, rendered);
       } else {
-        log(-1, actionPrefix, message, args);
+        log(-1, actionPrefix, rendered);
       }
     }
   }
@@ -651,7 +655,11 @@ public class Debug {
     if (doRedirect(CallbackType.ERROR, "", message, args)) {
       return;
     }
-    log(-1, errorPrefix, message, args);
+    // Apply ActionLogMode personality on the error path too — alert prefix is auto-prepended
+    String rendered = org.sikuli.support.ActionLogRenderer.render(
+        message, args, Settings.ActionLogMode, true);
+    if (rendered == null) return;  // SILENT mode swallows errors too
+    log(-1, errorPrefix, rendered);
   }
 
   /**

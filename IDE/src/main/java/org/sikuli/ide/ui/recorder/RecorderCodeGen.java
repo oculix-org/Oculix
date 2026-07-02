@@ -10,6 +10,8 @@ import org.sikuli.support.recorder.generators.RobotFrameworkCodeGenerator;
 
 import javax.swing.*;
 import java.io.File;
+
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 /**
  * @author Julien Mer (julienmerconsulting)
  * @author Claude (Anthropic)
@@ -93,8 +95,8 @@ class RecorderCodeGen {
   }
 
   void generateVanish(JDialog parent, Pattern pattern, boolean appScoped, String appVarName) {
-    JCheckBox chkVanish = new JCheckBox("Assert UI change after this action (waitVanish)");
-    JOptionPane.showMessageDialog(parent, chkVanish, "Post-action assertion",
+    JCheckBox chkVanish = new JCheckBox(_I("recorderCodeGenAssertCheckbox"));
+    JOptionPane.showMessageDialog(parent, chkVanish, _I("recorderCodeGenAssertionTitle"),
         JOptionPane.PLAIN_MESSAGE);
     if (chkVanish.isSelected()) {
       String patStr = codeGenerator.pattern(pattern);

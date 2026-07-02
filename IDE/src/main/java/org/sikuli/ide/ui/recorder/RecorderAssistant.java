@@ -7,6 +7,8 @@ import net.miginfocom.swing.MigLayout;
 import org.sikuli.ide.SikulixIDE;
 import org.sikuli.support.recorder.generators.ICodeGenerator;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -45,7 +47,7 @@ public class RecorderAssistant extends JDialog {
   private JButton btnInsert, btnClear;
 
   public RecorderAssistant(Frame parent, ICodeGenerator generator) {
-    super(parent, "OculiX Modern Recorder (beta)", false);
+    super(parent, _I("recorderAssistantTitle"), false);
     setSize(400, 680);
     setLocationRelativeTo(parent);
     setAlwaysOnTop(true);
@@ -98,24 +100,24 @@ public class RecorderAssistant extends JDialog {
         "wrap 1, insets 10, gap 6", "[grow, fill]", ""));
     content.setBackground(UIManager.getColor("Panel.background"));
 
-    statusLabel = new JLabel("\u2B24 Ready");
+    statusLabel = new JLabel(_I("recorderAssistantReady"));
     statusLabel.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
     statusLabel.setForeground(new Color(0x3D, 0xDB, 0xA4));
     content.add(statusLabel);
 
     content.add(new JSeparator(), "growx");
 
-    content.add(createSectionLabel("APPLICATION"));
+    content.add(createSectionLabel(_I("recorderAssistantSectionApplication")));
     JPanel appRow = new JPanel(new MigLayout("insets 0, gap 4", "[grow][grow]"));
     appRow.setOpaque(false);
-    btnLaunchApp = createActionButton("Launch App");
-    btnCloseApp = createActionButton("Close App");
+    btnLaunchApp = createActionButton(_I("recorderAssistantBtnLaunchApp"));
+    btnCloseApp = createActionButton(_I("recorderAssistantBtnCloseApp"));
     btnCloseApp.setEnabled(false);
     appRow.add(btnLaunchApp, "grow");
     appRow.add(btnCloseApp, "grow");
     content.add(appRow);
 
-    chkScopeToApp = new JCheckBox("Scope actions to this app", true);
+    chkScopeToApp = new JCheckBox(_I("recorderAssistantChkScopeActions"), true);
     chkScopeToApp.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
     chkScopeToApp.setOpaque(false);
     chkScopeToApp.setEnabled(false);
@@ -123,12 +125,12 @@ public class RecorderAssistant extends JDialog {
 
     content.add(new JSeparator(), "growx, gaptop 4");
 
-    content.add(createSectionLabel("IMAGE ACTIONS"));
+    content.add(createSectionLabel(_I("recorderAssistantSectionImageActions")));
     JPanel imageRow1 = new JPanel(new MigLayout("insets 0, gap 4", "[grow][grow][grow]"));
     imageRow1.setOpaque(false);
-    btnClick = createActionButton("Click");
-    btnDblClick = createActionButton("DblClick");
-    btnRClick = createActionButton("RClick");
+    btnClick = createActionButton(_I("recorderAssistantBtnClick"));
+    btnDblClick = createActionButton(_I("recorderAssistantBtnDblClick"));
+    btnRClick = createActionButton(_I("recorderAssistantBtnRClick"));
     imageRow1.add(btnClick, "grow");
     imageRow1.add(btnDblClick, "grow");
     imageRow1.add(btnRClick, "grow");
@@ -136,10 +138,10 @@ public class RecorderAssistant extends JDialog {
 
     JPanel imageRow2 = new JPanel(new MigLayout("insets 0, gap 4", "[grow][grow][grow][grow]"));
     imageRow2.setOpaque(false);
-    btnDragDrop = createActionButton("Drag&Drop");
-    btnSwipe = createActionButton("Swipe");
-    btnWheel = createActionButton("Wheel");
-    btnWait = createActionButton("Wait");
+    btnDragDrop = createActionButton(_I("recorderAssistantBtnDragDrop"));
+    btnSwipe = createActionButton(_I("recorderAssistantBtnSwipe"));
+    btnWheel = createActionButton(_I("recorderAssistantBtnWheel"));
+    btnWait = createActionButton(_I("recorderAssistantBtnWait"));
     imageRow2.add(btnDragDrop, "grow");
     imageRow2.add(btnSwipe, "grow");
     imageRow2.add(btnWheel, "grow");
@@ -148,12 +150,12 @@ public class RecorderAssistant extends JDialog {
 
     content.add(new JSeparator(), "growx, gaptop 4");
 
-    content.add(createSectionLabel("TEXT ACTIONS"));
+    content.add(createSectionLabel(_I("recorderAssistantSectionTextActions")));
     JPanel textRow = new JPanel(new MigLayout("insets 0, gap 4", "[grow][grow][grow]"));
     textRow.setOpaque(false);
-    btnTextClick = createActionButton("T.Click");
-    btnTextWait = createActionButton("T.Wait");
-    btnTextExists = createActionButton("T.Exists");
+    btnTextClick = createActionButton(_I("recorderAssistantBtnTClick"));
+    btnTextWait = createActionButton(_I("recorderAssistantBtnTWait"));
+    btnTextExists = createActionButton(_I("recorderAssistantBtnTExists"));
     textRow.add(btnTextClick, "grow");
     textRow.add(btnTextWait, "grow");
     textRow.add(btnTextExists, "grow");
@@ -161,33 +163,33 @@ public class RecorderAssistant extends JDialog {
 
     content.add(new JSeparator(), "growx, gaptop 4");
 
-    content.add(createSectionLabel("KEYBOARD"));
+    content.add(createSectionLabel(_I("recorderAssistantSectionKeyboard")));
     JPanel kbRow = new JPanel(new MigLayout("insets 0, gap 4", "[grow][grow]"));
     kbRow.setOpaque(false);
-    btnType = createActionButton("Type");
-    btnKeyCombo = createActionButton("Key Combo");
+    btnType = createActionButton(_I("recorderAssistantBtnType"));
+    btnKeyCombo = createActionButton(_I("recorderAssistantBtnKeyCombo"));
     kbRow.add(btnType, "grow");
     kbRow.add(btnKeyCombo, "grow");
     content.add(kbRow);
 
     JPanel otherRow = new JPanel(new MigLayout("insets 0, gap 4", "[grow]"));
     otherRow.setOpaque(false);
-    btnPause = createActionButton("Pause");
+    btnPause = createActionButton(_I("recorderAssistantBtnPause"));
     otherRow.add(btnPause, "grow");
     content.add(otherRow);
 
     content.add(new JSeparator(), "growx, gaptop 4");
 
-    content.add(createSectionLabel("GENERATED CODE"));
+    content.add(createSectionLabel(_I("recorderAssistantSectionGeneratedCode")));
     JScrollPane scrollPane = new JScrollPane(codePreview);
     scrollPane.setPreferredSize(new Dimension(0, 120));
     content.add(scrollPane, "grow, push");
 
     JPanel bottomRow = new JPanel(new MigLayout("insets 0, gap 6", "[grow][grow]"));
     bottomRow.setOpaque(false);
-    btnInsert = new JButton("Insert & Close");
+    btnInsert = new JButton(_I("recorderAssistantBtnInsertClose"));
     btnInsert.addActionListener(e -> insertAndClose());
-    btnClear = new JButton("Clear");
+    btnClear = new JButton(_I("recorderAssistantBtnClear"));
     btnClear.addActionListener(e -> codePreview.clear());
     bottomRow.add(btnInsert, "grow");
     bottomRow.add(btnClear, "grow");

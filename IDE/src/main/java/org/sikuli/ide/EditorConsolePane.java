@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.PrintStream;
-import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,6 +25,10 @@ import javax.swing.text.ParagraphView;
 import javax.swing.text.html.*;
 
 import org.sikuli.basics.Debug;
+import org.sikuli.support.runner.Runner;
+import org.sikuli.support.runner.IRunner;
+
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 //
 // A simple Java Console for your application (Swing version)
 // Requires Java 1.1.5 or higher
@@ -35,9 +38,7 @@ import org.sikuli.basics.Debug;
 // Permision to use and distribute into your own applications
 //
 // RJHM van den Bergh , rvdb@comweb.nl
-import org.sikuli.basics.PreferencesUser;
-import org.sikuli.support.Commons;
-import org.sikuli.util.CommandArgsEnum;
+
 
 public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
@@ -54,7 +55,14 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   // Raw line buffer kept alongside the htmlized scrollback so afterThemeChange
   // can re-render every existing line under the new palette. Without this the
   // scrollback would freeze in the colors it had at insertion time.
+  // It also backs the live filter (rebuildView) and the "Save…" toolbar action.
   private final java.util.List<String> rawLines = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+  // Toolbar state : live filter term (lower-cased on read), autoscroll flag,
+  // and a reference to the filter input so rebuildView can re-render without
+  // touching the UI thread from background log threads.
+  private volatile String filterTerm = "";
+  private volatile boolean autoScroll = true;
+  private JTextField filterField;
   Thread errorThrower; // just for testing (Throws an Exception at this Console)
 
   class PopupListener extends MouseAdapter {
@@ -96,6 +104,133 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     textArea.setEditable(false);
 
     setLayout(new BorderLayout());
+
+    // ── Console toolbar : filter, autoscroll, save, copy, clear ──
+    // West side  : live filter + autoscroll toggle (read-affecting actions).
+    // East side  : Save / Copy / Clear (one-shot actions).
+    // The filter is live and case-insensitive : every keystroke rebuilds the
+    // view from rawLines keeping only lines that contain the term. Emptying
+    // the filter restores the full scrollback. New log lines arriving while a
+    // filter is active are also filtered before being appended.
+
+    JPanel leftToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+    leftToolbar.setOpaque(false);
+
+    JLabel filterLabel = new JLabel("🔎");
+    filterLabel.setToolTipText("Live filter — show only lines containing this text (case-insensitive)");
+    leftToolbar.add(filterLabel);
+
+    filterField = new JTextField(20);
+    filterField.setToolTipText("Live filter — show only lines containing this text (case-insensitive)");
+    filterField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+      @Override public void insertUpdate(javax.swing.event.DocumentEvent e)  { onChange(); }
+      @Override public void removeUpdate(javax.swing.event.DocumentEvent e)  { onChange(); }
+      @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { onChange(); }
+      private void onChange() {
+        filterTerm = filterField.getText() == null ? "" : filterField.getText().trim();
+        rebuildView();
+      }
+    });
+    leftToolbar.add(filterField);
+
+    JCheckBox autoScrollCb = new JCheckBox("Auto-scroll", true);
+    autoScrollCb.setFocusable(false);
+    autoScrollCb.setOpaque(false);
+    autoScrollCb.setToolTipText("Auto-scroll to the latest line as new logs arrive");
+    autoScrollCb.addActionListener(e -> autoScroll = autoScrollCb.isSelected());
+    leftToolbar.add(autoScrollCb);
+
+    JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
+    rightToolbar.setOpaque(false);
+
+    JButton saveBtn = new JButton("💾  Save…");
+    saveBtn.setFocusable(false);
+    saveBtn.setToolTipText("Save the entire log to a .txt file (UTF-8)");
+    saveBtn.addActionListener(e -> {
+      JFileChooser fc = new JFileChooser();
+      fc.setSelectedFile(new java.io.File("oculix-log-" + System.currentTimeMillis() + ".txt"));
+      if (fc.showSaveDialog(EditorConsolePane.this) == JFileChooser.APPROVE_OPTION) {
+        try (java.io.PrintWriter pw = new java.io.PrintWriter(fc.getSelectedFile(), "UTF-8")) {
+          synchronized (rawLines) {
+            for (String line : rawLines) pw.println(line);
+          }
+        } catch (Exception ex) {
+          JOptionPane.showMessageDialog(EditorConsolePane.this,
+              "Save failed: " + ex.getMessage(), "OculiX log", JOptionPane.WARNING_MESSAGE);
+        }
+      }
+    });
+    rightToolbar.add(saveBtn);
+
+    JButton copyBtn = new JButton("⧉  Copy all");
+    copyBtn.setFocusable(false);
+    copyBtn.setToolTipText("Copy entire log to clipboard (plain text)");
+    copyBtn.addActionListener(e -> {
+      try {
+        String plain = textArea.getDocument().getText(0, textArea.getDocument().getLength());
+        StringSelection sel = new StringSelection(plain);
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+      } catch (BadLocationException ble) {
+        StringSelection sel = new StringSelection(textArea.getText());
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+      }
+    });
+    rightToolbar.add(copyBtn);
+
+    JButton clearBtn = new JButton("⌫  Clear");
+    clearBtn.setFocusable(false);
+    clearBtn.setToolTipText("Clear log buffer and view");
+    clearBtn.addActionListener(e -> {
+      textArea.setText("");
+      rawLines.clear();
+    });
+    rightToolbar.add(clearBtn);
+
+    JButton reportBtn = new JButton("🐞  Report bug…");
+    reportBtn.setFocusable(false);
+    reportBtn.setToolTipText("Copy log to clipboard and open the OculiX bug report form on GitHub");
+    reportBtn.addActionListener(e -> {
+      // 1) Copy plain-text log to clipboard so the user can paste it directly.
+      try {
+        String plain = textArea.getDocument().getText(0, textArea.getDocument().getLength());
+        StringSelection sel = new StringSelection(plain);
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+      } catch (BadLocationException ble) {
+        StringSelection sel = new StringSelection(textArea.getText());
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+      }
+      // 2) Inform the user — what was done, what to paste, where to paste it.
+      JOptionPane.showMessageDialog(
+          EditorConsolePane.this,
+          "Your log has been copied to the clipboard.\n\n"
+              + "The OculiX bug report form will open in your browser.\n"
+              + "Please paste the log into the \"Logs / console output\" field,\n"
+              + "fill in the other sections, then submit.\n\n"
+              + "Thanks for helping us improve OculiX 🦎",
+          "Report a bug",
+          JOptionPane.INFORMATION_MESSAGE);
+      // 3) Open the bug_report.yml template — no API call, no auto-creation,
+      // the user stays in full control of what gets submitted.
+      try {
+        Desktop.getDesktop().browse(java.net.URI.create(
+            "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml"));
+      } catch (Exception ex) {
+        JOptionPane.showMessageDialog(
+            EditorConsolePane.this,
+            "Could not open the browser. Please go to:\n"
+                + "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml",
+            "Report a bug",
+            JOptionPane.WARNING_MESSAGE);
+      }
+    });
+    rightToolbar.add(reportBtn);
+
+    JPanel toolbar = new JPanel(new BorderLayout());
+    toolbar.setOpaque(false);
+    toolbar.add(leftToolbar, BorderLayout.WEST);
+    toolbar.add(rightToolbar, BorderLayout.EAST);
+    add(toolbar, BorderLayout.NORTH);
+
     scrollPane = new JScrollPane(textArea);
     scrollPane.setBorder(BorderFactory.createEmptyBorder());
     add(scrollPane, BorderLayout.CENTER);
@@ -103,7 +238,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
     //Create the popup menu.
     popup = new JPopupMenu();
-    JMenuItem menuItem = new JMenuItem("Clear messages");
+    JMenuItem menuItem = new JMenuItem(_I("editorConsoleCtxClear"));
     // Add ActionListener that clears the textArea
     menuItem.addActionListener(new ActionListener() {
       public void actionPerformed(ActionEvent e) {
@@ -158,6 +293,25 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     setBackground(bg);
     if (scrollPane != null) {
       scrollPane.getViewport().setBackground(bg);
+    }
+  }
+
+  /**
+   * Rebuilds the textArea from rawLines, keeping only lines that contain the
+   * current {@link #filterTerm} (case-insensitive). Empty filter restores the
+   * full scrollback. Called on every keystroke in the filter field via a
+   * {@code DocumentListener}; safe to call from the EDT only (touches Swing).
+   */
+  private void rebuildView() {
+    if (textArea == null) return;
+    String term = filterTerm.toLowerCase(java.util.Locale.ROOT);
+    textArea.setText("");
+    synchronized (rawLines) {
+      for (String line : rawLines) {
+        if (term.isEmpty() || line.toLowerCase(java.util.Locale.ROOT).contains(term)) {
+          appendMsg(htmlize(line));
+        }
+      }
     }
   }
 
@@ -289,6 +443,17 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
       reader[1] = new Thread(EditorConsolePane.this);
       reader[1].setDaemon(true);
       reader[1].start();
+
+      // Now that System.out / System.err point at the Messages pane,
+      // forward the same streams into each script runner so embedded
+      // interpreters (notably Jython's PythonInterpreter, which captured
+      // the original System.out at construction time before this redirect
+      // ran) emit `print` / `puts` into the Messages pane too (#272).
+      // Passing null/null asks AbstractRunner to fall back to the current
+      // System.out / System.err — i.e. the pipes installed just above.
+      for (IRunner srunner : Runner.getRunners()) {
+        srunner.redirect(null, null);
+      }
     } catch (IOException e1) {
       Debug.log(-1, "Redirecting System IO failed", e1.getMessage());
     }
@@ -394,9 +559,17 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
             EventQueue.invokeLater(() -> {
               synchronized (textArea) {
                 rawLines.add(finalInput);
-                appendMsg(htmlize(finalInput));
+                // Respect the live filter : only render the new line if it
+                // matches (or no filter is active). The line still lands in
+                // rawLines so it reappears when the user clears the filter.
+                String term = filterTerm.toLowerCase(java.util.Locale.ROOT);
+                if (term.isEmpty() || finalInput.toLowerCase(java.util.Locale.ROOT).contains(term)) {
+                  appendMsg(htmlize(finalInput));
+                }
                 int textLen = textArea.getDocument().getLength();
-                if (textLen > 0) {
+                // Auto-scroll only when the toggle is on, so users can pause
+                // the bottom-anchor to read a stack trace that just scrolled by.
+                if (textLen > 0 && autoScroll) {
                   int textPosEnd = textLen - 1;
                   int rowStart;
                   try {

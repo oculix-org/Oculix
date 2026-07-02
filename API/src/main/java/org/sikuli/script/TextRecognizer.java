@@ -14,9 +14,8 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
-import org.sikuli.script.runners.ProcessRunner;
+import org.sikuli.support.runner.ProcessRunner;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -342,6 +341,18 @@ public class TextRecognizer {
 
     float rFactor = options.factor();
 
+    // #378: on a large, full-screen search region the default factor (~3.0,
+    // calibrated for tiny UI text) explodes the image to ~18 MP and drives
+    // Tesseract LSTM to ~8s. Cap on > 1 MP regions; default 2.0 keeps precision
+    // (-1 mot mesuré sur cleaned full-HD vs baseline) with ~×1.4 speedup.
+    // Tunable via OCR.globalOptions().largeImageFactor(...) — Auchan-style
+    // dashboards (text >= 14 px) can set 0.8 for ~×4 speedup.
+    // Supersedes the original hardcoded 0.8 on this branch (commit 26d30979);
+    // see #378 thread for the empirical justification.
+    if ((long) mimg.cols() * mimg.rows() > 1_000_000L) {
+      rFactor = options.largeImageFactor();
+    }
+
     if (rFactor > 0 && rFactor != 1) {
       Commons.resize(mimg, rFactor, options.resizeInterpolation());
     }
@@ -412,7 +423,7 @@ public class TextRecognizer {
       boolean shouldExport = Commons.shouldExport();
       boolean fExists = fTessDataPath.exists();
       if (!fExists || shouldExport) {
-        if (0 == RunTime.extractResourcesToFolder("/tessdataSX", fTessDataPath, null).size()) {
+        if (0 == Commons.extractResourcesToFolder("/tessdataSX", fTessDataPath, null).size()) {
           throw new SikuliXception(String.format("OCR: start: export tessdata did not work: %s", fTessDataPath));
         }
       }

@@ -6,6 +6,8 @@ package org.sikuli.ide.ui;
 import com.formdev.flatlaf.FlatClientProperties;
 import net.miginfocom.swing.MigLayout;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionListener;
@@ -51,7 +53,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     // Header
     JPanel header = new JPanel(new MigLayout("insets 6 10 6 10, fill", "[grow]", "[]"));
     header.setOpaque(false);
-    titleLabel = new JLabel("Workspace");
+    titleLabel = new JLabel(_I("workspaceTitle"));
     titleLabel.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 12f));
     header.add(titleLabel);
     add(header, BorderLayout.NORTH);
@@ -81,7 +83,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
   }
 
   public void setWorkspaceName(String name) {
-    titleLabel.setText(name != null ? name : "Workspace");
+    titleLabel.setText(name != null ? name : _I("workspaceTitle"));
   }
 
   public void setOnCardRenamed(ActionListener listener) {
@@ -238,10 +240,12 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
       } else {
         statusLabel.setText("*");
         statusLabel.setForeground(new Color(0xFF, 0xAA, 0x33));
-        statusLabel.setToolTipText("Not saved");
+        statusLabel.setToolTipText(_I("workspaceCardUnsaved"));
       }
 
-      String imgText = info.imageCount + " image" + (info.imageCount != 1 ? "s" : "");
+      String imgText = info.imageCount + " " + (info.imageCount != 1
+          ? _I("workspaceCardImagesPlural")
+          : _I("workspaceCardImagesSingular"));
       infoLabel.setText("\uD83D\uDDBC " + imgText);
     }
 

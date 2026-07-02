@@ -4,8 +4,8 @@
 package org.sikuli.support.runner;
 
 import org.apache.commons.io.FilenameUtils;
+import org.sikuli.support.Commons;
 import org.sikuli.support.FileManager;
-import org.sikuli.support.ide.Runner;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -86,7 +86,7 @@ public class ZipRunner extends AbstractLocalFileScriptRunner {
         wrapper.setRunner(runner);
         return runner.runScript(innerScriptFile, scriptArgs, options);
       }
-      return Runner.FILE_NOT_FOUND;
+      return Commons.FILE_NOT_FOUND;
     } finally {
       wrapper.clearRunner();
       if (null != innerScriptFile) {
@@ -104,7 +104,7 @@ public class ZipRunner extends AbstractLocalFileScriptRunner {
       ZipEntry innerScriptFile = getScriptEntry(file);
       if(null != innerScriptFile) {
         File dir = extract(file);
-        innerScriptFilePath = dir.getAbsolutePath() + File.separator + innerScriptFile.getName();
+        innerScriptFilePath = safeResolve(dir, innerScriptFile.getName()).getAbsolutePath();
       }
     } catch (IOException e) {
       log(-1, "Error opening file %s: %s", zipFile, e.getMessage());
@@ -113,6 +113,19 @@ public class ZipRunner extends AbstractLocalFileScriptRunner {
       return new EffectiveRunner(Runner.getRunner(innerScriptFilePath), innerScriptFilePath, null);
     }
     return new EffectiveRunner();
+  }
+
+  // Guards against Zip Slip (CWE-22): a malicious .sikuli could embed an
+  // entry named "../../etc/passwd" which would otherwise let the extractor
+  // write outside the temp directory. We canonicalise and verify containment.
+  private static File safeResolve(File baseDir, String entryName) throws IOException {
+    File resolved = new File(baseDir, entryName).getCanonicalFile();
+    File baseCanonical = baseDir.getCanonicalFile();
+    if (!resolved.toPath().startsWith(baseCanonical.toPath())) {
+      throw new IOException(
+          "Zip entry escapes target directory (Zip Slip): " + entryName);
+    }
+    return resolved;
   }
 
   private ZipEntry getScriptEntry(ZipFile file) {
@@ -141,7 +154,7 @@ public class ZipRunner extends AbstractLocalFileScriptRunner {
     while (entries.hasMoreElements()) {
       ZipEntry entry = entries.nextElement();
 
-      File f = new File(dir.getAbsolutePath() + File.separator + entry.getName());
+      File f = safeResolve(dir, entry.getName());
 
       if (entry.isDirectory()) {
         f.mkdirs();

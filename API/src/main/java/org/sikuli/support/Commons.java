@@ -4,16 +4,16 @@
 
 package org.sikuli.support;
 
-import org.apache.commons.cli.CommandLine;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.opencv.core.*;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.sikuli.basics.Debug;
+import org.sikuli.basics.HotkeyManager;
+import org.sikuli.basics.Settings;
 import org.sikuli.script.*;
-import org.sikuli.util.CommandArgs;
-import org.sikuli.util.CommandArgsEnum;
+import org.sikuli.support.devices.HelpDevice;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -28,6 +28,8 @@ import java.lang.reflect.Method;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.*;
 import java.util.List;
@@ -35,10 +37,13 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.sikuli.util.CommandArgsEnum.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class Commons {
+
+  public static final int FILE_NOT_FOUND = 256;
+  public static final int NOT_SUPPORTED = 257;
 
   //<editor-fold desc="00 static">
   private static String sxVersion;
@@ -47,9 +52,13 @@ public class Commons {
   private static String sxVersionShort;
   private static String sxBuild;
   private static String sxBuildStamp;
-  private static String sxBuildNumber;
 
   private static String sxversiontess4j;
+  private static String sxversionapertix;
+  private static String sxversionlegerix;
+
+  private static String sxversionjython;
+  private static String sxversionjruby;
 
   private static final String osName = System.getProperty("os.name").toLowerCase();
   private static final String osVersion = System.getProperty("os.version").toLowerCase();
@@ -60,31 +69,57 @@ public class Commons {
 
   private static long startMoment;
 
-  private static File isRunning = null;
-  private static FileOutputStream isRunningFile;
+  private static void log(int level, String message, Object... args) {
+    Debug.logx(level, "RunTime:" + message, args);
+  }
 
-  private static void runShutdownHook() {
-    debug("***** final cleanup at System.exit() *****");
-    //TODO runShutdownHook cleanUp();
+  private static void logp(String message, Object... args) {
+    Debug.logx(-3, message, args);
+  }
 
-    if (isRunning != null) {
-      try {
-        isRunningFile.close();
-      } catch (IOException ex) {
-      }
-      isRunning.delete();
+  private static void logp(int level, String message, Object... args) {
+    if (level <= Debug.getDebugLevel()) {
+      logp(message, args);
     }
   }
 
-  public static void setIsRunning(File token, FileOutputStream tokenStream) {
-    isRunning = token;
-    isRunningFile = tokenStream;
-  }
+  private static final String osNameSysProp = System.getProperty("os.name");
+  private static final String osVersionSysProp = System.getProperty("os.version");
+  private static final String os = osNameSysProp.toLowerCase();
+  //private static final String osVersion = osVersionSysProp;
+  //private static String osName = "NotKnown";
+  private static String sysName = "NotKnown";
+  public static boolean runningJar = true;
+  public static boolean runningInProject = false;
+  public static boolean runningWindows = false;
+  public static boolean runningMac = false;
+  public static boolean runningLinux = false;
+  public static String linuxDistro = "???LINUX???";
+  public static final String fpContent = "sikulixcontent";
+
+  public static String NL = "\n";
 
   private static boolean libOpenCVloaded = false;
 
   static {
     startMoment = new Date().getTime();
+
+    if (os.startsWith("windows")) {
+      sysName = "windows";
+      runningWindows = true;
+      NL = "\r\n";
+    } else if (os.startsWith("mac")) {
+      sysName = "mac";
+      runningMac = true;
+    } else if (os.startsWith("linux")) {
+      sysName = "linux";
+      runningLinux = true;
+    } else {
+      // Presume Unix -- pretend to be Linux
+      sysName = os;
+      runningLinux = true;
+      linuxDistro = osNameSysProp;
+    }
 
     if (!System.getProperty("os.arch").contains("64")) {
       throw new SikuliXception("SikuliX fatal Error: System must be 64-Bit");
@@ -95,8 +130,8 @@ public class Commons {
     }
 
     if (runningArm64()) {
-      System.out.println("[OculiX] Running on ARM64/Apple Silicon (" + osArch + ")");
-      System.out.println("[OculiX] Native library path: " + getNativeLibDir());
+      startLog(3, "[OculiX] Running on ARM64/Apple Silicon (" + osArch + ")");
+      startLog(3, "[OculiX] Native library path: " + getNativeLibDir());
     }
 
     Properties sxProps = new Properties();
@@ -114,35 +149,25 @@ public class Commons {
       String msg = String.format("SikuliX fatal Error: load did not work: %s (%s)", svf, e.getMessage());
       throw new SikuliXception(msg);
     }
-    //    sikulixvproject=2.0.0  or 2.1.0-SNAPSHOT
+    //    sikulixvproject=2.0.0....
     sxVersion = sxProps.getProperty("sikulixvproject");
     //    sikulixbuild=2019-10-17_09:58
     sxBuild = sxProps.getProperty("sikulixbuild");
     sxBuildStamp = sxBuild
         .replace("_", "").replace("-", "").replace(":", "")
         .substring(0, 12);
-    //    sikulixbuildnumber= BE-AWARE: only real in deployed artefacts (TravisCI)
-    //    in development context undefined:
-    sxBuildNumber = sxProps.getProperty("sikulixbuildnumber");
-    if (sxBuildNumber.contains("TRAVIS_BUILD_NUMBER")) {
-      sxBuildNumber = "";
-    }
 
-    if (sxBuildNumber.isEmpty()) {
-      sxVersionLong = sxVersion + String.format("-%s", sxBuildStamp);
-    } else {
-      sxVersionLong = sxVersion + String.format("-#%s-%s", sxBuildNumber, sxBuildStamp);
-    }
+    sxVersionLong = sxVersion + String.format("-%s", sxBuildStamp);
     sxVersionShort = sxVersion.replace("-SNAPSHOT", "");
 
     sxversiontess4j = sxProps.getProperty("versiontess4j");
+    sxversionapertix = sxProps.getProperty("versionapertixopencv");
+    sxversionlegerix = sxProps.getProperty("versionlegerix");
 
-    Runtime.getRuntime().addShutdownHook(new Thread() {
-      @Override
-      public void run() {
-        runShutdownHook();
-      }
-    });
+    sxversionjython = sxProps.getProperty("versionjython");
+    sxversionjruby = sxProps.getProperty("versionjruby");
+
+    cleanStaleTempDirs();
 
     // Load OpenCV native library eagerly when Commons is initialized.
     // Any class (Pattern, ScreenImage, PatternValidator, Finder, ...) that calls
@@ -164,7 +189,7 @@ public class Commons {
 
   //<editor-fold desc="01 logging">
   public static void info(String msg, Object... args) {
-    if (hasOption(VERBOSE)) {
+    if (Debug.isGlobalDebug()) {
       System.out.printf("[SXINFO] " + msg + "%n", args);
     }
   }
@@ -237,12 +262,12 @@ public class Commons {
 
   public static void startLog(int level, String msg, Object... args) {
     if (level < 3) {
-      if (!hasOption(VERBOSE)) {
+      if (!Debug.isGlobalDebug()) {
         return;
       }
-      if (hasOption(QUIET)) {
-        return;
-      }
+    }
+    if (Debug.isBeQuiet()) {
+      return;
     }
     System.out.println(String.format("[DEBUG STARTUP] " + msg, args));
   }
@@ -290,43 +315,6 @@ public class Commons {
     return jarFile;
   }
 
-  private static String[] startArgs = null;
-  private static CommandLine cmdLine = null;
-  private static CommandArgs cmdArgs = null;
-  private static String[] userArgs = new String[0];
-
-  public static void setStartArgs(String[] args) {
-    startArgs = args;
-    cmdArgs = new CommandArgs();
-    cmdLine = cmdArgs.getCommandLine(args);
-    userArgs = cmdArgs.getUserArgs();
-  }
-
-  public static String[] getUserArgs() {
-    return userArgs;
-  }
-
-  public static void setUserArgs(String[] args) {
-    userArgs = args;
-  }
-
-  public static void printHelp() {
-    cmdArgs.printHelp();
-  }
-
-  public static boolean hasArg(String arg) {
-    return cmdLine != null && cmdLine.hasOption(arg);
-  }
-
-  public static String getArg(String arg) {
-    return cmdLine.getOptionValue(arg);
-  }
-
-  public static String[] getArgs(String arg) {
-    String[] args = cmdLine.getOptionValues(arg);
-    return args;
-  }
-
   static boolean jythonReady = false;
 
   public static boolean isJythonReady() {
@@ -335,6 +323,33 @@ public class Commons {
 
   public static void setJythonReady() {
     Commons.jythonReady = true;
+  }
+
+  public static void terminate() {
+    terminate(0, "");
+  }
+
+  public static void terminate(int retval, String message, Object... args) {
+    String outMsg = String.format(message, args);
+    if (retval < 999) {
+      if (!outMsg.isEmpty()) {
+        System.out.println("TERMINATING: " + outMsg);
+      }
+      cleanUp();
+      System.exit(retval);
+    }
+    System.out.println("FATAL ERROR: " + outMsg);
+    throw new SikuliXception(String.format("FATAL: " + outMsg));
+  }
+
+  public static void cleanUp() {
+    HotkeyManager.reset(true);
+    HelpDevice.stopAll();
+  }
+
+  public static void cleanUpAfterScript() {
+    HotkeyManager.reset(false);
+    HelpDevice.stopAll();
   }
   //</editor-fold>
 
@@ -395,7 +410,7 @@ public class Commons {
       appDataPath = new File(getUserHome(), givenAppPath);
       appDataPath.mkdirs();
       if (!appDataPath.exists()) {
-        RunTime.terminate(999, "Commons: setAppDataPath: %s (%s)", givenAppPath, "not created");
+        terminate(999, "Commons: setAppDataPath: %s (%s)", givenAppPath, "not created");
       }
     }
     return appDataPath;
@@ -474,16 +489,14 @@ public class Commons {
 
   private static File workDir = null;
 
-  public static String getJarLibsPath() {
-    return "/sikulixlibs";
-  }
-
   public static File getLibsFolder() {
     return new File(getAppDataPath(), "SikulixLibs");
   }
 
+  private static final String libFolder = "Lib";
+
   public static File getLibFolder() {
-    return new File(getAppDataPath(), "Lib");
+    return new File(getAppDataPath(), libFolder);
   }
 
   public static File getExtensionsFolder() {
@@ -564,23 +577,28 @@ public class Commons {
     return sxVersionShort;
   }
 
-  public static String getSXBuild() {
-    return sxBuild;
-  }
-
   public static String getSxBuildStamp() {
     return sxBuildStamp;
   }
 
-  public static String getSXBuildNumber() {
-    if (sxBuildNumber.isEmpty()) {
-      return "dev";
-    }
-    return sxBuildNumber;
-  }
-
   public static String getSXVersionTess4j() {
     return sxversiontess4j;
+  }
+
+  public static String getSXVersionLegerix() {
+    return sxversionlegerix;
+  }
+
+  public static String getSXVersionApertix() {
+    return sxversionapertix;
+  }
+
+  public static String getSXVersionJython() {
+    return sxversionjython;
+  }
+
+  public static String getSXVersionJRuby() {
+    return sxversionjruby;
   }
 
   public static boolean hasVersionFile(File folder) {
@@ -715,6 +733,127 @@ public class Commons {
   }
 
 
+  //</editor-fold>
+
+  //<editor-fold defaultstate="collapsed" desc="12 classpath handling">
+  private static List<URL> classPathActual = new ArrayList<>();
+  private static List<String> classPathList = new ArrayList<>();
+
+  private static void storeClassPath() {
+      String separator = File.pathSeparator;
+      String cp = System.getProperty("java.class.path");
+      classPathList = Arrays.asList(cp.split(separator));
+  }
+
+  /**
+   * print the current classpath entries to sysout
+   */
+  public static void dumpClassPath() {
+    dumpClassPath(null);
+  }
+
+  /**
+   * print the current classpath entries to sysout whose path name contain the given string
+   *
+   * @param filter the fileter string
+   */
+  public static void dumpClassPath(String filter) {
+    filter = filter == null ? "" : filter;
+    logp("*** classpath dump %s", filter);
+    storeClassPath();
+    filter = filter.toUpperCase();
+    int n = 0;
+    for (String sEntry : classPathList) {
+      if (!filter.isEmpty()) {
+        if (!sEntry.toUpperCase().contains(filter)) {
+          n++;
+          continue;
+        }
+      }
+      logp("%3d: %s", n, sEntry);
+      n++;
+    }
+    logp("*** classpath dump end");
+  }
+
+  /**
+   * check whether a classpath entry contains the given identifying string, stops on first match
+   *
+   * @param artefact the identifying string
+   * @return the absolute path of the entry found - null if not found
+   */
+  private static String isOnClasspath(String artefact, boolean isJar) {
+    artefact = FileManager.slashify(artefact, false);
+    String cpe = null;
+    if (classPathList.isEmpty()) {
+      storeClassPath();
+    }
+    for (String entry : classPathList) {
+      String sEntry = FileManager.slashify(new File(entry).getPath(), false);
+      if (sEntry.contains(artefact)) {
+        if (isJar) {
+          if (!sEntry.endsWith(".jar")) {
+            continue;
+          }
+          if (!new File(sEntry).getName().contains(artefact)) {
+            continue;
+          }
+          if (new File(sEntry).getName().contains("4" + artefact)) {
+            continue;
+          }
+        }
+        cpe = new File(entry).getPath();
+        break;
+      }
+    }
+    return cpe;
+  }
+
+  public static String isJarOnClasspath(String artefact) {
+    return isOnClasspath(artefact, true);
+  }
+
+  public static String isOnClasspath(String artefact) {
+    return isOnClasspath(artefact, false);
+  }
+
+  public static URL fromClasspath(String artefact) {
+    artefact = FileManager.slashify(artefact, false).toUpperCase();
+    URL cpe = null;
+    String scpe = null;
+    if (classPathActual.isEmpty()) {
+      storeClassPath();
+    }
+    for (String entry : classPathList) {
+      String sEntry = FileManager.slashify(new File(entry).getPath(), false);
+      if (sEntry.toUpperCase().contains(artefact)) {
+        scpe = entry;
+        break;
+      }
+    }
+    if (null != scpe) {
+      try {
+        cpe = new URL(scpe);
+      } catch (MalformedURLException e) {
+      }
+    }
+    return cpe;
+  }
+
+  /**
+   * check wether a the given URL is on classpath
+   *
+   * @param path URL to look for
+   * @return true if found else otherwise
+   */
+  public static boolean isOnClasspath(URL path) {
+    if (classPathActual.isEmpty()) {
+      storeClassPath();
+    }
+    for (String entry : classPathList) {
+    }
+    return false;
+  }
   //</editor-fold>
 
   //<editor-fold desc="10 folder handling">
@@ -998,7 +1137,7 @@ public class Commons {
 
   //<editor-fold desc="15 file handling">
   public static List<String> getContentList(String res) {
-    return getContentList(res, RunTime.class);
+    return getContentList(res, Commons.class);
   }
 
   public static List<String> getContentList(String resFolder, Class classReference) {
@@ -1071,7 +1210,8 @@ public class Commons {
     out.flush();
   }
 
-  private static byte[] copy(InputStream inputStream) {
+  //TODO revert to private after not needed in RunTime
+  public static byte[] copy(InputStream inputStream) {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     byte[] buffer = new byte[1024];
     int length = 0;
@@ -1157,7 +1297,7 @@ public class Commons {
   //<editor-fold desc="20 library handling">
   private static final String libOpenCVclassref = "nu.pattern.OpenCV";
 
-public static void loadOpenCV() {
+  public static void loadOpenCV() {
     if (libOpenCVloaded) {
       return;
     }
@@ -1181,19 +1321,19 @@ public static void loadOpenCV() {
           try {
             opencvClass.getMethod(m).invoke(null);
             libOpenCVloaded = true;
-            System.err.println("[OculiX] OpenCV loaded via " + libOpenCVclassref + "." + m + "()");
+            startLog(3, "[OculiX] OpenCV loaded via " + libOpenCVclassref + "." + m + "()");
             return;
           } catch (NoSuchMethodException nsme) {
-            System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() not found, trying next");
+            startLog(3, "[OculiX] " + libOpenCVclassref + "." + m + "() not found, trying next");
           } catch (Throwable e) {
-            System.err.println("[OculiX] " + libOpenCVclassref + "." + m + "() threw: "
+            startLog(3, "[OculiX] " + libOpenCVclassref + "." + m + "() threw: "
                 + e.getClass().getSimpleName() + ": " + e.getMessage());
           }
         }
       } catch (ClassNotFoundException cnfe) {
-        System.err.println("[OculiX] " + libOpenCVclassref + " not on classpath (Apertix jar missing?)");
+        startLog(3, "[OculiX] " + libOpenCVclassref + " not on classpath (Apertix jar missing?)");
       } catch (Throwable e) {
-        System.err.println("[OculiX] Apertix stage failed: "
+        startLog(3, "[OculiX] Apertix stage failed: "
             + e.getClass().getSimpleName() + ": " + e.getMessage());
       }
     }
@@ -1202,10 +1342,10 @@ public static void loadOpenCV() {
     try {
       System.loadLibrary(libName);
       libOpenCVloaded = true;
-      System.err.println("[OculiX] OpenCV loaded via System.loadLibrary(" + libName + ")");
+      startLog(3, "[OculiX] OpenCV loaded via System.loadLibrary(" + libName + ")");
       return;
     } catch (Throwable e) {
-      System.err.println("[OculiX] System.loadLibrary(" + libName + ") failed: " + e.getMessage());
+      startLog(3, "[OculiX] System.loadLibrary(" + libName + ") failed: " + e.getMessage());
     }
 
     // 3. Manual extraction fallback for macOS / Windows (Linux already
@@ -1225,7 +1365,7 @@ public static void loadOpenCV() {
       return;
     }
 
-    System.err.println("[OculiX] FATAL: OpenCV native library '" + libName + "' could NOT be loaded. "
+    startLog(3, "[OculiX] FATAL: OpenCV native library '" + libName + "' could NOT be loaded. "
         + "Next new Mat() call will throw UnsatisfiedLinkError.");
   }
 
@@ -1264,11 +1404,11 @@ public static void loadOpenCV() {
       reason = "glibc " + glibc[0] + "." + glibc[1] + " >= "
           + OPENCV_MODERN_GLIBC_MAJOR + "." + OPENCV_MODERN_GLIBC_MINOR + ", using modern tier";
     }
-    System.err.println("[OculiX] " + reason);
+    startLog(3, "[OculiX] " + reason);
 
     String firstTier = useLegacy ? archDir + "-legacy" : archDir;
     if (extractAndLoad(firstTier + "/" + fileName, fileName)) {
-      System.err.println("[OculiX] OpenCV loaded from " + firstTier + "/");
+      startLog(3, "[OculiX] OpenCV loaded from " + firstTier + "/");
       return true;
     }
 
@@ -1277,9 +1417,9 @@ public static void loadOpenCV() {
     // libstdc++ is too old, or where detection misread the runtime.
     if (!useLegacy) {
       String fallbackTier = archDir + "-legacy";
-      System.err.println("[OculiX] modern tier load failed, retrying with " + fallbackTier + "/");
+      startLog(3, "[OculiX] modern tier load failed, retrying with " + fallbackTier + "/");
       if (extractAndLoad(fallbackTier + "/" + fileName, fileName)) {
-        System.err.println("[OculiX] OpenCV loaded from " + fallbackTier + "/ (cascade fallback)");
+        startLog(3, "[OculiX] OpenCV loaded from " + fallbackTier + "/ (cascade fallback)");
         return true;
       }
     }
@@ -1371,7 +1511,7 @@ public static void loadOpenCV() {
         // unusable, Tess4J's own bundled DLLs (also in the fat-jar) handle the
         // OCR runtime — we just need the .traineddata files.
         Throwable cause = e.getCause() != null ? e.getCause() : e;
-        System.err.println("[OculiX] Legerix.loadNatives() failed: "
+        startLog(3, "[OculiX] Legerix.loadNatives() failed: "
             + cause.getClass().getSimpleName() + ": " + cause.getMessage());
       }
       try {
@@ -1398,23 +1538,23 @@ public static void loadOpenCV() {
         }
       }
     } catch (ClassNotFoundException cnfe) {
-      System.err.println("[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
+      startLog(3, "[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
           + "OCR will fall back to system tesseract if available.");
       return;
     }
     if (nativesLoaded) {
       libTesseractLoaded = true;
-      System.err.println("[OculiX] Tesseract loaded via Legerix (Tesseract " + version
+      startLog(3, "[OculiX] Tesseract loaded via Legerix (Tesseract " + version
           + ", tessdata=" + libTesseractDataPath + ")");
     } else if (libTesseractDataPath != null) {
       // Tess4J ships its own self-contained Tesseract DLLs/dylibs/sos and will
       // load them lazily via JNA on first new Tesseract1(). We don't flip
       // libTesseractLoaded — that flag tracks Legerix specifically — but the
       // tessdata path is enough for TextRecognizer to find the language data.
-      System.err.println("[OculiX] Legerix natives unavailable — using Tess4J bundled binaries with "
+      startLog(3, "[OculiX] Legerix natives unavailable — using Tess4J bundled binaries with "
           + "Legerix-bundled tessdata (" + libTesseractDataPath + ")");
     } else {
-      System.err.println("[OculiX] No Tesseract available — OCR will require a system install.");
+      startLog(3, "[OculiX] No Tesseract available — OCR will require a system install.");
     }
   }
 
@@ -1451,10 +1591,32 @@ public static void loadOpenCV() {
         }
         extracted++;
       } catch (Throwable e) {
-        System.err.println("[OculiX] Failed to extract " + resource + ": " + e.getMessage());
+        startLog(3, "[OculiX] Failed to extract " + resource + ": " + e.getMessage());
       }
     }
     return extracted > 0 ? target : null;
+  }
+
+  private static void cleanStaleTempDirs() {
+    File tmpDir = getTempFolder();
+    if (tmpDir == null) {
+        tmpDir = new File(System.getProperty("java.io.tmpdir"));
+    }
+    File[] staleDirs = tmpDir.listFiles(file ->
+        file.isDirectory() && file.getName().startsWith("oculix-opencv-"));
+    if (staleDirs == null) return;
+    long dayElapsedMillis = 24L * 60 * 60 * 1000;
+    long cutoff = System.currentTimeMillis() - dayElapsedMillis;
+    for (File dir : staleDirs) {
+      if (dir.lastModified() < cutoff) {
+        try {
+          Debug.log("Removing stale OpenCV temp directory: %s", dir.toString());
+          FileUtils.deleteDirectory(dir);
+        } catch (IOException e) {
+          Debug.error("cleanStaleTempDirs: failed to delete %s: %s", dir, e.getMessage());
+        }
+      }
+    }
   }
 
   /**
@@ -1470,14 +1632,15 @@ public static void loadOpenCV() {
         is = Commons.class.getResourceAsStream("/" + resourcePath);
       }
       if (is == null) {
-        System.err.println("[OculiX] jar resource not found on classpath: " + resourcePath);
+        startLog(3, "[OculiX] jar resource not found on classpath: " + resourcePath);
         return false;
       }
-      File tempDir = getTempFolder();
-      if (tempDir == null) {
-        tempDir = new File(System.getProperty("java.io.tmpdir"));
-      }
-      File tempLib = new File(tempDir, fileName);
+      String pid = String.valueOf(ProcessHandle.current().pid());
+      Path tempDir = Files.createTempDirectory("oculix-opencv-" + pid + "-");
+      File tempLib = tempDir.resolve("libopencv_java4100.so").toFile();
+      tempDir.toFile().deleteOnExit();  // 2nd: delete folder
+      tempLib.deleteOnExit();           // 1st: delete file
+      Debug.log("Creating OpenCV temp lib: %s", tempLib.toString());
       try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempLib)) {
         byte[] buf = new byte[8192];
         int len;
@@ -1488,10 +1651,10 @@ public static void loadOpenCV() {
         is.close();
       }
       System.load(tempLib.getAbsolutePath());
-      System.err.println("[OculiX] native loaded from jar resource: " + tempLib);
+      startLog(3, "[OculiX] native loaded from jar resource: " + tempLib);
       return true;
     } catch (Throwable e) {
-      System.err.println("[OculiX] jar extraction of " + resourcePath + " failed: "
+      startLog(3, "[OculiX] jar extraction of " + resourcePath + " failed: "
           + e.getClass().getSimpleName() + ": " + e.getMessage());
       return false;
     }
@@ -1501,7 +1664,7 @@ public static void loadOpenCV() {
   private static List<String> libsLoaded = new ArrayList<>();
   public static final String LIB_JXGRABKEY = "JXGrabKey";
 
-public static boolean loadLib(String libName) {
+  public static boolean loadLib(String libName) {
     if (!libsLoaded.contains(libName)) {
       // opencv géré par Apertix/JNA - skip chargement natif
       if (libName.startsWith("opencv_java")) {
@@ -1522,7 +1685,7 @@ public static boolean loadLib(String libName) {
           return true;
         }
       }
-      RunTime.terminate(999, "Commons.loadLib: %s");
+      terminate(999, "Commons.loadLib: %s");
     }
     return true;
   }
@@ -1537,7 +1700,7 @@ public static boolean loadLib(String libName) {
     if (!fLibsFolder.exists()) {
       fLibsFolder.mkdirs();
       if (!fLibsFolder.exists()) {
-        RunTime.terminate(999, "Commons.loadLib: %s: create failed", fLibsFolder);
+        terminate(999, "Commons.loadLib: %s: create failed", fLibsFolder);
       }
       makeVersionFile(fLibsFolder);
     }
@@ -1546,12 +1709,12 @@ public static boolean loadLib(String libName) {
          InputStream inStream = classRef.getResourceAsStream(resPath + fileName)) {
       copy(inStream, outFile);
     } catch (Exception ex) {
-      RunTime.terminate(999, "Commons.loadLib: %s: export failed", fileName);
+      terminate(999, "Commons.loadLib: %s: export failed", fileName);
     }
     try {
       System.load(libFile.getAbsolutePath());
     } catch (Exception e) {
-      RunTime.terminate(999, "Commons.loadLib: %s: load failed" + libFile);
+      terminate(999, "Commons.loadLib: %s: load failed" + libFile);
     }
     return true;
   }
@@ -1580,6 +1743,653 @@ public static boolean loadLib(String libName) {
   }
   //</editor-fold>
 
+  //<editor-fold defaultstate="collapsed" desc="15 handling resources from classpath">
+
+  private static int lvl = 3;
+  private static boolean testing = false;
+  private static Class clsRef = Commons.class;
+
+
+  /**
+   * export all resource files from the given subtree on classpath to the given folder retaining the subtree<br>
+   * to export a specific file from classpath use extractResourceToFile or extractResourceToString
+   *
+   * @param fpRessources path of the subtree relative to root
+   * @param fFolder      folder where to export (if null, only list - no export)
+   * @param filter       implementation of interface FilenameFilter or null for no filtering
+   * @return the filtered list of files (compact sikulixcontent format)
+   */
+  public static List<String> extractResourcesToFolder(String fpRessources, File fFolder, FilenameFilter filter) {
+    List<String> content;
+    content = resourceList(fpRessources, filter);
+    if (content == null) {
+      return null;
+    }
+    if (fFolder == null) {
+      return content;
+    }
+    return doExtractToFolderWithList(fpRessources, fFolder, content);
+  }
+
+  public static List<String> doExtractToFolderWithList(String fpRessources, File fFolder, List<String> content) {
+    int count = 0;
+    int ecount = 0;
+    String subFolder = "";
+    if (content != null && content.size() > 0) {
+      for (String eFile : content) {
+        if (eFile == null) {
+          continue;
+        }
+        if (eFile.endsWith("/")) {
+          subFolder = eFile.substring(0, eFile.length() - 1);
+          continue;
+        }
+        if (!subFolder.isEmpty()) {
+          eFile = new File(subFolder, eFile).getPath();
+        }
+        if (extractResourceToFile(fpRessources, eFile, fFolder)) {
+          log(lvl + 1, "extractResourceToFile done: %s", eFile);
+          count++;
+        } else {
+          ecount++;
+        }
+      }
+    }
+    if (ecount > 0) {
+      log(lvl, "files exported: %d - skipped: %d from %s to:\n %s", count, ecount, fpRessources, fFolder);
+    } else {
+      log(lvl, "files exported: %d from: %s to:\n %s", count, fpRessources, fFolder);
+    }
+    return content;
+  }
+
+  /**
+   * export all resource files from the given subtree in given jar to the given folder retaining the subtree
+   *
+   * @param aJar         absolute path to an existing jar or a string identifying the jar on classpath (no leading /)
+   * @param fpRessources path of the subtree or file relative to root
+   * @param fFolder      folder where to export (if null, only list - no export)
+   * @param filter       implementation of interface FilenameFilter or null for no filtering
+   * @return the filtered list of files (compact sikulixcontent format)
+   */
+  public static List<String> extractResourcesToFolderFromJar(String aJar, String fpRessources, File fFolder, FilenameFilter
+      filter) {
+    List<String> content = new ArrayList<String>();
+    File faJar = new File(aJar);
+    URL uaJar = null;
+    fpRessources = FileManager.slashify(fpRessources, false);
+    if (faJar.isAbsolute()) {
+      if (!faJar.exists()) {
+        log(-1, "extractResourcesToFolderFromJar: does not exist:\n%s", faJar);
+        return null;
+      }
+      try {
+        uaJar = new URL("jar", null, "file:" + aJar);
+      } catch (MalformedURLException ex) {
+        log(-1, "extractResourcesToFolderFromJar: bad URL for:\n%s", faJar);
+        return null;
+      }
+    } else {
+      uaJar = fromClasspath(aJar);
+      if (uaJar == null) {
+        log(-1, "extractResourcesToFolderFromJar: not on classpath: %s", aJar);
+        return null;
+      }
+      try {
+        String sJar = "file:" + uaJar.getPath() + "!/";
+        uaJar = new URL("jar", null, sJar);
+      } catch (MalformedURLException ex) {
+        log(-1, "extractResourcesToFolderFromJar: bad URL for:\n%s", uaJar);
+        return null;
+      }
+    }
+    content = doResourceListJar(uaJar, fpRessources, content, filter);
+    if (fFolder == null) {
+      return content;
+    }
+    copyFromJarToFolderWithList(uaJar, fpRessources, content, fFolder);
+    return content;
+  }
+
+  /**
+   * store a resource found on classpath to a file in the given folder with same filename
+   *
+   * @param inPrefix a subtree found in classpath
+   * @param inFile   the filename combined with the prefix on classpath
+   * @param outDir   a folder where to export
+   * @return success
+   */
+  public static boolean extractResourceToFile(String inPrefix, String inFile, File outDir) {
+    return extractResourceToFile(inPrefix, inFile, outDir, "");
+  }
+
+  /**
+   * store a resource found on classpath to a file in the given folder
+   *
+   * @param inPrefix a subtree found in classpath
+   * @param inFile   the filename combined with the prefix on classpath
+   * @param outDir   a folder where to export
+   * @param outFile  the filename for export
+   * @return success
+   */
+  public static boolean extractResourceToFile(String inPrefix, String inFile, File outDir, String outFile) {
+    InputStream aIS;
+    FileOutputStream aFileOS;
+    String content = inPrefix + "/" + inFile;
+    try {
+      content = runningWindows ? content.replace("\\", "/") : content;
+      if (!content.startsWith("/")) {
+        content = "/" + content;
+      }
+      aIS = (InputStream) clsRef.getResourceAsStream(content);
+      if (aIS == null) {
+        File fInFile = new File(content);
+        if (!fInFile.exists()) {
+          throw new IOException(String.format("resource not accessible: %s", content));
+        }
+        aIS = new FileInputStream(fInFile);
+      }
+      File out = outFile.isEmpty() ? new File(outDir, inFile) : new File(outDir, outFile);
+      if (!out.getParentFile().exists()) {
+        out.getParentFile().mkdirs();
+      }
+      aFileOS = new FileOutputStream(out);
+      copy(aIS, aFileOS);
+      aIS.close();
+      aFileOS.close();
+    } catch (Exception ex) {
+      log(-1, "extractResourceToFile: %s\n%s", content, ex);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * store the content of a resource found on classpath in the returned string
+   *
+   * @param inPrefix a subtree from root found in classpath (leading /)
+   * @param inFile   the filename combined with the prefix on classpath
+   * @param encoding
+   * @return file content
+   */
+  public static String extractResourceToString(String inPrefix, String inFile, String encoding) {
+    InputStream aIS = null;
+    String out = null;
+    String content = inPrefix + "/" + inFile;
+    if (!content.startsWith("/")) {
+      content = "/" + content;
+    }
+    try {
+      content = runningWindows ? content.replace("\\", "/") : content;
+      aIS = (InputStream) clsRef.getResourceAsStream(content);
+      if (aIS == null) {
+        throw new IOException("resource not accessible");
+      }
+      if (encoding == null) {
+        encoding = "UTF-8";
+        out = new String(copy(aIS));
+      } else if (encoding.isEmpty()) {
+        out = new String(copy(aIS), "UTF-8");
+      } else {
+        out = new String(copy(aIS), encoding);
+      }
+      aIS.close();
+      aIS = null;
+    } catch (Exception ex) {
+      log(-1, "extractResourceToString as %s from:\n%s\n%s", encoding, content, ex);
+    }
+    try {
+      if (aIS != null) {
+        aIS.close();
+      }
+    } catch (Exception ex) {
+    }
+    return out;
+  }
+
+  public static URL resourceLocation(String folderOrFile) {
+    log(lvl, "resourceLocation: (%s) %s", clsRef, folderOrFile);
+    if (!folderOrFile.startsWith("/")) {
+      folderOrFile = "/" + folderOrFile;
+    }
+    return clsRef.getResource(folderOrFile);
+  }
+
+  private static List<String> resourceList(String folder, FilenameFilter filter) {
+    List<String> files = new ArrayList<String>();
+    if (!folder.startsWith("/")) {
+      folder = "/" + folder;
+    }
+    URL uFolder = resourceLocation(folder);
+    File fFolder = null;
+    if (uFolder == null) {
+      fFolder = new File(folder);
+      if (fFolder.exists()) {
+        files = doResourceListFolder(fFolder, files, filter);
+      } else {
+        log(lvl, "resourceList: not found: %s", folder);
+      }
+      return files;
+    }
+    try {
+      uFolder = new URL(uFolder.toExternalForm().replaceAll(" ", "%20"));
+    } catch (Exception ex) {
+    }
+    URL uContentList = clsRef.getResource(folder + "/" + fpContent);
+    if (uContentList != null) {
+      return doResourceListWithList(folder, files, filter);
+    }
+    try {
+      fFolder = new File(uFolder.toURI());
+      log(lvl, "resourceList: having folder: %s", fFolder);
+      files.add(fFolder.getPath());
+      files = doResourceListFolder(fFolder, files, filter);
+      files.remove(0);
+      return files;
+    } catch (Exception ex) {
+      if (!"jar".equals(uFolder.getProtocol())) {
+        log(lvl, "resourceList:\n%s", folder);
+        log(-1, "resourceList: URL neither folder nor jar:\n%s", ex);
+        return null;
+      }
+    }
+    String[] parts = uFolder.getPath().split("!");
+    if (parts.length < 2 || !parts[0].startsWith("file:")) {
+      log(lvl, "resourceList:\n%s", folder);
+      log(-1, "resourceList: not a valid jar URL: " + uFolder.getPath());
+      return null;
+    }
+    String fpFolder = parts[1];
+    log(lvl, "resourceList: having jar: %s", uFolder);
+    return doResourceListJar(uFolder, fpFolder, files, filter);
+  }
+
+  /**
+   * write the list as it is produced by calling extractResourcesToFolder to the given file with system line
+   * separator<br>
+   * non-compact format: every file with full path
+   *
+   * @param folder path of the subtree relative to root with leading /
+   * @param target the file to write the list (if null, only list - no file)
+   * @param filter implementation of interface FilenameFilter or null for no filtering
+   * @return success
+   */
+  public static String[] resourceListAsFile(String folder, File target, FilenameFilter filter) {
+    String content = resourceListAsString(folder, filter);
+    if (content == null) {
+      log(-1, "resourceListAsFile: did not work: %s", folder);
+      return null;
+    }
+    if (target != null) {
+      try {
+        FileManager.deleteFileOrFolder(target.getAbsolutePath());
+        target.getParentFile().mkdirs();
+        PrintWriter aPW = new PrintWriter(target);
+        aPW.write(content);
+        aPW.close();
+      } catch (Exception ex) {
+        log(-1, "resourceListAsFile: %s:\n%s", target, ex);
+      }
+    }
+    return content.split(System.getProperty("line.separator"));
+  }
+
+  /**
+   * write the list as it is produced by calling extractResourcesToFolder to the given file with system line
+   * separator<br>
+   * compact sikulixcontent format
+   *
+   * @param folder       path of the subtree relative to root with leading /
+   * @param targetFolder the folder where to store the file sikulixcontent (if null, only list - no export)
+   * @param filter       implementation of interface FilenameFilter or null for no filtering
+   * @return success
+   */
+  public static String[] resourceListAsSikulixContent(String folder, File targetFolder, FilenameFilter filter) {
+    List<String> contentList = resourceList(folder, filter);
+    if (contentList == null) {
+      log(-1, "resourceListAsSikulixContent: did not work: %s", folder);
+      return null;
+    }
+    File target = null;
+    String arrString[] = new String[contentList.size()];
+    try {
+      PrintWriter aPW = null;
+      if (targetFolder != null) {
+        target = new File(targetFolder, fpContent);
+        FileManager.deleteFileOrFolder(target);
+        target.getParentFile().mkdirs();
+        aPW = new PrintWriter(target);
+      }
+      int n = 0;
+      for (String line : contentList) {
+        arrString[n++] = line;
+        if (targetFolder != null) {
+          aPW.println(line);
+        }
+      }
+      if (targetFolder != null) {
+        aPW.close();
+      }
+    } catch (Exception ex) {
+      log(-1, "resourceListAsFile: %s:\n%s", target, ex);
+    }
+    return arrString;
+  }
+
+  /**
+   * write the list as it is produced by calling extractResourcesToFolder to the given file with system line
+   * separator<br>
+   * compact sikulixcontent format
+   *
+   * @param aJar         absolute path to an existing jar or a string identifying the jar on classpath (no leading /)
+   * @param folder       path of the subtree relative to root with leading /
+   * @param targetFolder the folder where to store the file sikulixcontent (if null, only list - no export)
+   * @param filter       implementation of interface FilenameFilter or null for no filtering
+   * @return success
+   */
+  public static String[] resourceListAsSikulixContentFromJar(String aJar, String folder, File targetFolder, FilenameFilter
+      filter) {
+    List<String> contentList = extractResourcesToFolderFromJar(aJar, folder, null, filter);
+    if (contentList == null || contentList.size() == 0) {
+      log(-1, "resourceListAsSikulixContentFromJar: did not work: %s", folder);
+      return null;
+    }
+    File target = null;
+    String arrString[] = new String[contentList.size()];
+    try {
+      PrintWriter aPW = null;
+      if (targetFolder != null) {
+        target = new File(targetFolder, fpContent);
+        FileManager.deleteFileOrFolder(target);
+        target.getParentFile().mkdirs();
+        aPW = new PrintWriter(target);
+      }
+      int n = 0;
+      for (String line : contentList) {
+        arrString[n++] = line;
+        if (targetFolder != null) {
+          aPW.println(line);
+        }
+      }
+      if (targetFolder != null) {
+        aPW.close();
+      }
+    } catch (Exception ex) {
+      log(-1, "resourceListAsFile: %s:\n%s", target, ex);
+    }
+    return arrString;
+  }
+
+  /**
+   * write the list produced by calling extractResourcesToFolder to the returned string with system line separator<br>
+   * non-compact format: every file with full path
+   *
+   * @param folder path of the subtree relative to root with leading /
+   * @param filter implementation of interface FilenameFilter or null for no filtering
+   * @return the resulting string
+   */
+  public static String resourceListAsString(String folder, FilenameFilter filter) {
+    return resourceListAsString(folder, filter, null);
+  }
+
+  /**
+   * write the list produced by calling extractResourcesToFolder to the returned string with given separator<br>
+   * non-compact format: every file with full path
+   *
+   * @param folder    path of the subtree relative to root with leading /
+   * @param filter    implementation of interface FilenameFilter or null for no filtering
+   * @param separator to be used to separate the entries
+   * @return the resulting string
+   */
+  public static String resourceListAsString(String folder, FilenameFilter filter, String separator) {
+    List<String> aList = resourceList(folder, filter);
+    if (aList == null) {
+      return null;
+    }
+    if (separator == null) {
+      separator = System.getProperty("line.separator");
+    }
+    String out = "";
+    String subFolder = "";
+    if (aList != null && aList.size() > 0) {
+      for (String eFile : aList) {
+        if (eFile == null) {
+          continue;
+        }
+        if (eFile.endsWith("/")) {
+          subFolder = eFile.substring(0, eFile.length() - 1);
+          continue;
+        }
+        if (!subFolder.isEmpty()) {
+          eFile = new File(subFolder, eFile).getPath();
+        }
+        out += eFile.replace("\\", "/") + separator;
+      }
+    }
+    return out;
+  }
+
+  private static List<String> doResourceListFolder(File fFolder, List<String> files, FilenameFilter filter) {
+    int localLevel = testing ? lvl : lvl + 1;
+    String subFolder = "";
+    if (fFolder.isDirectory()) {
+      if (files.size() > 0 && !FileManager.pathEquals(fFolder.getPath(), files.get(0))) {
+        subFolder = fFolder.getPath().substring(files.get(0).length() + 1).replace("\\", "/") + "/";
+        if (filter != null && !filter.accept(new File(files.get(0), subFolder), "")) {
+          return files;
+        }
+      } else {
+        logp(localLevel, "scanning folder:\n%s", fFolder);
+        subFolder = "/";
+        files.add(subFolder);
+      }
+      String[] subList = fFolder.list();
+      for (String entry : subList) {
+        File fEntry = new File(fFolder, entry);
+        if (fEntry.isDirectory()) {
+          files.add(fEntry.getAbsolutePath().substring(1 + files.get(0).length()).replace("\\", "/") + "/");
+          doResourceListFolder(fEntry, files, filter);
+          files.add(subFolder);
+        } else {
+          if (filter != null && !filter.accept(fFolder, entry)) {
+            continue;
+          }
+          logp(localLevel, "from %s adding: %s", (subFolder.isEmpty() ? "." : subFolder), entry);
+          files.add(fEntry.getAbsolutePath().substring(1 + fFolder.getPath().length()));
+        }
+      }
+    }
+    return files;
+  }
+
+  public static List<String> doResourceListWithList(String folder, List<String> files, FilenameFilter filter) {
+    String content = extractResourceToString(folder, fpContent, "");
+    String[] contentList = content.split(content.indexOf("\r") != -1 ? "\r\n" : "\n");
+    if (filter == null) {
+      files.addAll(Arrays.asList(contentList));
+    } else {
+      for (String fpFile : contentList) {
+        if (filter.accept(new File(fpFile), "")) {
+          files.add(fpFile);
+        }
+      }
+    }
+    return files;
+  }
+
+  private static List<String> doResourceListJar(URL uJar, String fpResource, List<String> files, FilenameFilter filter) {
+    ZipInputStream zJar;
+    String fpJar = uJar.getPath().split("!")[0];
+    int localLevel = testing ? lvl : lvl + 1;
+    String fileSep = "/";
+    if (!fpJar.endsWith(".jar")) {
+      return files;
+    }
+    logp(localLevel, "scanning jar:\n%s", uJar);
+    fpResource = (fpResource.startsWith("/") ? fpResource.substring(1) : fpResource) + "/";
+    File fFolder = new File(fpResource);
+    File fSubFolder = null;
+    ZipEntry zEntry;
+    String subFolder = "";
+    boolean skip = false;
+    try {
+      zJar = new ZipInputStream(new URL(fpJar).openStream());
+      while ((zEntry = zJar.getNextEntry()) != null) {
+        if (zEntry.getName().endsWith("/")) {
+          continue;
+        }
+        String zePath = zEntry.getName();
+        if (zePath.startsWith(fpResource)) {
+//          if (fpResource.length()  == zePath.length()) {
+//            files.add(zePath);
+//            return files;
+//          }
+          String zeName = zePath.substring(fpResource.length());
+          int nSep = zeName.lastIndexOf(fileSep);
+          String zefName = zeName.substring(nSep + 1, zeName.length());
+          String zeSub = "";
+          if (nSep > -1) {
+            zeSub = zeName.substring(0, nSep + 1);
+            if (!subFolder.equals(zeSub)) {
+              subFolder = zeSub;
+              fSubFolder = new File(fFolder, subFolder);
+              skip = false;
+              if (filter != null && !filter.accept(fSubFolder, "")) {
+                skip = true;
+                continue;
+              }
+              files.add(zeSub);
+            }
+            if (skip) {
+              continue;
+            }
+          } else {
+            if (!subFolder.isEmpty()) {
+              subFolder = "";
+              fSubFolder = fFolder;
+              files.add("/");
+            }
+          }
+          if (filter != null && !filter.accept(fSubFolder, zefName)) {
+            continue;
+          }
+          files.add(zefName);
+          logp(localLevel, "from %s adding: %s", (zeSub.isEmpty() ? "." : zeSub), zefName);
+        }
+      }
+    } catch (Exception ex) {
+      log(-1, "doResourceListJar: %s", ex);
+      return files;
+    }
+    return files;
+  }
+
+  public static List<String> listFilesInJar(URL uJar) {
+    ZipInputStream zJar;
+    String fpJar = uJar.getPath().split("!")[0];
+    int localLevel = testing ? lvl : lvl + 1;
+    String fileSep = "/";
+    if (!fpJar.endsWith(".jar")) {
+      return null;
+    }
+    logp(localLevel, "listFilesInJar: scanning jar:\n%s", uJar);
+    List<String> files = new ArrayList<>();
+    ZipEntry zEntry;
+    try {
+      zJar = new ZipInputStream(new URL(fpJar).openStream());
+      while ((zEntry = zJar.getNextEntry()) != null) {
+        if (zEntry.getName().endsWith("/")) {
+          continue;
+        }
+        String zePath = zEntry.getName();
+        files.add(zePath);
+        logp(localLevel, "listFilesInJar: adding: %s", zePath);
+      }
+    } catch (Exception ex) {
+      log(-1, "listFilesInJar: %s", ex);
+      return files;
+    }
+    return files;
+  }
+
+  private static boolean copyFromJarToFolderWithList(URL uJar, String fpRessource, List<String> files, File fFolder) {
+    if (files == null || files.isEmpty()) {
+      log(lvl, "copyFromJarToFolderWithList: list of files is empty");
+      return false;
+    }
+    String fpJar = uJar.getPath().split("!")[0];
+    if (!fpJar.endsWith(".jar")) {
+      return false;
+    }
+    int localLevel = testing ? lvl : lvl + 1;
+    logp(localLevel, "scanning jar:\n%s", uJar);
+    fpRessource = fpRessource.startsWith("/") ? fpRessource.substring(1) : fpRessource;
+
+    String subFolder = "";
+
+    int maxFiles = files.size() - 1;
+    int nFiles = 0;
+
+    ZipEntry zEntry;
+    ZipInputStream zJar;
+    String zPath;
+    int prefix = fpRessource.length();
+    fpRessource += !fpRessource.isEmpty() ? "/" : "";
+    String current = "/";
+    boolean shouldStop = false;
+    try {
+      zJar = new ZipInputStream(new URL(fpJar).openStream());
+      while ((zEntry = zJar.getNextEntry()) != null) {
+        zPath = zEntry.getName();
+        if (zPath.endsWith("/")) {
+          continue;
+        }
+        while (current.endsWith("/")) {
+          if (nFiles > maxFiles) {
+            shouldStop = true;
+            break;
+          }
+          subFolder = current.length() == 1 ? "" : current;
+          current = files.get(nFiles++);
+          if (!current.endsWith("/")) {
+            current = fpRessource + subFolder + current;
+            break;
+          }
+        }
+        if (shouldStop) {
+          break;
+        }
+        if (zPath.startsWith(current)) {
+          if (zPath.length() == fpRessource.length() - 1) {
+            log(-1, "extractResourcesToFolderFromJar: only ressource folders allowed - use filter");
+            return false;
+          }
+          logp(localLevel, "copying: %s", zPath);
+          File out = new File(fFolder, zPath.substring(prefix));
+          if (!out.getParentFile().exists()) {
+            out.getParentFile().mkdirs();
+          }
+          FileOutputStream aFileOS = new FileOutputStream(out);
+          copy(zJar, aFileOS);
+          aFileOS.close();
+          if (nFiles > maxFiles) {
+            break;
+          }
+          current = files.get(nFiles++);
+          if (!current.endsWith("/")) {
+            current = fpRessource + subFolder + current;
+          }
+        }
+      }
+      zJar.close();
+    } catch (Exception ex) {
+      log(-1, "doResourceListJar: %s", ex);
+      return false;
+    }
+    return true;
+  }
+  //</editor-fold>
+
   //<editor-fold desc="30 Options handling">
   public static void show() {
     info("***** show environment for %s (%s)", Commons.getSXVersion(), Commons.getSxBuildStamp());
@@ -1590,8 +2400,7 @@ public static boolean loadLib(String libName) {
     info("app data folder: %s", Commons.getAppDataPath());
     info("work dir: %s", Commons.getWorkDir());
     info("user.home: %s", Commons.getUserHome());
-    info("active locale: %s", globalOptions.getOption("SX_LOCALE"));
-    if (hasOption(CommandArgsEnum.VERBOSE) || isJythonReady()) {
+    if (Debug.isGlobalDebug() || isJythonReady()) {
 //      dumpClassPath("sikulix");
       if (isJythonReady()) {
         int saveLvl = Debug.getDebugLevel();
@@ -1603,103 +2412,6 @@ public static boolean loadLib(String libName) {
     }
     info("***** show environment end");
   }
-
-  private static Options globalOptions = null;
-
-  public static Options globals() {
-    return globalOptions;
-  }
-
-  public static void showOptions() {
-    showOptions("");
-  }
-
-  public static void showOptions(String prefix) {
-    Map<String, String> options = globals().getOptions();
-    TreeMap<String, String> sortedOptions = new TreeMap<>();
-    sortedOptions.putAll(options);
-    int len = 0;
-    for (String key : sortedOptions.keySet()) {
-      if (!key.startsWith(prefix)) {
-        continue;
-      }
-      if (key.length() < len) {
-        continue;
-      }
-      len = key.length();
-    }
-    String formKey = "%-" + len + "s";
-    String formVal = " = %s";
-    for (String key : sortedOptions.keySet()) {
-      if (!key.startsWith(prefix)) {
-        continue;
-      }
-      String val = sortedOptions.get(key);
-      if (val.isEmpty()) {
-        info(formKey, key);
-      } else {
-        info(formKey + formVal, key, val);
-      }
-    }
-  }
-
-  public static void initOptions() {
-    if (globalOptions == null) {
-      Options options = Options.create();
-      // *************** add commandline args
-      for (CommandArgsEnum arg : CommandArgsEnum.values()) {
-        String val = "";
-        if (hasArg(arg.shortname())) {
-          if (arg.hasArgs()) {
-            String[] args = getArgs(arg.shortname());
-            if (args.length > 1) {
-              for (int n = 0; n < args.length; n++) {
-                val += "|" + args[n];
-              }
-            } else {
-              val = args[0];
-            }
-          }
-          options.setOption("ARG_" + arg.toString(), (val == null ? "" : val));
-        }
-      }
-      options.setOption("SX_JAR", getMainClassLocation().getAbsolutePath());
-      String prop = System.getProperty("sikuli.Debug");
-      if (prop != null) {
-        options.setOption("SX_DEBUG_LEVEL", prop);
-      }
-      prop = System.getProperty("sikuli.console");
-      if (prop != null) {
-        if (prop.equals("false")) {
-          if (!hasOption(CONSOLE)) {
-            options.setOption("ARG_" + CONSOLE.name(), "");
-          }
-        }
-      }
-      globalOptions = options;
-    }
-  }
-
-  public static boolean hasOption(CommandArgsEnum option) {
-    return hasOption("ARG_" + option.name());
-  }
-
-  public static boolean hasOption(String option) {
-    if (globalOptions == null) {
-      return false;
-    }
-    return globalOptions.hasOption(option);
-  }
-
-  public static Options getOptions() {
-    return sxOptions;
-  }
-
-  public static void setOptions(Options options) {
-    sxOptions = options;
-  }
-
-  private static Options sxOptions = null;
   //</editor-fold>
 
   //<editor-fold desc="80 image handling">
@@ -1834,6 +2546,14 @@ public static boolean loadLib(String libName) {
     return mats;
   }
 
+  public static BufferedImage deepCopySameType(BufferedImage src) {
+    BufferedImage dst = new BufferedImage(src.getWidth(), src.getHeight(), src.getType());
+    Graphics2D g = dst.createGraphics();
+    try { g.drawImage(src, 0, 0, null); }
+    finally { g.dispose(); }
+    return dst;
+  }
+
   public static Mat makeMat(BufferedImage bImg) {
     return makeMat(bImg, true);
   }
@@ -1913,11 +2633,33 @@ public static boolean loadLib(String libName) {
   }
 
   public static BufferedImage getBufferedImage(Mat mat, String type) {
-    BufferedImage bImg = null;
-    MatOfByte bytemat = new MatOfByte();
     if (SX.isNull(mat)) {
       mat = getNewMat();
     }
+    // Fast path: direct pixel copy from the OpenCV Mat into the BufferedImage's
+    // DataBuffer. The previous implementation did a full PNG encode + decode
+    // (Imgcodecs.imencode → ImageIO.read) just to change container format,
+    // which dominated the OCR optimize() pipeline at ~250-500ms per call on
+    // 4K images. Direct memcpy is ~10-30ms.
+    //
+    // We cover the channel layouts that actually appear in the OCR pipeline
+    // (1 = grayscale, 3 = BGR after cvtColor). For exotic Mat layouts we fall
+    // back to the legacy PNG round-trip so behaviour stays identical.
+    int channels = mat.channels();
+    int width = mat.cols();
+    int height = mat.rows();
+    if (width > 0 && height > 0 && (channels == 1 || channels == 3)) {
+      int bImgType = (channels == 1)
+          ? BufferedImage.TYPE_BYTE_GRAY
+          : BufferedImage.TYPE_3BYTE_BGR;
+      BufferedImage fast = new BufferedImage(width, height, bImgType);
+      byte[] data = ((DataBufferByte) fast.getRaster().getDataBuffer()).getData();
+      mat.get(0, 0, data);
+      return fast;
+    }
+    // Fallback (4-channel BGRA, 16-bit, float Mats, …): PNG round-trip.
+    BufferedImage bImg = null;
+    MatOfByte bytemat = new MatOfByte();
     Imgcodecs.imencode(type, mat, bytemat);
     byte[] bytes = bytemat.toArray();
     InputStream in = new ByteArrayInputStream(bytes);
@@ -1930,6 +2672,139 @@ public static boolean loadLib(String libName) {
   }
   //</editor-fold>
 
+  //<editor-fold defaultstate="collapsed" desc="85 runcmd">
+  public final static String runCmdError = "*****error*****";
+  private static String lastResult = "";
+
+  public static String arrayToQuotedString(String[] args) {
+    String ret = "";
+    for (String s : args) {
+      if (s.contains(" ")) {
+        s = "\"" + s + "\"";
+      }
+      ret += s + " ";
+    }
+    return ret;
+  }
+
+  /**
+   * run a system command finally using Java::Runtime.getRuntime().exec(args) and waiting for completion
+   *
+   * @param
+   * cmd the command as it would be given on command line, quoting is preserved
+   * @return the output produced by the command (sysout [+ "*** error ***" + syserr] if the syserr part is present, the
+   * command might have failed
+   */
+  public static String runcmd(String cmd) {
+    return runcmd(new String[]{cmd});
+  }
+
+  /**
+   * run a system command finally using Java::Runtime.getRuntime().exec(args) and waiting for completion
+   *
+   * @param args the command as it would be given on command line splitted into the space devided parts, first part is
+   *             the command, the rest are parameters and their values
+   * @return the output produced by the command (sysout [+ "*** error ***" + syserr] if the syserr part is present, the
+   * command might have failed
+   */
+  public static String runcmd(String args[]) {
+    if (args.length == 0) {
+      return "";
+    }
+    String NL = System.lineSeparator();
+    boolean silent = false;
+    if (args.length == 1) {
+      String separator = "\"";
+      ArrayList<String> argsx = new ArrayList<String>();
+      StringTokenizer toks;
+      String tok;
+      String cmd = args[0];
+      if (Settings.isWindows()) {
+        cmd = cmd.replaceAll("\\\\ ", "%20;");
+      }
+      toks = new StringTokenizer(cmd);
+      while (toks.hasMoreTokens()) {
+        tok = toks.nextToken(" ");
+        if (tok.length() == 0) {
+          continue;
+        }
+        if (separator.equals(tok)) {
+          continue;
+        }
+        if (tok.startsWith(separator)) {
+          if (tok.endsWith(separator)) {
+            tok = tok.substring(1, tok.length() - 1);
+          } else {
+            tok = tok.substring(1);
+            tok += toks.nextToken(separator);
+          }
+        }
+        argsx.add(tok.replaceAll("%20;", " "));
+      }
+      args = argsx.toArray(new String[0]);
+    }
+    if (args[0].startsWith("!")) {
+      silent = true;
+      args[0] = args[0].substring(1);
+    }
+    if (args[0].startsWith("#")) {
+      String pgm = args[0].substring(1);
+      args[0] = (new File(pgm)).getAbsolutePath();
+      runcmd(new String[]{"chmod", "ugo+x", args[0]});
+    }
+    String result = "";
+    String error = runCmdError + NL;
+    String errorOut = "";
+    boolean hasError = false;
+    int retVal;
+    try {
+      if (!silent) {
+        if (lvl <= Debug.getDebugLevel()) {
+          log(lvl, arrayToQuotedString(args));
+        } else {
+          Debug.info("runcmd: " + arrayToQuotedString(args));
+        }
+      }
+      //TODO use ProcessRunner
+      Process process = Runtime.getRuntime().exec(args);
+      BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+      BufferedReader stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+      String s;
+      while ((s = stdInput.readLine()) != null) {
+        if (!s.isEmpty()) {
+          result += s + NL;
+        }
+      }
+      while ((s = stdError.readLine()) != null) {
+        if (!s.isEmpty()) {
+          errorOut += s + NL;
+        }
+      }
+      if (!errorOut.isEmpty()) {
+        error = error + errorOut;
+        hasError = true;
+      }
+      process.waitFor();
+      retVal = process.exitValue();
+      process.destroy();
+    } catch (Exception e) {
+      log(-1, "fatal error: " + e);
+      result = String.format(error + "%s", e);
+      retVal = 9999;
+      hasError = true;
+    }
+    if (hasError) {
+      result += error;
+    }
+    lastResult = result;
+    return String.format("%d%s%s", retVal, NL, result);
+  }
+
+  public static String getLastCommandResult() {
+    return lastResult;
+  }
+  //</editor-fold>
+
   //<editor-fold desc="90 reflections">
   public static Object runFunctionScriptingSupport(String function, Object[] args) {
     return runFunctionScriptingSupport(null, function, args);
@@ -1939,18 +2814,18 @@ public static boolean loadLib(String libName) {
     Class<?> classSup = null;
     if (reference == null || (reference instanceof String && ((String) reference).contains("org.python"))) {
       try {
-        classSup = Class.forName("org.sikuli.support.ide.JythonSupport");
+        classSup = Class.forName("org.sikuli.support.runnerSupport.JythonSupport");
       } catch (ClassNotFoundException e) {
-        RunTime.terminate(999, "Commons: JythonSupport: %s", e.getMessage());
+        terminate(999, "Commons: JythonSupport: %s", e.getMessage());
       }
     } else if (reference instanceof String && ((String) reference).contains("org.jruby")) {
       try {
-        classSup = Class.forName("org.sikuli.support.ide.JRubySupport");
+        classSup = Class.forName("org.sikuli.support.runnerSupport.JRubySupport");
       } catch (ClassNotFoundException e) {
-        RunTime.terminate(999, "Commons: JRubySupport: %s", e.getMessage());
+        terminate(999, "Commons: JRubySupport: %s", e.getMessage());
       }
     } else {
-      RunTime.terminate(999, "Commons: ScriptingSupport: not supported: %s", reference);
+      terminate(999, "Commons: ScriptingSupport: not supported: %s", reference);
     }
     Object returnSup = null;
     String error = "";
@@ -1962,8 +2837,8 @@ public static boolean loadLib(String libName) {
         method = classSup.getMethod(function, (Class<?>[]) null);
         returnSup = method.invoke(instanceSup);
       } else {
-        method = classSup.getMethod(function, new Class[]{Object[].class});
-        returnSup = method.invoke(instanceSup, args);
+        method = classSup.getMethod(function, args.getClass());
+        returnSup = method.invoke(instanceSup, new Object[]{ args });
       }
     } catch (NoSuchMethodException e) {
       error = e.toString();
@@ -1975,7 +2850,7 @@ public static boolean loadLib(String libName) {
       error = e.toString();
     }
     if (!error.isEmpty()) {
-      RunTime.terminate(999, "Commons: runScriptingSupportFunction(%s, %s, %s): %s",
+      terminate(999, "Commons: runScriptingSupportFunction(%s, %s, %s): %s",
           instanceSup, method, args, error);
     }
     return returnSup;
@@ -1983,6 +2858,20 @@ public static boolean loadLib(String libName) {
   //</editor-fold>
 
   //<editor-fold desc="99 stuff">
+  public static void pause(int time) {
+    try {
+      Thread.sleep(time);
+    } catch (InterruptedException ex) {
+    }
+  }
+
+  public static void pause(float time) {
+    try {
+      Thread.sleep((int) (time * 1000));
+    } catch (InterruptedException ex) {
+    }
+  }
+
   public static void browse(String url) {
     if (Desktop.isDesktopSupported()) {
       try {
@@ -2007,6 +2896,19 @@ public static boolean loadLib(String libName) {
       return false;
     }
     return true;
+  }
+
+  public static int getStringAsInteger(String pVal, Integer nDefault) {
+    int nVal = nDefault;
+    try {
+      nVal = Integer.decode(pVal);
+    } catch (Exception ex) {
+    }
+    return nVal;
+  }
+
+  public static int getStringAsInteger(String pVal) {
+    return getStringAsInteger(pVal, 0);
   }
 
   public static int[] reverseIntArray(int[] anArray) {

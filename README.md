@@ -183,6 +183,16 @@ IBM · Qualcomm · Tencent · Alibaba · Kakao · Deutsche Bank · PepsiCo · Da
 
 ---
 
+## Community tools & integrations
+
+People are building things around OculiX. If your project deserves a mention here, open a Discussion or a PR — the bar is *"useful to someone in the OculiX ecosystem"*, not *"officially endorsed"*.
+
+| Project | Author | What it brings |
+|---|---|---|
+| [**oculix-vscode**](https://github.com/MiguelDomingues/oculix-vscode) | [@MiguelDomingues](https://github.com/MiguelDomingues) | VS Code extension : region capture, inline image previews replacing PNG filenames in code, click-to-set target offsets, interactive `cv2.matchTemplate` testing, script runner. Consumes OculiX as a runtime JAR — the right architectural model for community tooling. |
+
+---
+
 ## Contributing
 
 Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, code style, and review expectations. Substantive changes are discussed in advance via an issue when possible.

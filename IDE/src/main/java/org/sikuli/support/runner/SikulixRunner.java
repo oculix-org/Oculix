@@ -3,7 +3,7 @@
  */
 package org.sikuli.support.runner;
 
-import org.sikuli.support.ide.Runner;
+import org.sikuli.support.Commons;
 
 import java.io.File;
 
@@ -67,7 +67,7 @@ public class SikulixRunner extends AbstractRunner {
         wrapper.clearRunner();
       }
     }
-    return Runner.FILE_NOT_FOUND;
+    return Commons.FILE_NOT_FOUND;
   }
 
   public EffectiveRunner getEffectiveRunner(String scriptFileOrFolder) {

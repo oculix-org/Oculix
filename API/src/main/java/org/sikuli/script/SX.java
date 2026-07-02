@@ -5,12 +5,11 @@
 package org.sikuli.script;
 
 import org.sikuli.basics.Debug;
+import org.sikuli.support.devices.ScreenDevice;
 import org.sikuli.util.SikulixFileChooser;
 
 import javax.swing.*;
-import java.awt.EventQueue;
-import java.awt.GraphicsEnvironment;
-import java.awt.Point;
+import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
@@ -362,7 +361,7 @@ public class SX {
   }
 
   private static JFrame getFrame(Object point) {
-    Location currentPopLocation = Sikulix.getCurrentPopLocation();
+    Location currentPopLocation = getCurrentPopLocation();
     int x = currentPopLocation.x;
     int y = currentPopLocation.y;
     if (null != point) {
@@ -511,6 +510,66 @@ public class SX {
   }
   //</editor-fold>
 
+  //<editor-fold desc="10 popat">
+  public static Location popat(Location at) {
+    locPopAt = new Point(at.x, at.y);
+    return new Location(locPopAt);
+  }
+
+  public static Location popat(Region at) {
+    locPopAt = new Point(at.getCenter().x, at.getCenter().y);
+    return new Location(locPopAt);
+  }
+
+  public static Location popat(int atx, int aty) {
+    locPopAt = new Point(atx, aty);
+    return new Location(locPopAt);
+  }
+
+  public static Location popat() {
+    locPopAt = getLocPopAt();
+    return new Location(locPopAt);
+  }
+
+  private static Point getLocPopAt() {
+    Rectangle rect = ScreenDevice.get(0).asRectangle();
+    //TODO should be IDE window
+    return new Point((int) rect.getCenterX(), (int) rect.getCenterY());
+  }
+
+  public static Location getCurrentPopLocation() {
+    if (null == locPopAt) {
+      locPopAt = getLocPopAt();
+      if (null == locPopAt) {
+        return null;
+      }
+    }
+    return new Location(locPopAt);
+  }
+
+  private static JFrame popLocation() {
+    if (null == locPopAt) {
+      locPopAt = getLocPopAt();
+      if (null == locPopAt) {
+        return null;
+      }
+    }
+    return popLocation(locPopAt.x, locPopAt.y);
+  }
+
+  private static JFrame popLocation(int x, int y) {
+    JFrame anchor = new JFrame();
+    anchor.setAlwaysOnTop(true);
+    anchor.setUndecorated(true);
+    anchor.setSize(1, 1);
+    anchor.setLocation(x, y);
+    anchor.setVisible(true);
+    return anchor;
+  }
+
+  private static Point locPopAt = null;
+  //</editor-fold>
+
   public static boolean isNotNull(Object obj) {
     return null != obj;
   }
@@ -518,12 +577,4 @@ public class SX {
   public static boolean isNull(Object obj) {
     return null == obj;
   }
-
-  //<editor-fold desc="10 Python support">
-  public void reset() {
-    Debug.log(3, "SX.reset()");
-    Screen.resetMonitorsQuiet();
-    Mouse.reset();
-  }
-  //</editor-fold>
 }

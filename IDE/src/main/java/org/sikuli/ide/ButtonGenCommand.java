@@ -123,8 +123,14 @@ public class ButtonGenCommand extends JButton implements ActionListener,
         }
         if (pref.getAutoCaptureForCmdButtons()) {
           btnCapture = null; //TODO new ButtonCapture(pane, line);
-          pane.insertComponent(btnCapture);
-          btnCapture.captureWithAutoDelay();
+          // Guard against NPE while the TODO above is unimplemented: as
+          // long as btnCapture is unconditionally null, the insert+invoke
+          // below would crash any user who toggles AutoCaptureForCmdButtons
+          // on. Once the constructor is wired up, this guard becomes a no-op.
+          if (btnCapture != null) {
+            pane.insertComponent(btnCapture);
+            btnCapture.captureWithAutoDelay();
+          }
         } else {
           if (pane.context.getShowThumbs() && pref.getPrefMoreImageThumbs()) {
             //TODO pane.insertComponent(new ButtonCapture(pane, line));

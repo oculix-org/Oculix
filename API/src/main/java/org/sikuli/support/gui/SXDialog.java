@@ -5,7 +5,6 @@
 package org.sikuli.support.gui;
 
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.devices.ScreenDevice;
 
 import javax.imageio.ImageIO;
@@ -160,7 +159,7 @@ public class SXDialog extends JFrame {
       popup(where);
       if (autoClose > 0) {
         new Thread(() -> {
-          RunTime.pause(autoClose * 1000);
+          Commons.pause(autoClose * 1000);
           closeCancel();
         }).start();
       }

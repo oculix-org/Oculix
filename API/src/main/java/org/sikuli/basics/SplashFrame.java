@@ -17,7 +17,6 @@ import javax.swing.JLabel;
 import javax.swing.JSeparator;
 
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 
 /**
  *

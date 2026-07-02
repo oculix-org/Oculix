@@ -38,7 +38,6 @@ import org.sikuli.natives.OSUtil.OsProcess;
 import org.sikuli.natives.OSUtil.OsWindow;
 import org.sikuli.natives.SysUtil;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 
 /**
  * App implements features to manage (open, switch to, close) applications. on
@@ -563,7 +562,7 @@ public class App {
       return 1;
     }
     focus();
-    RunTime.pause(1.0f);
+    Commons.pause(1.0f);
     if (Commons.runningWindows()) {
       window().type(Key.F4, Key.ALT);
     } else if (Commons.runningMac()) {
@@ -826,7 +825,7 @@ public class App {
    * @return the final returncode of the command execution
    */
   public static int run(String cmd) {
-    lastRunResult = RunTime.runcmd(cmd);
+    lastRunResult = Commons.runcmd(cmd);
     String NL = Commons.runningWindows() ? "\r\n" : "\n";
     String[] res = lastRunResult.split(NL);
     try {
@@ -841,7 +840,7 @@ public class App {
         lastRunStderr += res[n] + NL;
         continue;
       }
-      if (RunTime.runCmdError.equals(res[n])) {
+      if (Commons.runCmdError.equals(res[n])) {
         isError = true;
         continue;
       }

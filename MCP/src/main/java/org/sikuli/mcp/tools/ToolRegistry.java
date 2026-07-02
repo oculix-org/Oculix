@@ -20,13 +20,13 @@ import java.util.Map;
  * {@code OCULIX_MCP_MODE} environment variable:
  * <dl>
  *   <dt>{@code open} (default)</dt>
- *   <dd>9 tools including {@code oculix_screenshot} and
+ *   <dd>13 tools including {@code oculix_screenshot} and
  *       {@code oculix_read_text_in_region}, which return image/text content
  *       inline to the LLM. Suited to Claude Desktop / dev workflows where
  *       the LLM is trusted to see the screen.</dd>
  *
  *   <dt>{@code confidential}</dt>
- *   <dd>Same 7 outcome-only tools plus {@code oculix_screenshot_to_disk}
+ *   <dd>Same 11 outcome-only tools plus {@code oculix_screenshot_to_disk}
  *       and {@code oculix_ocr_to_disk}. The two content-leaking tools are
  *       <em>not</em> registered — the LLM cannot even see them in
  *       {@code tools/list}. No filter to bypass: the capability is
@@ -111,11 +111,15 @@ public final class ToolRegistry {
     // Outcome-only tools — always safe, registered in both modes.
     r.register(new FindImageTool());
     r.register(new ClickImageTool());
+    r.register(new ClickAtPointTool());
     r.register(new ExistsImageTool());
     r.register(new WaitForImageTool());
     r.register(new TypeTextTool());
     r.register(new KeyComboTool());
     r.register(new FindTextTool());
+    r.register(new ClickTextTool());
+    r.register(new ScrollTool());
+    r.register(new WaitForStableTool());
 
     // Content-bearing vs. vault-only variants — mutually exclusive.
     if (mode == Mode.OPEN) {

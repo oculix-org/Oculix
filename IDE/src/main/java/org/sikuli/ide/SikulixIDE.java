@@ -13,15 +13,14 @@ import org.sikuli.support.ide.ExtensionManager;
 import org.sikuli.support.ide.IButton;
 import org.sikuli.support.ide.IDESupport;
 import org.sikuli.support.ide.IIDESupport;
-import org.sikuli.support.ide.JythonSupport;
-import org.sikuli.support.ide.Runner;
+import org.sikuli.support.runnerSupport.JythonSupport;
+import org.sikuli.support.runner.Runner;
 import org.sikuli.support.ide.SikuliIDEI18N;
 import org.sikuli.support.ide.syntaxhighlight.ResolutionException;
 import org.sikuli.support.ide.syntaxhighlight.grammar.Lexer;
 import org.sikuli.support.ide.syntaxhighlight.grammar.Token;
 import org.sikuli.support.ide.syntaxhighlight.grammar.TokenType;
 import org.sikuli.script.Image;
-import org.sikuli.script.Sikulix;
 import org.sikuli.script.*;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.InvalidRunner;
@@ -30,17 +29,19 @@ import org.sikuli.support.runner.TextRunner;
 import org.sikuli.support.Commons;
 import org.sikuli.support.devices.IScreen;
 import org.sikuli.support.recorder.Recorder;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.devices.ScreenDevice;
 import org.sikuli.support.recorder.generators.ICodeGenerator;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.recorder.actions.IRecordedAction;
-import org.sikuli.util.*;
 import org.sikuli.ide.ui.OculixSidebar;
 import org.sikuli.ide.ui.ScriptExplorer;
 import org.sikuli.ide.ui.SidebarSubmenu;
 import org.sikuli.ide.ui.WelcomeTab;
 import org.sikuli.ide.ui.WorkspaceDialog;
+import org.sikuli.util.EventObserver;
+import org.sikuli.util.EventSubject;
+import org.sikuli.util.OverlayCapturePrompt;
+import org.sikuli.util.SikulixFileChooser;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -163,7 +164,7 @@ public class SikulixIDE extends JFrame {
 
   public static void doHide(float waitTime) {
     ideWindow.setVisible(false);
-    RunTime.pause(waitTime);
+    Commons.pause(waitTime);
   }
 
   static void showAgain() {
@@ -201,10 +202,10 @@ public class SikulixIDE extends JFrame {
     ideWindowRect = getWindowRect();
 
     IDEDesktopSupport.init(sikulixIDE);
-    IDETaskbarSupport.setTaskbarIcon(getIconResource("/icons/gecko_cyclope.png").getImage());
-    sikulixIDE.setIconImage(getIconResource("/icons/gecko_cyclope.png").getImage());
+    IDETaskbarSupport.setTaskbarIcon(getIconResource("/icons/gecko_cyclope_icon.png").getImage());
+    sikulixIDE.setIconImage(getIconResource("/icons/gecko_cyclope_icon.png").getImage());
     IDESupport.initIDESupport();
-    if (!Commons.hasOption(CommandArgsEnum.CONSOLE)) {
+    if (Sikulix.ideWithConsole) {
       get().messages = new EditorConsolePane();
     }
     IDESupport.initRunners();
@@ -253,7 +254,7 @@ public class SikulixIDE extends JFrame {
     log("Quit requested");
     if (closeIDE()) {
       try {
-        RunTime.terminate(0, "");
+        Commons.terminate(0, "");
       } catch (Exception ex) {
         log("Quit: RunTime.terminate failed — forcing exit");
         System.exit(1);
@@ -406,6 +407,35 @@ public class SikulixIDE extends JFrame {
         PreferencesUser.get().setIdeLocation(ideWindow.getLocation());
       }
     });
+
+    // Restore-from-maximize override : when the user clicks the Restore button
+    // (or double-clicks the title bar to leave maximised state), Windows
+    // restores the window to whatever pre-maximize size it had — often glued
+    // to a screen edge and awkward to resize. We instead snap to a comfy
+    // 70% × 70% of the screen, centred, leaving 15% margin on every side so
+    // the user can grab any border to resize. Only fires on the
+    // MAXIMIZED_BOTH → NORMAL transition; minimize (NORMAL → ICONIFIED) and
+    // restore-from-icon are left alone.
+    ideWindow.addWindowStateListener(new java.awt.event.WindowStateListener() {
+      @Override
+      public void windowStateChanged(java.awt.event.WindowEvent e) {
+        int oldState = e.getOldState();
+        int newState = e.getNewState();
+        boolean wasMaximised = (oldState & java.awt.Frame.MAXIMIZED_BOTH) != 0;
+        boolean isNormal     = (newState & (java.awt.Frame.MAXIMIZED_BOTH | java.awt.Frame.ICONIFIED)) == 0;
+        if (wasMaximised && isNormal) {
+          java.awt.Rectangle screen = ideWindow.getGraphicsConfiguration().getBounds();
+          int w = (int) (screen.width  * 0.70);
+          int h = (int) (screen.height * 0.70);
+          int x = screen.x + (screen.width  - w) / 2;
+          int y = screen.y + (screen.height - h) / 2;
+          SwingUtilities.invokeLater(() -> {
+            ideWindow.setSize(w, h);
+            ideWindow.setLocation(x, y);
+          });
+        }
+      }
+    });
     ToolTipManager.sharedInstance().setDismissDelay(30000);
 
     if (messages != null) {
@@ -429,17 +459,17 @@ public class SikulixIDE extends JFrame {
 
   public static void showAfterStart() {
     while (!ideIsReady.get()) {
-      RunTime.pause(100);
+      Commons.pause(100);
     }
     org.sikuli.ide.Sikulix.stopSplash();
     ideWindow.setVisible(true);
     if (sikulixIDE.mainPane != null) {
-      sikulixIDE.mainPane.setDividerLocation(0.6); //TODO saved value
+      sikulixIDE.mainPane.setDividerLocation(0.7); //TODO saved value — 0.7 keeps the Welcome footer visible at default IDE proportions
     }
     if (!sikulixIDE.contexts.isEmpty()) {
       sikulixIDE.getActiveContext().focus();
     }
-    if (shouldExecuteOnStart) {
+    if (Sikulix.shouldExecuteOnStart) {
       // Mirrors the -r flow at Sikulix.start verbatim — same loadOpenCV +
       // resolveRelativeFiles + runScripts sequence — minus the
       // RunTime.terminate(...) at the end so the IDE stays open after the
@@ -455,14 +485,12 @@ public class SikulixIDE extends JFrame {
       // last visible "-e: ..." line in the panel is the breakpoint.
       new Thread(() -> {
         try {
-          Commons.startLog(3, "-e: thread spawned");
+          doHide();
           Commons.loadOpenCV();
-          Commons.startLog(3, "-e: loadOpenCV returned");
-          String[] scripts = Runner.resolveRelativeFiles(
-              Commons.getArgs(CommandArgsEnum.LOAD.shortname()));
-          Commons.startLog(3, "-e: resolved scripts: %s",
+          String[] scripts = new String[] {Sikulix.scriptToStart.getAbsolutePath()};
+          Commons.startLog(3, "-e: resolved script: %s",
               scripts == null ? "null" : java.util.Arrays.toString(scripts));
-          int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(),
+          int exitCode = Runner.runScripts(scripts, Sikulix.getUserArgs(),
               new IRunner.Options());
           if (exitCode > 255) {
             exitCode = 254;
@@ -481,8 +509,10 @@ public class SikulixIDE extends JFrame {
               sw.toString());
         }
         // No RunTime.terminate(): -e leaves the IDE running for the user.
+        showAgain();
       }, "auto-run-e").start();
     }
+    Debug.quietOff();
   }
 
   //TODO initShortcutKey
@@ -595,10 +625,10 @@ public class SikulixIDE extends JFrame {
     newHeader.setEnabled(false);
     newHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(newHeader);
-    sub.addItem("\uD83D\uDCC4  Script",
+    sub.addItem("\uD83D\uDCC4  " + _I("cmdScript"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
         e -> { createEmptyScriptContext(); });
-    sub.addItem("\uD83D\uDCC1  Workspace", null,
+    sub.addItem("\uD83D\uDCC1  " + _I("cmdWorkspace"), null,
         e -> openNewWorkspaceDialog());
 
     // ── Ouvrir ──
@@ -606,10 +636,10 @@ public class SikulixIDE extends JFrame {
     openHeader.setEnabled(false);
     openHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(openHeader);
-    sub.addItem("\uD83D\uDCC4  Script",
+    sub.addItem("\uD83D\uDCC4  " + _I("cmdScript"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
         e -> { File f = selectFileToOpen(); if (f != null) createFileContext(f); });
-    sub.addItem("\uD83D\uDCC1  Workspace", null,
+    sub.addItem("\uD83D\uDCC1  " + _I("cmdWorkspace"), null,
         e -> openExistingWorkspace());
 
     sub.addSeparator();
@@ -621,9 +651,11 @@ public class SikulixIDE extends JFrame {
     scriptDependentItems.add(sub.addItem(_I("menuFileSaveAs"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> { PaneContext ctx = getActiveContext(); if (ctx != null) ctx.saveAs(); }));
-    scriptDependentItems.add(sub.addItem(_I("menuFileExport"),
+    scriptDependentItems.add(sub.addItem("Export packed source...",
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_E, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> { exportAsZip(); }));
+    scriptDependentItems.add(sub.addItem("Export as .jar (script library)", null,
+        e -> { exportAsJar(); }));
 
     sub.addSeparator();
 
@@ -655,7 +687,7 @@ public class SikulixIDE extends JFrame {
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.ALT_DOWN_MASK | scMask),
         e -> btnRunSlow.runCurrentScript()));
     sub.addSeparator();
-    scriptDependentItems.add(sub.addItem("\u25B6  Run selection",
+    scriptDependentItems.add(sub.addItem("\u25B6  " + _I("menuRunRunSelection"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> getCurrentCodePane().runSelection()));
     return sub;
@@ -663,7 +695,7 @@ public class SikulixIDE extends JFrame {
 
   private SidebarSubmenu buildToolsSubmenu() {
     SidebarSubmenu sub = new SidebarSubmenu();
-    scriptDependentItems.add(sub.addItem("\uD83D\uDCF7  Capture", null,
+    scriptDependentItems.add(sub.addItem("\uD83D\uDCF7  " + _I("menuToolCapture"), null,
         e -> btnCapture.captureWithAutoDelay()));
     // Ins\u00E9rer image \u2014 picks a PNG/JPG from disk, copies it to the script
     // bundle and inserts the matching code. Same action class as the legacy
@@ -671,9 +703,9 @@ public class SikulixIDE extends JFrame {
     // scriptDependentItems \u2192 no NPE on getActiveContext().getPane().
     scriptDependentItems.add(sub.addItem("\uD83D\uDDBC\uFE0F  " + _I("btnInsertImageLabel"), null,
         e -> btnInsertImage.actionPerformed(e)));
-    scriptDependentItems.add(sub.addItem("\uD83D\uDD34  Record", null,
+    scriptDependentItems.add(sub.addItem("\uD83D\uDD34  " + _I("menuToolRecord"), null,
         e -> btnRecord.actionPerformed(e)));
-    scriptDependentItems.add(sub.addItem("\uD83D\uDFE2  Modern Recorder (beta)", null,
+    scriptDependentItems.add(sub.addItem("\uD83D\uDFE2  " + _I("menuToolModernRecorder"), null,
         e -> {
           org.sikuli.ide.ui.recorder.RecorderConfigDialog config =
               new org.sikuli.ide.ui.recorder.RecorderConfigDialog(SikulixIDE.this);
@@ -1222,6 +1254,10 @@ public class SikulixIDE extends JFrame {
 
     public String getFileName() {
       return name + "." + ext;
+    }
+
+    public String getName() {
+      return name;
     }
 
     private void setFile() {
@@ -2084,6 +2120,37 @@ public class SikulixIDE extends JFrame {
     }
   }
 
+  // #393: single implementation for the .jar export, serving both the sidebar
+  // and the JMenuBar FileAction. The JMenuBar has been invisible since the
+  // sidebar migration (Phase 1b) — so this feature spent its revival fully
+  // implemented, correctly wired, and reachable by absolutely no one.
+  // It works better with users.
+  public void exportAsJar() {
+    PaneContext context = getActiveContext();
+    // makeScriptjar packs a .sikuli bundle — a never-saved temp script has no
+    // bundle to pack. (The legacy path trusted EditorPane.editorPaneFile, a
+    // field declared, initialized to null, and then left alone since the
+    // PaneContext refactor. It never hurt anyone. It also never worked.)
+    if (context == null || context.isTemp() || !context.isBundle()) {
+      SX.popError("Please save your script as a .sikuli bundle first!", "Export as jar");
+      return;
+    }
+    if (!context.save()) {
+      SX.popError("Saving the script failed.", "Export as jar");
+      return;
+    }
+    String orgName = context.getFileName();
+    log("exportAsJar requested: %s", orgName);
+    List<String> options = new ArrayList<>();
+    options.add(context.getFolder().getAbsolutePath());
+    String fpJar = FileManager.makeScriptjar(options);
+    if (null != fpJar) {
+      SX.popup(fpJar, "Export as jar ...");
+    } else {
+      SX.popError("did not work for: " + orgName, "Export as jar");
+    }
+  }
+
   private static void zipDir(File zipDir, File zipFile, String fScript) throws IOException {
     ZipOutputStream zos = null;
     try {
@@ -2349,8 +2416,8 @@ public class SikulixIDE extends JFrame {
         }
       }
     }
-    String[] loadScripts = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
-    int preloadedFromCli = 0;
+    String[] parsedValues = Sikulix.scriptsPreloadParsedValues;
+    String[] loadScripts = Sikulix.scriptsPreloaded;
     // Diagnostic — surfaces exactly what the CLI parser saw, so a tester
     // hitting "-e doesn't auto-run" on Windows can paste the message panel
     // and we know whether -l grabbed -e by mistake (the historical
@@ -2359,32 +2426,36 @@ public class SikulixIDE extends JFrame {
     // sub-3 levels) so the line shows in the IDE message panel without the
     // tester needing -v.
     Commons.startLog(3, "CLI -l parsed values: %s",
-        loadScripts == null ? "null" : java.util.Arrays.toString(loadScripts));
-    Commons.startLog(3, "CLI -e present: %s", Commons.hasArg(CommandArgsEnum.EXECUTE.shortname()));
+        loadScripts == null ? "null" : java.util.Arrays.toString(parsedValues));
+    Commons.startLog(3, "CLI -e present: %s", Sikulix.shouldExecuteOnStart);
     if (loadScripts != null && loadScripts.length > 0) {
-      log("Preload given scripts (-l)");
+      Commons.startLog(3,"Preload given scripts (-l)");
       for (String loadScript : loadScripts) {
         if (loadScript == null || loadScript.isEmpty()) {
           continue;
         }
+        if (loadScript.startsWith("!")) {
+          Commons.startLog(3,"Preload: folder: base for next -l: %s", loadScript.substring(1));
+          continue;
+        }
         File f = new File(loadScript);
         if (!f.exists()) {
-          log("Preload: file does not exist: %s", loadScript);
+          Commons.startLog(3,"Preload: file does not exist: %s", loadScript);
           continue;
         }
-        if (filesToLoad.contains(f)) {
-          continue;
+        if (Sikulix.shouldExecuteOnStart) {
+          Sikulix.scriptToStart = f;
         }
-        if (f.getName().endsWith(".py")) {
-          Debug.info("Python script: %s", f.getName());
+//TODO already loaded: solution? currently: remove and add
+        if (filesToLoad.remove(f)) {
+          Commons.startLog(3,"Preload: file already loaded (moved to end of list): %s", loadScript);
         } else {
-          log("Sikuli script: %s", f);
+          Commons.startLog(3,"Preload: %s", f);
         }
         filesToLoad.add(f);
-        preloadedFromCli++;
       }
     }
-    if (Commons.hasArg(CommandArgsEnum.EXECUTE.shortname())) {
+    if (Sikulix.shouldExecuteOnStart) {
       // Validate -e directly against the CLI args, NOT against the
       // preloadedFromCli counter that the loop above maintains. The
       // counter is incremented only AFTER the duplicate check skips
@@ -2398,15 +2469,22 @@ public class SikulixIDE extends JFrame {
       // whether it was already open" — so the gating predicate is
       // purely on the CLI args being well-formed and pointing at an
       // existing file.
-      String[] eArgs = Commons.getArgs(CommandArgsEnum.LOAD.shortname());
+      /*String[] eArgs = Sikulix.scriptsPreloaded;
       if (eArgs != null && eArgs.length == 1 && new File(eArgs[0]).exists()) {
-        shouldExecuteOnStart = true;
+        Sikulix.shouldExecuteOnStart = true;
       } else if (eArgs == null || eArgs.length == 0) {
         log("-e (--execute) has no effect without a valid -l file; ignoring");
       } else if (eArgs.length > 1) {
         log("-e (--execute) requires exactly one -l file but got %d; ignoring -e", eArgs.length);
       } else {
         log("-e (--execute): -l file does not exist on disk: %s; ignoring", eArgs[0]);
+      }
+*/
+      if (Sikulix.scriptToStart == null) {
+        Sikulix.shouldExecuteOnStart = false;
+        Commons.startLog(3,"-e (--execute) has no effect without a valid -l file; ignoring");
+      } else {
+        Commons.startLog(3,"-e (--execute) candidate to execute: %s", Sikulix.scriptToStart);
       }
     }
     if (filesToLoad.size() > 0) {
@@ -2449,7 +2527,7 @@ public class SikulixIDE extends JFrame {
 
   private void openExistingWorkspace() {
     JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Open Workspace");
+    chooser.setDialogTitle(_I("workspaceOpenDialogTitle"));
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
     chooser.setAcceptAllFileFilterUsed(false);
     // Start in current workspace's parent (so user can pick a sibling)
@@ -2738,10 +2816,15 @@ public class SikulixIDE extends JFrame {
             new FileAction(FileAction.SAVE_AS)));
     jmi.setName("SAVE_AS");
 
-    _fileMenu.add(createMenuItem(_I("menuFileExport"),
+    JMenu exportSubMenu = new JMenu("Export");
+    exportSubMenu.add(createMenuItem("As .zip (workspace)",
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_E,
                     InputEvent.SHIFT_DOWN_MASK | scMask),
             new FileAction(FileAction.EXPORT)));
+    exportSubMenu.add(createMenuItem("As .jar (script library)",
+            null,
+            new FileAction(FileAction.ASJAR)));
+    _fileMenu.add(exportSubMenu);
 
     _fileMenu.addSeparator();
 
@@ -2779,7 +2862,6 @@ public class SikulixIDE extends JFrame {
     static final String SAVE_ALL = "doSaveAll";
     static final String EXPORT = "doExport";
     static final String ASJAR = "doAsJar";
-    static final String ASRUNJAR = "doAsRunJar";
     static final String CLOSE_TAB = "doCloseTab";
     static final String PREFERENCES = "doPreferences";
     static final String QUIT = "doQuit";
@@ -2834,42 +2916,7 @@ public class SikulixIDE extends JFrame {
     }
 
     public void doAsJar(ActionEvent ae) {
-      EditorPane codePane = getCurrentCodePane();
-      String orgName = codePane.getCurrentShortFilename();
-      log("doAsJar requested: %s", orgName);
-      if (codePane.isDirty()) {
-        Sikulix.popError("Please save script before!", "Export as jar");
-      } else {
-        File fScript = codePane.saveAndGetCurrentFile();
-        List<String> options = new ArrayList<>();
-        options.add("plain");
-        options.add(fScript.getParentFile().getAbsolutePath());
-        String fpJar = FileManager.makeScriptjar(options);
-        if (null != fpJar) {
-          Sikulix.popup(fpJar, "Export as jar ...");
-        } else {
-          Sikulix.popError("did not work for: " + orgName, "Export as jar");
-        }
-      }
-    }
-
-    public void doAsRunJar(ActionEvent ae) {
-      EditorPane codePane = getCurrentCodePane();
-      String orgName = codePane.getCurrentShortFilename();
-      log("doAsRunJar requested: %s", orgName);
-      if (codePane.isDirty()) {
-        Sikulix.popError("Please save script before!", "Export as runnable jar");
-      } else {
-        File fScript = codePane.saveAndGetCurrentFile();
-        List<String> options = new ArrayList<>();
-        options.add(fScript.getParentFile().getAbsolutePath());
-        String fpJar = FileManager.makeScriptjar(options);
-        if (null != fpJar) {
-          Sikulix.popup(fpJar, "Export as runnable jar ...");
-        } else {
-          Sikulix.popError("did not work for: " + orgName, "Export as runnable jar");
-        }
-      }
+      exportAsJar();
     }
 
     public void doCloseTab(ActionEvent ae) {
@@ -2924,13 +2971,13 @@ public class SikulixIDE extends JFrame {
     _editMenu.add(createMenuItem(_I("menuEditCopy"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C, scMask),
             new EditAction(EditAction.COPY)));
-    _editMenu.add(createMenuItem("Copy line",
+    _editMenu.add(createMenuItem(_I("menuEditCopyLine"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C, scMask | InputEvent.SHIFT_DOWN_MASK),
             new EditAction(EditAction.COPY)));
     _editMenu.add(createMenuItem(_I("menuEditCut"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_X, scMask),
             new EditAction(EditAction.CUT)));
-    _editMenu.add(createMenuItem("Cut line",
+    _editMenu.add(createMenuItem(_I("menuEditCutLine"),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_X, scMask | InputEvent.SHIFT_DOWN_MASK),
             new EditAction(EditAction.CUT)));
     _editMenu.add(createMenuItem(_I("menuEditPaste"),
@@ -3043,7 +3090,7 @@ public class SikulixIDE extends JFrame {
     public void doFind(ActionEvent ae) {
 //      _searchField.selectAll();
 //      _searchField.requestFocus();
-      findText = Sikulix.input(
+      findText = SX.input(
               "Enter text to be searched (case sensitive)\n" +
                       "Start with ! to search case insensitive\n",
               findText, "SikuliX IDE -- Find");
@@ -3435,9 +3482,9 @@ public class SikulixIDE extends JFrame {
 //        return;
 //      }
 //    } else if (!ADBClient.isAdbAvailable) {
-//      Sikulix.popError("Package adb seems not to be available.\nIt must be installed for Android support.", title);
+//      SX.popError("Package adb seems not to be available.\nIt must be installed for Android support.", title);
 //    } else {
-//      Sikulix.popError("No android device attached", title);
+//      SX.popError("No android device attached", title);
 //    }
   }
 
@@ -3581,7 +3628,7 @@ public class SikulixIDE extends JFrame {
       String si = Commons.getSystemInfo();
       System.out.println(si);
       msg = String.format(msg, si);
-      if (Sikulix.popAsk(msg, title)) {
+      if (SX.popAsk(msg, title)) {
         Clipboard clb = Toolkit.getDefaultToolkit().getSystemClipboard();
         StringSelection sic = new StringSelection(si.toString());
         clb.setContents(sic, sic);
@@ -3722,7 +3769,7 @@ public class SikulixIDE extends JFrame {
           }
         } else {
           final String msg = String.format("%s already exists - stored as %s", newFile.getName(), imgFile.getName());
-          Sikulix.popError(msg, "IDE: Insert Image");
+          SX.popError(msg, "IDE: Insert Image");
         }
       }
       if (context.getShowThumbs()) {
@@ -3886,7 +3933,7 @@ public class SikulixIDE extends JFrame {
         }).start();
         return;
       }
-      Sikulix.popup("ButtonShow: Nothing to show!" +
+      SX.popup("ButtonShow: Nothing to show!" +
               "\nThe line with the cursor should contain:" +
               "\n- an absolute Region or Location" +
               "\n- an image file name or" +
@@ -3938,10 +3985,10 @@ public class SikulixIDE extends JFrame {
             //TODO ButtonShowIn perform show
           }
         }).start();
-        RunTime.pause(2.0f);
+        Commons.pause(2.0f);
       } else {
         SikulixIDE.showAgain();
-        Sikulix.popup("ButtonShowIn: Nothing to show!" +
+        SX.popup("ButtonShowIn: Nothing to show!" +
                 "\nThe line with the cursor should contain:" +
                 "\n- an image file name or" +
                 "\n- a Pattern with an image file name");
@@ -3974,7 +4021,21 @@ public class SikulixIDE extends JFrame {
     @Override
     public void actionPerformed(ActionEvent ae) {
       ideWindow.setVisible(false);
-      recorder.start();
+      try {
+        recorder.start();
+      } catch (SikuliXception e) {
+        // Recorder failed to start — typically JNativeHook's native lib
+        // could not load (missing libxkbcommon-x11-0 etc. on Linux). Bring
+        // the IDE back so the user is not stranded with a hidden window,
+        // and surface the actionable message from the exception body so
+        // they know exactly which apt install to run.
+        SikulixIDE.showAgain();
+        JOptionPane.showMessageDialog(
+            SikulixIDE.this,
+            e.getMessage(),
+            _I("btnRecordLabel"),
+            JOptionPane.ERROR_MESSAGE);
+      }
     }
 
     public void stopRecord() {
@@ -4046,6 +4107,7 @@ public class SikulixIDE extends JFrame {
     void runCurrentScript() {
       log("************** before RunScript"); //TODO
       //doBeforeQuitOrRun();
+      Debug.quietOff();
 
       SikulixIDE.getStatusbar().resetMessage();
       SikulixIDE.doHide();
@@ -4056,13 +4118,14 @@ public class SikulixIDE extends JFrame {
         log("Run script not possible: Script is empty");
         return;
       }
+      String contextName = context.getName();
       context.save();
 
       new Thread(new Runnable() {
         @Override
         public void run() {
           if (System.out.checkError()) {
-            boolean shouldContinue = Sikulix.popAsk("System.out is broken (console output)!"
+            boolean shouldContinue = SX.popAsk("System.out is broken (console output)!"
                     + "\nYou will not see any messages anymore!"
                     + "\nSave your work and restart the IDE!"
                     + "\nYou may ignore this on your own risk!" +
@@ -4075,11 +4138,11 @@ public class SikulixIDE extends JFrame {
             log("Run script continued, though System.out is broken (console output)");
           }
 
-          RunTime.pause(0.1f);
+          Commons.pause(0.1f);
           resetErrorMark();
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
-          System.out.println(String.format("──────── Run started @ %s ────────", runStamp));
           doBeforeRun();
+          Debug.info(String.format("──────── Run started @ %s ──── %s ────", runStamp, contextName));
 
           long runStart = System.currentTimeMillis();
 
@@ -4093,7 +4156,7 @@ public class SikulixIDE extends JFrame {
             if (runner.getType().equals(JythonRunner.TYPE)) {
               JythonSupport.get().reloadImported();
             }
-            exitValue = runner.runScript(context.getFile().getAbsolutePath(), Commons.getUserArgs(), runOptions);
+            exitValue = runner.runScript(context.getFile().getAbsolutePath(), Sikulix.getUserArgs(), runOptions);
           } catch (Exception e) {
             log("Run Script: internal error:");
             e.printStackTrace();
@@ -4118,7 +4181,7 @@ public class SikulixIDE extends JFrame {
             context.getPane().jumpTo(line);
           }
 
-          RunTime.cleanUpAfterScript();
+          Commons.cleanUpAfterScript();
           SikulixIDE.showAgain();
         }
       }).start();

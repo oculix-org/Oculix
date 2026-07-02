@@ -67,6 +67,22 @@ public class ADBScreen extends Region implements EventObserver, IScreen {
     return screen;
   }
 
+  /**
+   * Start a screen bound to a specific device by its adb serial (e.g.
+   * "emulator-5554"). Unlike {@link #start()} this is NOT a singleton: each call
+   * returns an independent ADBScreen, so several emulators/devices can be driven
+   * from the same test. The serial is stable across runs (unlike the index of
+   * {@link #ADBScreen(int)}). Returns null if no attached device matches.
+   */
+  public static ADBScreen startBySerial(String serial) {
+    ADBDevice dev = ADBDevice.initBySerial(serial);
+    if (dev == null) {
+      Debug.log(-1, "ADBScreen: startBySerial: no attached device with serial '%s'", serial);
+      return null;
+    }
+    return new ADBScreen(dev);
+  }
+
   public static void stop() {
     if (null != screen) {
       Debug.log(3, "ADBScreen: stopping android support");
@@ -90,6 +106,13 @@ public class ADBScreen extends Region implements EventObserver, IScreen {
     super();
     setOtherScreen(this);
     device = ADBDevice.init(id);
+    init();
+  }
+
+  private ADBScreen(ADBDevice dev) {
+    super();
+    setOtherScreen(this);
+    device = dev;
     init();
   }
 
@@ -140,15 +163,11 @@ public class ADBScreen extends Region implements EventObserver, IScreen {
     if (null == device) {
       return;
     }
-    if (null == device.isDisplayOn()) {
-      Debug.log(-1, "wakeUp: not possible - see log");
-      return;
-    }
-    if (!device.isDisplayOn()) {
-      device.wakeUp(seconds);
-      if (needsUnLock) {
-        aSwipeUp();
-      }
+    // KEYCODE_WAKEUP is idempotent (see ADBDevice.wakeUp), so there is no need to
+    // read the screen state first — wake unconditionally, then unlock if required.
+    device.wakeUp(seconds);
+    if (needsUnLock) {
+      aSwipeUp();
     }
   }
 

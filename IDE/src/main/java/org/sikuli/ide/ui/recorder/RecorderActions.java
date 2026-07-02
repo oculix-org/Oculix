@@ -8,6 +8,8 @@ import org.sikuli.support.recorder.PatternValidator;
 
 import javax.swing.*;
 import java.io.File;
+
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 /**
  * @author Julien Mer (julienmerconsulting)
  * @author Claude (Anthropic)
@@ -43,31 +45,36 @@ class RecorderActions {
     if (appScope.warnIfNoApp(assistant)) { workflow.reset(); return; }
 
     java.util.List<String> options = new java.util.ArrayList<>();
-    options.add("Capture screen");
-    options.add("Browse file...");
+    options.add(_I("recorderImageSrcCapture"));
+    options.add(_I("recorderImageSrcBrowse"));
     if (!capturedImages.isEmpty()) {
-      options.add("Use existing image");
+      options.add(_I("recorderImageSrcExisting"));
     }
 
-    int choice = JOptionPane.showOptionDialog(assistant,
-        "Choose image source for: " + actionType,
-        actionType,
-        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+    // Own the source-select dialog instead of JOptionPane.showOptionDialog: the helper
+    // leaves an internal window we cannot reference, so it lingers and ghosts into the
+    // capture overlay (#387). Holding the JDialog lets us dispose() it for real.
+    JOptionPane optionPane = new JOptionPane(
+        _I("recorderImageSrcDlgTitle", actionType),
+        JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
-
-    if (choice < 0) {
+    javax.swing.JDialog sourceDialog = optionPane.createDialog(assistant, actionType);
+    sourceDialog.setVisible(true); // modal: blocks until the user picks
+    sourceDialog.dispose();        // tear the popup window down NOW
+    Object value = optionPane.getValue();
+    if (!(value instanceof String)) {
       workflow.reset();
       return;
     }
-    String selected = (String) options.get(choice);
+    String selected = (String) value;
 
-    if ("Browse file...".equals(selected)) {
+    if (_I("recorderImageSrcBrowse").equals(selected)) {
       String imagePath = imagePicker.browseImage();
       if (imagePath == null) { workflow.reset(); return; }
       finishImageCapture(actionType, imagePath);
       return;
     }
-    if ("Use existing image".equals(selected)) {
+    if (_I("recorderImageSrcExisting").equals(selected)) {
       String imagePath = imagePicker.pickFromLibrary();
       if (imagePath == null) { workflow.reset(); return; }
       finishImageCapture(actionType, imagePath);
@@ -76,7 +83,10 @@ class RecorderActions {
 
     assistant.hideForCapture();
 
-    new Thread(() -> {
+    // Defer the capture to the next EDT tick so the popup dispose + the recorder hide are
+    // actually repainted before userCapture() grabs the overlay backdrop — guarantees the
+    // source-select dialog is gone, no race, no arbitrary pause. #387
+    SwingUtilities.invokeLater(() -> new Thread(() -> {
       ScreenImage capture = new Screen().userCapture("Select region for " + actionType);
 
       SwingUtilities.invokeLater(() -> {
@@ -90,7 +100,7 @@ class RecorderActions {
         try {
           String defaultName = actionType + "_" + System.currentTimeMillis();
           String imageName = JOptionPane.showInputDialog(assistant,
-              "Name this image:", defaultName);
+              _I("recorderImageNamePrompt"), defaultName);
           if (imageName == null || imageName.trim().isEmpty()) imageName = defaultName;
           imageName = imageName.trim().replaceAll("[^a-zA-Z0-9_\\-]", "_");
           if (!imageName.endsWith(".png")) imageName += ".png";
@@ -110,7 +120,7 @@ class RecorderActions {
           RecorderNotifications.error("Action failed: " + ex.getMessage());
         }
       });
-    }).start();
+    }).start());
   }
 
   private void finishImageCapture(String actionType, String imagePath) {
@@ -202,30 +212,39 @@ class RecorderActions {
    */
   private void pickImageAsync(String purpose, java.util.function.Consumer<String> callback) {
     java.util.List<String> options = new java.util.ArrayList<>();
-    options.add("Capture screen");
-    options.add("Browse file...");
+    options.add(_I("recorderImageSrcCapture"));
+    options.add(_I("recorderImageSrcBrowse"));
     if (!capturedImages.isEmpty()) {
-      options.add("Use existing image");
+      options.add(_I("recorderImageSrcExisting"));
     }
-    int choice = JOptionPane.showOptionDialog(assistant,
-        "Choose image source for: " + purpose,
-        purpose,
-        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+    // Own the source-select dialog instead of JOptionPane.showOptionDialog: the helper
+    // leaves an internal window we cannot reference, so it lingers and ghosts into the
+    // capture overlay (#387). Holding the JDialog lets us dispose() it for real.
+    JOptionPane optionPane = new JOptionPane(
+        _I("recorderImageSrcDlgTitle", purpose),
+        JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
-    if (choice < 0) { callback.accept(null); return; }
-    String selected = (String) options.get(choice);
+    javax.swing.JDialog sourceDialog = optionPane.createDialog(assistant, purpose);
+    sourceDialog.setVisible(true); // modal: blocks until the user picks
+    sourceDialog.dispose();        // tear the popup window down NOW
+    Object value = optionPane.getValue();
+    if (!(value instanceof String)) { callback.accept(null); return; }
+    String selected = (String) value;
 
-    if ("Browse file...".equals(selected)) {
+    if (_I("recorderImageSrcBrowse").equals(selected)) {
       callback.accept(imagePicker.browseImage());
       return;
     }
-    if ("Use existing image".equals(selected)) {
+    if (_I("recorderImageSrcExisting").equals(selected)) {
       callback.accept(imagePicker.pickFromLibrary());
       return;
     }
 
     assistant.hideForCapture();
-    new Thread(() -> {
+    // Defer the capture to the next EDT tick so the popup dispose + the recorder hide are
+    // actually repainted before userCapture() grabs the overlay backdrop — guarantees the
+    // source-select dialog is gone, no race, no arbitrary pause. #387
+    SwingUtilities.invokeLater(() -> new Thread(() -> {
       ScreenImage capture = new Screen().userCapture("Select region for " + purpose);
       SwingUtilities.invokeLater(() -> {
         assistant.showAfterCapture();
@@ -234,7 +253,7 @@ class RecorderActions {
           String defaultName = purpose.replaceAll("\\s+", "_").toLowerCase()
               + "_" + System.currentTimeMillis();
           String imageName = JOptionPane.showInputDialog(assistant,
-              "Name this image:", defaultName);
+              _I("recorderImageNamePrompt"), defaultName);
           if (imageName == null || imageName.trim().isEmpty()) imageName = defaultName;
           imageName = imageName.trim().replaceAll("[^a-zA-Z0-9_\\-]", "_");
           if (!imageName.endsWith(".png")) imageName += ".png";
@@ -251,7 +270,7 @@ class RecorderActions {
           RecorderNotifications.error("Action failed: " + ex.getMessage());
         }
       });
-    }, "RecorderDragDrop-" + purpose).start();
+    }, "RecorderDragDrop-" + purpose).start());
   }
 
   void handleSwipe() {
@@ -346,13 +365,13 @@ class RecorderActions {
 
     String label;
     switch (actionType) {
-      case "textClick":  label = "Text to click on:"; break;
-      case "textWait":   label = "Text to wait for:"; break;
-      case "textExists": label = "Text to check:"; break;
+      case "textClick":  label = _I("recorderTextClickPrompt"); break;
+      case "textWait":   label = _I("recorderTextWaitPrompt"); break;
+      case "textExists": label = _I("recorderTextExistsPrompt"); break;
       default:           label = "Text:"; break;
     }
 
-    String text = JOptionPane.showInputDialog(assistant, label, "Text Action",
+    String text = JOptionPane.showInputDialog(assistant, label, _I("recorderActionsTextActionTitle"),
         JOptionPane.PLAIN_MESSAGE);
     if (text != null && !text.trim().isEmpty()) {
       codeGen.addActionCode(codeGen.generateTextCode(actionType, text.trim()),
@@ -365,7 +384,7 @@ class RecorderActions {
     if (appScope.warnIfNoApp(assistant)) return;
     if (!workflow.startTextInput()) return;
 
-    String text = JOptionPane.showInputDialog(assistant, "Text to type:", "Type Text",
+    String text = JOptionPane.showInputDialog(assistant, _I("recorderTypePrompt"), _I("recorderActionsTypeTextTitle"),
         JOptionPane.PLAIN_MESSAGE);
     if (text != null && !text.isEmpty()) {
       String code = codeGen.getGenerator().typeText(text, new String[0]);
@@ -390,8 +409,8 @@ class RecorderActions {
   void handlePause() {
     if (!workflow.startPauseInput()) return;
 
-    String seconds = JOptionPane.showInputDialog(assistant, "Pause duration (seconds):",
-        "Pause", JOptionPane.PLAIN_MESSAGE);
+    String seconds = JOptionPane.showInputDialog(assistant, _I("recorderPausePrompt"),
+        _I("recorderActionsPauseTitle"), JOptionPane.PLAIN_MESSAGE);
     if (seconds != null && !seconds.isEmpty()) {
       try {
         int s = Integer.parseInt(seconds.trim());

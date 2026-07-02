@@ -5,8 +5,8 @@ import org.sikuli.basics.Settings;
 import org.sikuli.script.FindFailed;
 import org.sikuli.script.Mouse;
 import org.sikuli.script.OCR;
+import org.sikuli.support.Commons;
 import org.sikuli.support.Observing;
-import org.sikuli.support.RunTime;
 import org.sikuli.util.Highlight;
 
 import java.lang.reflect.InvocationTargetException;
@@ -138,7 +138,7 @@ public class HelpDevice extends Devices {
       return true;
     } catch (ClassNotFoundException e) {
       e.printStackTrace();
-      RunTime.terminate(999, "Android support not available");
+      Commons.terminate(999, "Android support not available");
     }
     return false;
   }

@@ -14,17 +14,10 @@ import os
 import inspect
 
 # Debug.log(3, "Jython: sikuli: Sikuli: backports from Version 2: Do")
-import org.sikuli.script.SX as Do
+import org.sikuli.script.SX as SXclass
 
-# Debug.log(3, "Jython: sikuli: Sikuli: RunTime, Setting, Debug")
-import org.sikuli.support.RunTime as JRunTime
-
-
-class RunTime(JRunTime):
-    pass
-
-
-RUNTIME = JRunTime
+# Debug.log(3, "Jython: sikuli: Sikuli: Commons, Setting, Debug")
+import org.sikuli.support.Commons as JCommons
 
 import org.sikuli.basics.Settings as Settings
 
@@ -172,13 +165,10 @@ from org.sikuli.script.compare import HorizontalComparator
 # Debug.log(3, "Jython: sikuli: Sikuli: init SikuliImporter")
 import SikuliImporter
 
-# Debug.log(3, "Jython: sikuli: Sikuli: import Sikulix")
-from org.sikuli.script import Sikulix
-
 # Debug.log(3, "Jython: sikuli: Sikuli: import Runner")
-import org.sikuli.support.ide.Runner as Runner
+import org.sikuli.support.runner.Runner as Runner
 
-import org.sikuli.support.ide.JythonSupport as JythonHelper
+import org.sikuli.support.runnerSupport.JythonSupport as JythonHelper
 
 
 def load(jar):
@@ -198,75 +188,7 @@ def prepareRobot():
 
 
 def show():
-    import org.sikuli.support.Commons as SC
-    SC.show()
-
-
-##
-# public for options handling (property file)
-##
-
-import org.sikuli.script.Options as SXOpts
-
-
-def makeOpts():
-    return SXOpts.makeOpts()
-
-
-def loadOpts(filePath):
-    return SXOpts.loadOpts(filePath)
-
-
-def getOpts(props):
-    return SXOpts.getOpts(props)
-
-
-def hasOpts(props):
-    return SXOpts.hasOpts(props)
-
-
-def setOpts(props, adict):
-    return SXOpts.setOpts(props, adict)
-
-
-def delOpts(props):
-    return SXOpts.delOpts(props)
-
-
-def saveOpts(props, filePath=None):
-    if not filePath:
-        return SXOpts.saveOpts(props)
-    else:
-        return SXOpts.saveOpts(props, filePath)
-
-
-def hasOpt(props, key):
-    return SXOpts.hasOpts(props, key)
-
-
-def getOpt(props, key, deflt=""):
-    return SXOpts.getOpt(props, key, deflt)
-
-
-def getOptNum(props, key, deflt=0):
-    return SXOpts.getOptNum(props, key, deflt)
-
-
-def getOptInt(props, key, deflt=0):
-    return SXOpts.getOptInt(props, key, deflt)
-
-
-def setOpt(props, key, value):
-    return SXOpts.setOpt(props, key, value)
-
-
-def setOptNum(props, key, value):
-    return SXOpts.setOptNum(props, key, value)
-
-
-def delOpt(props, key):
-    return SXOpts.delOpt(props, key)
-
+    JCommons.show()
 
 ##
 # some support for handling unicode and strings
@@ -473,11 +395,11 @@ def setShowActions(flag):
 # is used until changed again
 def popat(*args):
     if len(args) == 0:
-        return Sikulix.popat()
+        return SXclass.popat()
     elif len(args) > 1:
-        return Sikulix.popat(args[0], args[1])
+        return SXclass.popat(args[0], args[1])
     else:
-        return Sikulix.popat(args[0])
+        return SXclass.popat(args[0])
 
 
 # Shows a message dialog containing the given message.
@@ -485,7 +407,7 @@ def popat(*args):
 # @param title gets the window title.
 def popup(msg, title="Sikuli Info"):
     # Sikulix.popup(msg, title)
-    Do.popup(msg, title)
+    SXclass.popup(msg, title)
 
 
 # Show error popup (special icon) containing the given message.
@@ -493,7 +415,7 @@ def popup(msg, title="Sikuli Info"):
 # @param title gets the window title.
 def popError(msg, title="Sikuli Error"):
     # Sikulix.popError(msg, title)
-    Do.popError(msg, title)
+    SXclass.popError(msg, title)
 
 
 # Show a popup containing the given message asking for yes or no
@@ -502,7 +424,7 @@ def popError(msg, title="Sikuli Error"):
 # @return True if answered Yes, else False
 def popAsk(msg, title="Sikuli Decision"):
     # return Sikulix.popAsk(msg, title)
-    return Do.popAsk(msg, title)
+    return SXclass.popAsk(msg, title)
 
 
 ##
@@ -517,7 +439,7 @@ def input(msg="", default="", title="Sikuli Input", hidden=False):
     if (hidden):
         default = ""
     # return Sikulix.input(msg, default, title, hidden)
-    return Do.input(msg, title, default, hidden)
+    return SXclass.input(msg, title, default, hidden)
 
 
 ##
@@ -530,7 +452,7 @@ def input(msg="", default="", title="Sikuli Input", hidden=False):
 # @param width the maximum number of characters visible in one line (default 20)
 # @return The user's input including the line breaks.
 def inputText(msg="", title="", lines=0, width=0, text=""):
-    return Sikulix.inputText(msg, title, lines, width, text)
+    return SXclass.inputText(msg, title, lines, width, text)
 
 
 ##
@@ -551,12 +473,12 @@ def select(msg="", title="Sikuli Selection", options=(), default=None):
     optionString = "";
     for option in options:
         optionString += str(len(option) + 1000) + option
-    return Do.popSelect(msg, title, default, optionString)
+    return SXclass.popSelect(msg, title, default, optionString)
 
 
 def popFile(title="Select File or Folder"):
     # return Sikulix.popFile(title)
-    return Do.popFile("", title)
+    return SXclass.popFile("", title)
 
 
 ## ----------------------------------------------------------------------
@@ -649,7 +571,7 @@ def exit(code=0):
 # @param cmd The given string command.
 # @return Returns the output from the executed command.
 def run(cmd):
-    return Sikulix.run(cmd)
+    return JCommons.run(cmd)
 
 
 # Runs the script given by absolute or relative path (./ same folder as calling script)
@@ -661,7 +583,7 @@ def runScript(script, *args):
 
 
 def getLastReturnCode():
-    return RUNTIME.getLastScriptRunReturnCode()
+    return Runner.getLastScriptRunReturnCode()
 
 
 ##
@@ -752,9 +674,18 @@ def _exposeAllMethods(anyObject, saved, theGlobals, exclude_list):
     return tosave
 
 ## ----------------------------------------------------------------------
+############### set SCREEN as primary screen at startup ################
+# ScreenUnion + Screen.all() were removed by PR #235 (Track4 cleanup).
+# Falling back to the primary screen as a Region until the multi-monitor
+# preview redesign lands (#209 follow-up). Without this fix, every script
+# crashed at "from sikuli import *" with AttributeError on Screen.all.
+
+ALL = JScreen.getPrimaryScreen()
+
 def reset():
+    global ALL
     JScreen.resetMonitors();
-    ALL = SCREEN.all().getRegion()
+    ALL = JScreen.getPrimaryScreen().getRegion()
 
 def resetBeforeScriptStart():
     scr = SD.getPrimaryScreen();
@@ -768,10 +699,4 @@ def _setSCREEN(scr, theGlobals):
     globals()['SIKULISAVED'] = _exposeAllMethods(SCREEN, globals().get('SIKULISAVED'), theGlobals, None)
     theGlobals['SCREEN'] = SCREEN
 
-############### set SCREEN as primary screen at startup ################
-# ScreenUnion + Screen.all() were removed by PR #235 (Track4 cleanup).
-# Falling back to the primary screen as a Region until the multi-monitor
-# preview redesign lands (#209 follow-up). Without this fix, every script
-# crashed at "from sikuli import *" with AttributeError on Screen.all.
-ALL = JScreen.getPrimaryScreen()
 Debug.log(3, "Jython: ending init")

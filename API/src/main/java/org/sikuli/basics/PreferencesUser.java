@@ -3,8 +3,6 @@
  */
 package org.sikuli.basics;
 
-import org.sikuli.script.Sikulix;
-
 import java.awt.Dimension;
 import java.awt.Event;
 import java.awt.Point;
@@ -61,7 +59,7 @@ public class PreferencesUser {
 
   private PreferencesUser() {
     Debug.log(3, "init user preferences");
-    pref = Preferences.userNodeForPackage(org.sikuli.script.Sikulix.class);
+    pref = Preferences.userNodeForPackage(org.sikuli.script.SX.class);
   }
 
   public boolean save(String path) {
@@ -178,7 +176,7 @@ public class PreferencesUser {
   }
 
   public int getStopHotkeyModifiers() {
-    return pref.getInt("GET_HOTKEY_MODIFIERS", defaultStopHotkeyModifiers());
+    return pref.getInt("STOP_HOTKEY_MODIFIERS", defaultStopHotkeyModifiers());
   }
 
   private int defaultStopHotkeyModifiers() {
@@ -432,7 +430,7 @@ public class PreferencesUser {
   }
 
   public void setPrefMoreLogDebug(boolean flag) {
-    pref.putBoolean("PREF_MORE_LOG_INFO", flag);
+    pref.putBoolean("PREF_MORE_LOG_DEBUG", flag);
   }
 
   public boolean getPrefMoreLogDebug() {

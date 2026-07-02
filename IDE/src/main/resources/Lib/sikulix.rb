@@ -10,10 +10,11 @@ module Sikulix
   #   'include Sikulix' is used.
   java_import java.net.Socket
 
-  java_import org.sikuli.support.RunTime
-	$RUNTIME = RunTime.get()
+  #TODO to be evaluated: needed?
+  #java_import org.sikuli.support.RunTime
+  #	$RUNTIME = RunTime.get()
 
-  java_import org.sikuli.script.Sikulix
+  java_import org.sikuli.script.SX
 
   java_import org.sikuli.basics.Settings
   java_import org.sikuli.script.Constants
@@ -128,13 +129,6 @@ module Sikulix
         fails "method missing #{name}"
       end
     end
-  end
-
-  # Generate static methods in Sikulix context
-  # for possible "undotted" methods.
-  Sikulix.java_class.java_class_methods.map(&:name).uniq.each do |name|
-    obj_method = Sikulix.method(name)
-    dynamic_def(name) { |*args, &block| obj_method.call(*args, &block) }
   end
 
   $SIKULI_SCREEN.java_class.java_instance_methods.map(&:name).uniq.each do |name|

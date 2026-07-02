@@ -402,25 +402,25 @@ public class ExtensionManager {
   }
 
   public static void show() {
-    String warn = "Nothing to do here currently - click what you like ;-)\n" +
-        "\nExtensions folder: \n" + sxExtensions +
-        "\n\nCurrent content:";
+    String warn = SikuliIDEI18N._I("extensionsDialogIntro") + "\n" +
+        "\n" + SikuliIDEI18N._I("extensionsDialogFolder") + " \n" + sxExtensions +
+        "\n\n" + SikuliIDEI18N._I("extensionsDialogCurrentContent");
     List<String> extensionNames = getExtensionNames();
     for (String extension : extensionNames) {
       warn += "\n" + extension;
     }
     if (hasExtensionsFile()) {
-      warn += "\n\nextensions.txt content:";
+      warn += "\n\n" + SikuliIDEI18N._I("extensionsDialogTxtContent");
       for (String extension : sxExtensionsFileContent) {
         warn += "\n" + extension;
       }
     }
-    warn += "\n\n" + "see menu File -> Open Special Files";
-    String title = "SikuliX1 Extensions";
+    warn += "\n\n" + SikuliIDEI18N._I("extensionsDialogSeeMenu");
+    String title = SikuliIDEI18N._I("extensionsDialogTitle");
     String[] options = new String[3];
-    options[WARNING_DO_NOTHING] = "OK";
-    options[WARNING_ACCEPTED] = "More ...";
-    options[WARNING_CANCEL] = "Cancel";
+    options[WARNING_DO_NOTHING] = SikuliIDEI18N._I("ok");
+    options[WARNING_ACCEPTED] = SikuliIDEI18N._I("more");
+    options[WARNING_CANCEL] = SikuliIDEI18N._I("cancel");
     int ret = JOptionPane.showOptionDialog(null, warn, title,
         0, JOptionPane.WARNING_MESSAGE, null, options, options[2]);
     if (ret == WARNING_CANCEL || ret == JOptionPane.CLOSED_OPTION) {

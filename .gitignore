@@ -1,5 +1,7 @@
 target*/
 .idea
+.junie
+.claude/
 nb*
 *.iml
 stuff/
@@ -27,3 +29,8 @@ Test*.java
 !Reporter/src/main/java/**/Test*.java
 *.txt
 
+
+
+# IDE runtime resources are product files — never ignorable (the blanket
+# *.txt above exists for scratch notes, not for shipped ascii art)
+!IDE/src/main/resources/*.txt

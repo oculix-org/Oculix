@@ -5,6 +5,8 @@ package org.sikuli.ide.ui;
 
 import net.miginfocom.swing.MigLayout;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
@@ -29,7 +31,7 @@ public class WorkspaceDialog extends JDialog {
   private File workspaceDir;
 
   public WorkspaceDialog(Frame parent) {
-    super(parent, "New Workspace", true);
+    super(parent, _I("workspaceDialogTitle"), true);
     setSize(420, 300);
     setLocationRelativeTo(parent);
     setResizable(false);
@@ -41,40 +43,40 @@ public class WorkspaceDialog extends JDialog {
     content.setBackground(UIManager.getColor("Panel.background"));
 
     // Title
-    JLabel title = new JLabel("Create Workspace");
+    JLabel title = new JLabel(_I("workspaceDialogHeader"));
     title.setFont(UIManager.getFont("h2.font"));
     content.add(title, "span 2, align center, gapbottom 12");
 
     // Name
-    content.add(new JLabel("Name *"));
+    content.add(new JLabel(_I("workspaceFieldName") + " *"));
     nameField = new JTextField();
-    nameField.setToolTipText("Workspace name (required)");
+    nameField.setToolTipText(_I("workspaceFieldNameHint"));
     content.add(nameField);
 
     // Description
-    content.add(new JLabel("Description"));
+    content.add(new JLabel(_I("workspaceFieldDescription")));
     descriptionField = new JTextField();
-    descriptionField.setToolTipText("Short description (optional)");
+    descriptionField.setToolTipText(_I("workspaceFieldDescriptionHint"));
     content.add(descriptionField);
 
     // Author
-    content.add(new JLabel("Author"));
+    content.add(new JLabel(_I("workspaceFieldAuthor")));
     authorField = new JTextField(System.getProperty("user.name"));
-    authorField.setToolTipText("Author name (optional)");
+    authorField.setToolTipText(_I("workspaceFieldAuthorHint"));
     content.add(authorField);
 
     // Buttons
     JPanel buttons = new JPanel(new MigLayout("insets 0", "push[]8[]", ""));
     buttons.setOpaque(false);
 
-    JButton cancelBtn = new JButton("Cancel");
+    JButton cancelBtn = new JButton(_I("cancel"));
     cancelBtn.addActionListener(e -> {
       confirmed = false;
       dispose();
     });
     buttons.add(cancelBtn);
 
-    JButton okBtn = new JButton("Create");
+    JButton okBtn = new JButton(_I("workspaceDialogCreateBtn"));
     okBtn.addActionListener(e -> onCreateClicked());
     okBtn.putClientProperty("JButton.buttonType", "default");
     buttons.add(okBtn);
@@ -97,7 +99,7 @@ public class WorkspaceDialog extends JDialog {
 
     // Choose directory
     JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Choose workspace directory");
+    chooser.setDialogTitle(_I("workspaceChooseDirTitle"));
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
     chooser.setAcceptAllFileFilterUsed(false);
     // Default landing folder: shared resolver (LAST_OPEN_DIR pref → user.dir

@@ -7,9 +7,10 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.*;
 import javax.swing.*;
+
+import org.sikuli.support.Commons;
 import org.sikuli.util.OverlayCapturePrompt;
 import org.sikuli.support.devices.IScreen;
-import org.sikuli.support.RunTime;
 import org.sikuli.script.Region;
 import org.sikuli.script.ScreenImage;
 import org.sikuli.basics.Debug;
@@ -39,7 +40,7 @@ class EditorRegionButton extends JButton implements ActionListener, EventObserve
   public void actionPerformed(ActionEvent ae) {
     SikulixIDE ide = SikulixIDE.get();
     ide.setVisible(false);
-    RunTime.pause(0.5f);
+    Commons.pause(0.5f);
     Screen.doPrompt(SikulixIDE._I("msgCapturePrompt"), this);
   }
 

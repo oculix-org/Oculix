@@ -8,6 +8,8 @@ import net.miginfocom.swing.MigLayout;
 import javax.swing.*;
 import java.awt.*;
 
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
+
 /**
  * Modal dialog to build a key combination with modifier checkboxes
  * and a key dropdown. Generates a type(Key.X, KeyModifier.Y + ...) expression.
@@ -35,7 +37,7 @@ public class RecorderKeyComboDialog extends JDialog {
   private String result = null;
 
   public RecorderKeyComboDialog(Dialog parent) {
-    super(parent, "Key Combo", true);
+    super(parent, _I("recorderKeyComboDlgTitle"), true);
     setSize(400, 320);
     setLocationRelativeTo(parent);
     setResizable(false);
@@ -48,7 +50,7 @@ public class RecorderKeyComboDialog extends JDialog {
     content.setBackground(UIManager.getColor("Panel.background"));
 
     // Modifiers
-    JLabel lblMod = new JLabel("Modifiers");
+    JLabel lblMod = new JLabel(_I("recorderKeyComboLblModifiers"));
     lblMod.setFont(UIManager.getFont("small.font"));
     lblMod.setForeground(UIManager.getColor("Label.disabledForeground"));
     content.add(lblMod);
@@ -72,7 +74,7 @@ public class RecorderKeyComboDialog extends JDialog {
     content.add(new JSeparator(), "growx, gaptop 4");
 
     // Key selector
-    JLabel lblKey = new JLabel("Key");
+    JLabel lblKey = new JLabel(_I("recorderKeyComboLblKey"));
     lblKey.setFont(UIManager.getFont("small.font"));
     lblKey.setForeground(UIManager.getColor("Label.disabledForeground"));
     content.add(lblKey, "gaptop 4");
@@ -111,7 +113,7 @@ public class RecorderKeyComboDialog extends JDialog {
     content.add(new JSeparator(), "growx, gaptop 4");
 
     // Preview
-    JLabel lblPreview = new JLabel("Generated code");
+    JLabel lblPreview = new JLabel(_I("recorderKeyComboLblGeneratedCode"));
     lblPreview.setFont(UIManager.getFont("small.font"));
     lblPreview.setForeground(UIManager.getColor("Label.disabledForeground"));
     content.add(lblPreview, "gaptop 4");
@@ -127,9 +129,9 @@ public class RecorderKeyComboDialog extends JDialog {
     // Buttons
     JPanel buttons = new JPanel(new MigLayout("insets 0, gap 8", "push[][]", ""));
     buttons.setOpaque(false);
-    cancelBtn = new JButton("Cancel");
+    cancelBtn = new JButton(_I("cancel"));
     cancelBtn.addActionListener(e -> { result = null; dispose(); });
-    okBtn = new JButton("OK");
+    okBtn = new JButton(_I("ok"));
     okBtn.putClientProperty("JButton.buttonType", "default");
     okBtn.addActionListener(e -> { result = buildCode(); dispose(); });
     buttons.add(cancelBtn);

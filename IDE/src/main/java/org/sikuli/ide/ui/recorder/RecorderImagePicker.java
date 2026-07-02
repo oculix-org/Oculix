@@ -9,6 +9,8 @@ import org.sikuli.script.ScreenImage;
 import javax.swing.*;
 import java.io.File;
 import java.util.List;
+
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 /**
  * @author Julien Mer (julienmerconsulting)
  * @author Claude (Anthropic)
@@ -29,22 +31,30 @@ class RecorderImagePicker {
 
   String pickImage(String purpose) {
     java.util.List<String> options = new java.util.ArrayList<>();
-    options.add("Capture screen");
-    options.add("Browse file...");
+    options.add(_I("recorderImageSrcCapture"));
+    options.add(_I("recorderImageSrcBrowse"));
     if (!capturedImages.isEmpty()) {
-      options.add("Use existing image");
+      options.add(_I("recorderImageSrcExisting"));
     }
 
-    int choice = JOptionPane.showOptionDialog(parent,
-        "Choose image source for: " + purpose,
-        purpose,
-        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+    // Build the source-select dialog ourselves instead of JOptionPane.showOptionDialog:
+    // that helper creates an internal window we never get a handle to, so it survives
+    // parent.setVisible(false) (it is neither `parent` nor its owner) and ghosts into
+    // the capture overlay (#387). Owning the JDialog lets us dispose() it before we
+    // capture — same idea as hiding the recorder window, no timing hack needed.
+    JOptionPane optionPane = new JOptionPane(
+        _I("recorderImageSrcDlgTitle", purpose),
+        JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
+    JDialog sourceDialog = optionPane.createDialog(parent, purpose);
+    sourceDialog.setVisible(true); // modal: blocks until the user picks
+    sourceDialog.dispose();        // tear the popup window down NOW, before any capture
 
-    if (choice < 0) return null;
-    String selected = (String) options.get(choice);
+    Object value = optionPane.getValue();
+    if (!(value instanceof String)) return null;
+    String selected = (String) value;
 
-    if ("Capture screen".equals(selected)) {
+    if (_I("recorderImageSrcCapture").equals(selected)) {
       parent.setAlwaysOnTop(false);
       try {
         return captureImage(purpose);
@@ -52,10 +62,10 @@ class RecorderImagePicker {
         parent.setAlwaysOnTop(true);
       }
     }
-    if ("Browse file...".equals(selected)) {
+    if (_I("recorderImageSrcBrowse").equals(selected)) {
       return browseImage();
     }
-    if ("Use existing image".equals(selected)) {
+    if (_I("recorderImageSrcExisting").equals(selected)) {
       return pickFromLibrary();
     }
     return null;
@@ -64,6 +74,12 @@ class RecorderImagePicker {
   String captureImage(String purpose) {
     parent.setVisible(false);
     parent.getOwner().setVisible(false);
+    // Wayland buffers unmap events: setVisible(false) returns before the compositor
+    // actually unmaps the window, so the just-hidden Recorder still paints in the
+    // capture overlay (#387). Toolkit.sync() forces a flush + round-trip (XSync on
+    // X11, wl_display_roundtrip on Wayland, no-op on Windows). Same spirit as the
+    // source-select dialog dispose, generalised to the recorder windows.
+    java.awt.Toolkit.getDefaultToolkit().sync();
     final ScreenImage[] captured = new ScreenImage[1];
     try {
       captured[0] = new Screen().userCapture("Select region for " + purpose);
@@ -75,7 +91,7 @@ class RecorderImagePicker {
 
     try {
       String defaultName = purpose.replaceAll("\\s+", "_").toLowerCase() + "_" + System.currentTimeMillis();
-      String imageName = JOptionPane.showInputDialog(parent, "Name this image:", defaultName);
+      String imageName = JOptionPane.showInputDialog(parent, _I("recorderImageNamePrompt"), defaultName);
       if (imageName == null || imageName.trim().isEmpty()) imageName = defaultName;
       imageName = imageName.trim().replaceAll("[^a-zA-Z0-9_\\-]", "_");
       if (!imageName.endsWith(".png")) imageName += ".png";
@@ -91,9 +107,9 @@ class RecorderImagePicker {
 
   String browseImage() {
     JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Select image file");
+    chooser.setDialogTitle(_I("recorderImageFileChooserTitle"));
     chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-        "Image files (*.png, *.jpg, *.jpeg, *.gif)", "png", "jpg", "jpeg", "gif"));
+        _I("recorderImageFileFilterDesc"), "png", "jpg", "jpeg", "gif"));
     // Default directory mirrors SikulixFileChooser.getLastDir — stored pref,
     // then JAR working dir, then user.home. Without this, JFileChooser falls
     // back to the OS profile root, which feels random to users mid-Recorder
@@ -124,7 +140,7 @@ class RecorderImagePicker {
         .map(p -> new File(p).getName())
         .toArray(String[]::new);
     String chosen = (String) JOptionPane.showInputDialog(parent,
-        "Choose image:", "Image Library",
+        _I("recorderImageSrcDlgPrompt"), _I("recorderImageSrcDlgLibrary"),
         JOptionPane.PLAIN_MESSAGE, null, names, names[names.length - 1]);
     if (chosen == null) return null;
     return capturedImages.stream()

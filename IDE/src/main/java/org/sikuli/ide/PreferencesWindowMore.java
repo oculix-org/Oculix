@@ -4,6 +4,7 @@
 package org.sikuli.ide;
 
 import org.sikuli.basics.PreferencesUser;
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 import javax.swing.JCheckBox;
 
 public class PreferencesWindowMore extends javax.swing.JPanel {
@@ -110,48 +111,48 @@ public class PreferencesWindowMore extends javax.swing.JPanel {
 
     jCheckBox6.setText("jCheckBox6");
 
-    prefMoreLblSave.setText("Options on Save");
+    prefMoreLblSave.setText(_I("prefMoreLblSave"));
 
-    prefMoreHTML.setText("create HTML");
+    prefMoreHTML.setText(_I("prefMoreHTML"));
     prefMoreHTML.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
         prefMoreHTMLStateChanged(evt);
       }
     });
 
-    prefMoreClean.setText("delete not used images");
+    prefMoreClean.setText(_I("prefMoreClean"));
     prefMoreClean.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
         prefMoreCleanStateChanged(evt);
       }
     });
 
-    prefMoreLblRun.setText("Options on Run");
+    prefMoreLblRun.setText(_I("prefMoreLblRun"));
 
-    prefMoreRunSave.setText("autosave all");
+    prefMoreRunSave.setText(_I("prefMoreRunSave"));
     prefMoreRunSave.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
         prefMoreRunSaveStateChanged(evt);
       }
     });
 
-    prefMoreHighlight.setText("always highlight");
+    prefMoreHighlight.setText(_I("prefMoreHighlight"));
     prefMoreHighlight.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
         prefMoreHighlightStateChanged(evt);
       }
     });
 
-    prefMoreBtnOk.setText("Save");
+    prefMoreBtnOk.setText(_I("prefMoreBtnOk"));
     prefMoreBtnOk.addActionListener(new java.awt.event.ActionListener() {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         prefMoreBtnOkActionPerformed(evt);
       }
     });
 
-    prefMoreLblLayout.setText("IDE Layout");
+    prefMoreLblLayout.setText(_I("prefMoreLblLayout"));
 
-    prefMoreMessage.setText("message area at bottom *");
+    prefMoreMessage.setText(_I("prefMoreMessage"));
     prefMoreMessage.setToolTipText("OFF --- message area on right sight, ON --- bottom (restart needed)"); // NOI18N
     prefMoreMessage.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
@@ -159,7 +160,7 @@ public class PreferencesWindowMore extends javax.swing.JPanel {
       }
     });
 
-    prefMoreCommand.setText("CommandBar (old style) *");
+    prefMoreCommand.setText(_I("prefMoreCommand"));
     prefMoreCommand.setToolTipText("OFF --- no command bar - commands in Tools menu instaed, ON --- old style (restart needed)");
     prefMoreCommand.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
@@ -167,33 +168,33 @@ public class PreferencesWindowMore extends javax.swing.JPanel {
       }
     });
 
-    prefMoreLblLogsOld.setText("Messages to show");
+    prefMoreLblLogsOld.setText(_I("prefMoreLblLogsOld"));
 
-    prefMoreLogActions.setText("Actions");
+    prefMoreLogActions.setText(_I("prefMoreLogActions"));
     prefMoreLogActions.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
         prefMoreLogActionsStateChanged(evt);
       }
     });
 
-    prefMoreLogInfo.setText("Info");
+    prefMoreLogInfo.setText(_I("prefMoreLogInfo"));
     prefMoreLogInfo.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
         prefMoreLogInfoStateChanged(evt);
       }
     });
 
-    prefMoreLogDebug.setText("Debug");
+    prefMoreLogDebug.setText(_I("prefMoreLogDebug"));
     prefMoreLogDebug.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
         prefMoreLogDebugStateChanged(evt);
       }
     });
 
-    prefMoreLblText.setText("TextSearch and OCR");
+    prefMoreLblText.setText(_I("prefMoreLblText"));
     prefMoreLblText.setToolTipText("... only if you know what you are doing ;-)"); // NOI18N
 
-    prefMoreTextSearch.setText("allow searching for text");
+    prefMoreTextSearch.setText(_I("prefMoreTextSearch"));
     prefMoreTextSearch.setToolTipText("... only if you know what you are doing ;-)"); // NOI18N
     prefMoreTextSearch.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
@@ -201,7 +202,7 @@ public class PreferencesWindowMore extends javax.swing.JPanel {
       }
     });
 
-    prefMoreTextOCR.setText("allow OCR");
+    prefMoreTextOCR.setText(_I("prefMoreTextOCR"));
     prefMoreTextOCR.setToolTipText("... only if you know what you are doing ;-)"); // NOI18N
     prefMoreTextOCR.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
@@ -209,7 +210,7 @@ public class PreferencesWindowMore extends javax.swing.JPanel {
       }
     });
 
-    prefMoreScripter.setText("Activate the new layout (X-1.0) *  (no CommandBar, MessageArea on right side)");
+    prefMoreScripter.setText(_I("prefMoreScripter"));
     prefMoreScripter.setToolTipText("... no command bar - in Tools menu instead, message area on right side, some more options ..."); // NOI18N
     prefMoreScripter.addChangeListener(new javax.swing.event.ChangeListener() {
       public void stateChanged(javax.swing.event.ChangeEvent evt) {
@@ -217,7 +218,7 @@ public class PreferencesWindowMore extends javax.swing.JPanel {
       }
     });
 
-    prefMoreLblTitle1.setText("* these prefs need a restart of the IDE - others are active after save (no restart needed)");
+    prefMoreLblTitle1.setText(_I("prefMoreLblTitle1"));
 
     prefMoreImageThumbs.setText("ImageThumbs (on) / ImageLabels (off) *");
     prefMoreImageThumbs.addChangeListener(new javax.swing.event.ChangeListener() {

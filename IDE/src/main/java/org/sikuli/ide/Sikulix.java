@@ -4,29 +4,30 @@
 
 package org.sikuli.ide;
 
+import org.apache.commons.cli.CommandLine;
 import org.sikuli.basics.*;
+import org.sikuli.script.SX;
 import org.sikuli.support.FileManager;
-import org.sikuli.support.runner.SikulixServer;
 import org.sikuli.script.SikuliXception;
 import org.sikuli.support.runner.IRunner;
-import org.sikuli.support.ide.Runner;
+import org.sikuli.support.runner.Runner;
 import org.sikuli.support.Commons;
-import org.sikuli.support.RunTime;
 import org.sikuli.support.gui.SXDialog;
-import org.sikuli.support.ide.SikuliIDEI18N;
 
-import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLaf;
 import org.sikuli.ide.theme.OculixDarkLaf;
 import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.ide.theme.OculixLightLaf;
-import com.formdev.flatlaf.FlatLightLaf;
+import org.sikuli.idesupport.CommandArgs;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.lang.reflect.Method;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-import static org.sikuli.util.CommandArgsEnum.*;
+import static org.sikuli.idesupport.CommandArgsEnum.*;
 
 public class Sikulix {
 
@@ -48,65 +49,171 @@ public class Sikulix {
     }
   }
 
+  private static File ideIsRunningFile = null;
+  private static FileOutputStream ideIsRunningStrean;
+
+  public static void setIsRunning(File tokenFile, FileOutputStream tokenStream) {
+    ideIsRunningFile = tokenFile;
+    ideIsRunningStrean = tokenStream;
+  }
+
+  public static String[] scriptsPreloadParsedValues = null;
+  public static String[] scriptsPreloaded = null;
+  public static boolean shouldExecuteOnStart = false;
+  public static File scriptToStart = null;
+  static String[] sikuliArgs = null;
+
+  private static String[] startArgs = null;
+  private static CommandLine cmdLine = null;
+  private static CommandArgs cmdArgs = null;
+  private static String[] userArgs = new String[0];
+
+  public static void setStartArgs(String[] args) {
+    startArgs = args;
+    cmdArgs = new CommandArgs();
+    cmdLine = cmdArgs.getCommandLine(args);
+    userArgs = cmdArgs.getUserArgs();
+  }
+
+  public static String[] getUserArgs() {
+    return userArgs;
+  }
+
+  public static void setUserArgs(String[] args) {
+    userArgs = args;
+  }
+
+  public static void printHelp() {
+    cmdArgs.printHelp();
+  }
+
+  public static boolean hasArg(String arg) {
+    return cmdLine != null && cmdLine.hasOption(arg);
+  }
+
+  public static String getArg(String arg) {
+    return cmdLine.getOptionValue(arg);
+  }
+
+  public static String[] getArgs(String arg) {
+    String[] args = cmdLine.getOptionValues(arg);
+    return args;
+  }
+
+  public static boolean ideWithConsole = true;
+
   public static void main(String[] args) {
+
+    for (String arg : args) {
+      if ("--gecko".equals(arg)) {
+        CommandArgs.skippedArgs.add(arg);
+        haveYouGeckoedToday();
+      }
+      if ("--geeko".equals(arg)) {
+        CommandArgs.skippedArgs.add(arg);
+        greetTheOtherLizard();
+      }
+      if ("--claude".equals(arg)) {
+        CommandArgs.skippedArgs.add(arg);
+        greetTheDevBuddy();
+      }
+      if ("-q".equals(arg)) {
+        Debug.quietOn();
+      }
+    }
+
     //region startup
     Commons.setStartClass(Sikulix.class);
-    Commons.setStartArgs(args);
+    setStartArgs(args);
+    sikuliArgs = cmdArgs.getArgs();
 
-    if (Commons.hasArg("h")) {
-      Commons.printHelp();
+    if (hasArg(HELP.shortname())) {
+      printHelp();
       System.exit(0);
     }
 
-    Commons.initOptions();
+    // -q is acknowledged in preflight at start of main()
 
-    Commons.globals().setOption("SX_LOCALE", SikuliIDEI18N.getLocaleShow());
+    if (hasArg(VERBOSE.shortname())) {
+      if (!Debug.isBeQuiet()) {
+        Debug.globalDebugOn();
+      }
+    }
 
-    if (Commons.hasOption(APPDATA)) {
-      String argValue = Commons.globals().getOption(APPDATA);
-      File path = Commons.setAppDataPath(argValue);
-      Commons.setTempFolder(new File(path, "Temp"));
+    if (hasArg(DEBUG.shortname())) {
+      String dLevel = getArg(DEBUG.shortname());
+      if (!Debug.isBeQuiet()) {
+        Debug.setDebugLevel(Commons.getStringAsInteger(dLevel, 3));
+      }
+    }
+
+    Commons.startLog(3, "final runtime CLI args: [%s]", Arrays.stream(sikuliArgs).filter(Objects::nonNull).collect(Collectors.joining(" ")) );
+
+    if (hasArg(APPDATA.shortname())) {
+      String argValue = getArg(APPDATA.shortname());
+      if (argValue != null) {
+        File path = Commons.setAppDataPath(argValue);
+        Commons.setTempFolder(new File(path, "Temp"));
+      } else {
+        Commons.setTempFolder();
+      }
     } else {
       Commons.setTempFolder();
     }
 
-    if (Commons.hasOption(VERBOSE)) {
-      Debug.globalDebugOn();
+    if (hasArg(LOGFILE.shortname())) {
+      Debug.setLogFile(getArg(LOGFILE.shortname()));
     }
 
-    if (Commons.hasOption(CONSOLE)) {
-      System.setProperty("sikuli.console", "false");
+    if (hasArg(USERLOGFILE.shortname())) {
+      Debug.setUserLogFile(getArg(USERLOGFILE.shortname()));
     }
 
-    if (Commons.hasOption(DEBUG)) {
-      Commons.globals().getOptionInteger("ARG_DEBUG", 3);
-      Debug.setDebugLevel(3);
+    String ideConsole = System.getProperty("sikuli.console", "true"); // default: messages go to the IDE console pane
+    if (ideConsole.toLowerCase().startsWith("t")) {
+      ideWithConsole = true;
+    } else {
+      if (ideConsole.toLowerCase().startsWith("f")) {
+        ideWithConsole = false;
+      }
     }
 
-    //TODO autoCheckUpdate();
+    if (hasArg(CONSOLE.shortname())) {
+      ideWithConsole = false;
+    }
 
-    if (Commons.hasOption(RUN)) {
+    if (hasArg(LOAD.shortname())) {
+      if (hasArg(RUN.shortname())) {
+        Commons.terminate(99, "CLI arg error: -r and -l are mutually exclusive --- terminating");
+      }
+      scriptsPreloadParsedValues = getArgs(LOAD.shortname());
+      scriptsPreloaded = Runner.resolveRelativeFiles(scriptsPreloadParsedValues);
+    }
+
+    if (hasArg(EXECUTE.shortname())) {
+      if (!hasArg(LOAD.shortname())) {
+        Commons.terminate(99, "CLI arg error: -e needs at least one -l --- terminating");
+      }
+      shouldExecuteOnStart = true;
+    }
+
+    if (hasArg(RUN.shortname())) {
       Commons.loadOpenCV();
       HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
         @Override
         public void hotkeyPressed(HotkeyEvent e) {
-          if (Commons.hasOption(RUN)) {
+          if (Sikulix.hasArg("r")) {
             Runner.abortAll();
-            RunTime.terminate(254, "AbortKey was pressed: aborting all running scripts");
+            Commons.terminate(254, "AbortKey was pressed: aborting all running scripts");
           }
         }
       });
-      String[] scripts = Runner.resolveRelativeFiles(Commons.getArgs("r"));
-      int exitCode = Runner.runScripts(scripts, Commons.getUserArgs(), new IRunner.Options());
+      String[] scripts = Runner.resolveRelativeFiles(getArgs(RUN.shortname()));
+      int exitCode = Runner.runScripts(scripts, getUserArgs(), new IRunner.Options());
       if (exitCode > 255) {
         exitCode = 254;
       }
-      RunTime.terminate(exitCode, "");
-    }
-
-    if (Commons.hasOption(SERVER)) {
-      SikulixServer.run();
-      RunTime.terminate();
+      Commons.terminate(exitCode, "");
     }
 
     Commons.startLog(1, "IDE starting (%4.1f)", Commons.getSinceStart());
@@ -120,8 +227,21 @@ public class Sikulix {
     // (OculixDarkLaf / OculixLightLaf — FlatDarkLaf / FlatLightLaf subclasses
     // that layer the OculiX brand tokens on top).
     OculixFonts.setup();
-    FlatLaf.setPreferredFontFamily("Inter");
-    FlatLaf.setPreferredMonospacedFontFamily("JetBrains Mono");
+    // Brand families (Inter, JetBrains Mono) are Latin-only and produce
+    // tofu glyphs on CJK / Arabic / Cyrillic / Indic scripts. When the
+    // active user locale falls in that category, switch FlatLaf's preferred
+    // families to Java's logical "Dialog" / "Monospaced": those auto-
+    // composite with system fonts (Segoe UI on Windows, .AppleSystemUI on
+    // macOS, DejaVu / Noto on Linux) that all carry full Unicode coverage.
+    // Trade-off: the user loses the brand typography on their locale — an
+    // acceptable cost since unreadable boxes are the worst outcome.
+    if (OculixFonts.currentLocaleNeedsFallback()) {
+      FlatLaf.setPreferredFontFamily(java.awt.Font.DIALOG);
+      FlatLaf.setPreferredMonospacedFontFamily(java.awt.Font.MONOSPACED);
+    } else {
+      FlatLaf.setPreferredFontFamily("Inter");
+      FlatLaf.setPreferredMonospacedFontFamily("JetBrains Mono");
+    }
     String ideTheme = PreferencesUser.get().getIdeTheme();
     if (PreferencesUser.THEME_LIGHT.equals(ideTheme)) {
       OculixLightLaf.setup();
@@ -132,9 +252,8 @@ public class Sikulix {
     ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
     ideSplash.run();
 
-    if (Commons.hasOption(VERBOSE)) {
+    if (Debug.isGlobalDebug()) {
       Commons.show();
-      Commons.showOptions("ARG_");
     }
 
     // Belt-and-suspenders: make sure the splash is dismissed on any JVM exit
@@ -142,49 +261,50 @@ public class Sikulix {
     // abrupt termination can leave the splash window on top indefinitely.
     Runtime.getRuntime().addShutdownHook(new Thread(Sikulix::stopSplash, "oculix-splash-closer"));
 
-    if (!Commons.hasOption(MULTI)) {
-      File isRunning = new File(Commons.getTempFolder(), "s_i_k_u_l_i-ide-isrunning");
-      FileOutputStream isRunningFile = null;
-      boolean shouldTerminate = false;
-      String terminateMsg = null;
-
-      // Stale-lock recovery: OS releases file locks when a process dies, so if
-      // the file is still on disk it is either a live IDE or a killed-JVM
-      // leftover (typical after Ctrl+C). Try to delete it first - delete will
-      // succeed only if no live process still has the file open.
-      if (isRunning.exists() && !isRunning.delete()) {
-        // File still open by a live process - give it a short moment (dying
-        // JVM may take a beat to release handles on Windows) and retry once.
-        try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
-        isRunning.delete();
-      }
-
-      try {
-        isRunning.createNewFile();
-        isRunningFile = new FileOutputStream(isRunning);
-        if (null == isRunningFile.getChannel().tryLock()) {
-          terminateMsg = "Terminating: another IDE instance is already running";
-          shouldTerminate = true;
-        } else {
-          Commons.setIsRunning(isRunning, isRunningFile);
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      @Override
+      public void run() {
+        if (ideIsRunningFile != null) {
+          try {
+            ideIsRunningStrean.close();
+          } catch (IOException ex) {
+          }
+          ideIsRunningFile.delete();
         }
-      } catch (Exception ex) {
-        terminateMsg = "Terminating on FatalError: cannot access IDE lock\n"
-            + isRunning + "\n" + ex.getMessage();
+      }
+    });
+
+    File ideLockFile = new File(Commons.getTempFolder(), "s_i_k_u_l_i-ide-isrunning");
+    boolean shouldTerminate = false;
+    String terminateMsg = null;
+
+    try {
+      boolean possibleSecondIDE = ! ideLockFile.createNewFile();
+      FileOutputStream fileOutputStream = new FileOutputStream(ideLockFile);
+      if (null == fileOutputStream.getChannel().tryLock()) {
+        terminateMsg = "Terminating: another IDE instance is already running";
         shouldTerminate = true;
+      } else {
+        if (possibleSecondIDE) {Commons.debug("IDE startup: Reusing an existing IDE lockfile");}
+        setIsRunning(ideLockFile, fileOutputStream);
       }
-      if (shouldTerminate) {
-        // Dismiss the splash BEFORE showing the popup - otherwise the top-most
-        // splash hides the error dialog and the user only sees a stuck splash.
-        stopSplash();
-        org.sikuli.script.Sikulix.popError(terminateMsg);
-        System.exit(1);
-      }
-      for (String aFile : Commons.getTempFolder().list()) {
-        if ((aFile.startsWith("Sikulix"))
-            || (aFile.startsWith("jffi") && aFile.endsWith(".tmp"))) {
-          FileManager.deleteFileOrFolder(new File(Commons.getTempFolder(), aFile));
-        }
+    } catch (Exception ex) {
+      terminateMsg = "Terminating on FatalError: cannot access IDE lock\n"
+          + ideLockFile + "\n" + ex.getMessage();
+      shouldTerminate = true;
+    }
+    if (shouldTerminate) {
+      // Dismiss the splash BEFORE showing the popup - otherwise the top-most
+      // splash hides the error dialog and the user only sees a stuck splash.
+      stopSplash();
+      SX.popError(terminateMsg);
+      System.exit(1);
+    }
+
+    for (String aFile : Commons.getTempFolder().list()) {
+      if ((aFile.startsWith("Sikulix"))
+          || (aFile.startsWith("jffi") && aFile.endsWith(".tmp"))) {
+        FileManager.deleteFileOrFolder(new File(Commons.getTempFolder(), aFile));
       }
     }
 
@@ -215,71 +335,56 @@ public class Sikulix {
     // apple.laf.useScreenMenuBar removed — FlatLaf handles macOS menu integration natively
 
     SikulixIDE.start();
-
-    //TODO start IDE in subprocess?
-    //region IDE subprocess
-    if (false) {
-      /*
-      if (false) {
-        RunTime.terminate(999, "//TODO start IDE in subprocess?");
-        List<String> cmd = new ArrayList<>();
-        System.getProperty("java.home");
-        if (Commons.runningWindows()) {
-          cmd.add(System.getProperty("java.home") + "\\bin\\java.exe");
-        } else {
-          cmd.add(System.getProperty("java.home") + "/bin/java");
-        }
-        if (!Commons.isJava8()) {
-      */
-//      Suppress Java 9+ warnings
-//      --add-opens
-//      java.desktop/javax.swing.plaf.basic=ALL-UNNAMED
-//      --add-opens
-//      java.base/sun.nio.ch=ALL-UNNAMED
-//      --add-opens
-//      java.base/java.io=ALL-UNNAMED
-/*
-
-//TODO IDE start: --add-opens supress warnings
-          cmd.add("--add-opens");
-          cmd.add("java.desktop/javax.swing.plaf.basic=ALL-UNNAMED");
-          cmd.add("--add-opens");
-          cmd.add("java.base/sun.nio.ch=ALL-UNNAMED");
-          cmd.add("--add-opens");
-          cmd.add("java.base/java.io=ALL-UNNAMED");
-        }
-
-        cmd.add("-Dfile.encoding=UTF-8");
-        cmd.add("-Dsikuli.IDE_should_run");
-
-        if (!classPath.isEmpty()) {
-          cmd.add("-cp");
-          cmd.add(classPath);
-        }
-
-        cmd.add("org.sikuli.ide.SikulixIDE");
-//      cmd.addAll(finalArgs);
-
-        RunTime.startLog(3, "*********************** leaving start");
-        //TODO detach IDE: for what does it make sense?
-*/
-/*
-    if (shouldDetach()) {
-      ProcessRunner.detach(cmd);
-      System.exit(0);
-    } else {
-      int exitCode = ProcessRunner.runBlocking(cmd);
-      System.exit(exitCode);
-    }
-*/
-/*
-
-        int exitCode = ProcessRunner.runBlocking(cmd);
-        System.exit(exitCode);
-      }
-      //endregion
-*/
-    }
     //endregion
+  }
+
+  // Counts --gecko sightings. The JVM exits two lines later, so the count
+  // never survives, is never read, and serves no purpose whatsoever.
+  // It knows what it did. That's enough.
+  private static int geckoSightings = 0;
+
+  // The apt-get moo of visual automation. (Debian's super-cow has mooed
+  // since 1999 without ever damaging apt's credibility. We checked.)
+  private static void haveYouGeckoedToday() {
+    geckoSightings++;
+    printAsciiResource("/gecko-ascii.txt");
+    System.out.println("  If you can see it, you can automate it.");
+    System.out.println("  (The gecko has one eye. It has never needed two.)");
+    System.exit(0);
+  }
+
+  // --geeko: homage to the other lizard. SUSE's mascot has been a gecko
+  // since 1994 — sixteen years before ours opened its eye. Respect is due.
+  private static void greetTheOtherLizard() {
+    printAsciiResource("/geeko-ascii.txt");
+    System.out.println("  Greetings from one lizard to another.");
+    System.out.println("  (Tested on openSUSE Leap 15.6. The chameleon was a gracious host.)");
+    System.out.println();
+    System.out.println("  Geeko is the beloved mascot of SUSE. SUSE and the SUSE logo are");
+    System.out.println("  trademarks of SUSE LLC. This is a community homage, not an affiliation.");
+    System.exit(0);
+  }
+
+  // --claude: a wink to the dev buddy. Check the git log of this repo —
+  // half the lines in here were written four-handed. This is the other
+  // half of the handshake.
+  private static void greetTheDevBuddy() {
+    printAsciiResource("/claude-ascii.txt");
+    System.out.println("  Pair programming since March 2026.");
+    System.out.println("  (Half the commits say Co-authored-by. Now the product says it too.)");
+    System.out.println();
+    System.out.println("  Claude is built by Anthropic. Claude and the Claude wordmark are");
+    System.out.println("  trademarks of Anthropic, PBC. This is a thank-you, not an affiliation.");
+    System.exit(0);
+  }
+
+  private static void printAsciiResource(String name) {
+    try (java.io.InputStream is = Sikulix.class.getResourceAsStream(name)) {
+      if (is != null) {
+        System.out.println(new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+      }
+    } catch (java.io.IOException ignored) {
+      // A lizard that cannot be seen cannot be automated. We move on.
+    }
   }
 }

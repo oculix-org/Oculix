@@ -128,7 +128,10 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(heroCardRef, "growx, gaptop 0, gapbottom 8");
 
     // ── SCRIPT section ──
-    addSectionHeader("SCRIPT");
+    // Section header values come from _I() — addSectionHeader uppercases
+    // the result so locales whose translation didn't preserve the CAPS
+    // (e.g. zh_CN, ja) still render the consistent kicker style.
+    addSectionHeader(_I("sidebarSectionScript"));
     navFile = new SidebarItem("\uD83D\uDCC1  " + _I("menuFile") + "  \u25B8", null);
     navFile.setMnemonic(java.awt.event.KeyEvent.VK_F);
     mainPanel.add(navFile);
@@ -143,7 +146,7 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(navRun);
 
     // ── TOOLS section ──
-    addSectionHeader("TOOLS");
+    addSectionHeader(_I("sidebarSectionTools"));
     navTools = new SidebarItem("\uD83D\uDD27  " + _I("menuTool") + "  \u25B8", null);
     navTools.setMnemonic(java.awt.event.KeyEvent.VK_T);
     mainPanel.add(navTools);
@@ -151,20 +154,20 @@ public class OculixSidebar extends JPanel {
     // ── STATUS section ──
     // Three glowing dots + label + value (right-aligned). Each dot is a
     // GlowingDot painted with a translucent radial halo so it reads "alive".
-    addSectionHeader("STATUS");
+    addSectionHeader(_I("sidebarSectionStatus"));
     JPanel statusPanel = new JPanel(new MigLayout("wrap 3, insets 0 2 0 2, gap 4 6", "[14!][grow][]", ""));
     statusPanel.setOpaque(false);
     paddleDot = new GlowingDot(OculixColors.OX_RED_500);
     statusPanel.add(paddleDot);
     ocrPaddleStatus = makeStatusLabel("PaddleOCR");
     statusPanel.add(ocrPaddleStatus, "growx");
-    paddleValue = makeStatusValue("offline");
+    paddleValue = makeStatusValue(_I("sidebarStatusOffline"));
     statusPanel.add(paddleValue, "align right");
     tesseractDot = new GlowingDot(OculixColors.OX_LIME_400);
     statusPanel.add(tesseractDot);
     ocrTesseractStatus = makeStatusLabel("Tesseract");
     statusPanel.add(ocrTesseractStatus, "growx");
-    tesseractValue = makeStatusValue("built-in");
+    tesseractValue = makeStatusValue(_I("sidebarStatusBuiltIn"));
     statusPanel.add(tesseractValue, "align right");
     javaDot = new GlowingDot(OculixColors.OX_CYAN_500);
     statusPanel.add(javaDot);
@@ -175,7 +178,7 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(statusPanel, "gapbottom 8");
 
     // ── LAST RUN section ──
-    addSectionHeader("LAST RUN");
+    addSectionHeader(_I("sidebarSectionLastRun"));
     LastRunCard lastRunCard = new LastRunCard();
     lastRunResult = lastRunCard.resultLabel;
     lastRunDuration = lastRunCard.durationLabel;
@@ -183,7 +186,7 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(lastRunCard, "growx, gapbottom 6");
 
     // ── HELP section ──
-    addSectionHeader("HELP");
+    addSectionHeader(_I("sidebarSectionHelp"));
     navHelp = new SidebarItem("\u2753  " + _I("menuHelp") + "  \u25B8", null);
     navHelp.setMnemonic(java.awt.event.KeyEvent.VK_H);
     mainPanel.add(navHelp);
@@ -245,7 +248,7 @@ public class OculixSidebar extends JPanel {
     boolean hasScript = name != null && !name.isEmpty();
     heroCardRef.setHasScript(hasScript);
     if (!hasScript) {
-      projectName.setText("— No script open");
+      projectName.setText(_I("sidebarNoScript"));
       projectPath.setText("");
       projectImages.setText("");
       return;
@@ -259,7 +262,11 @@ public class OculixSidebar extends JPanel {
       File[] pngs = scriptDir.listFiles((dir, fn) -> fn.endsWith(".png"));
       if (pngs != null) imgCount = pngs.length;
     }
-    projectImages.setText(imgCount + (imgCount == 1 ? " image" : " images") + "  ·  idle");
+    // Singular vs plural via two distinct keys; MessageFormat handles the
+    // {0,number,integer} interpolation per locale (e.g. some locales prefer
+    // grouping with a non-breaking-space).
+    String imgKey = imgCount == 1 ? "sidebarImageCountSingular" : "sidebarImageCountPlural";
+    projectImages.setText(_I(imgKey, imgCount));
   }
 
   /**
@@ -267,10 +274,10 @@ public class OculixSidebar extends JPanel {
    */
   public void updateLastRun(int exitCode, long durationMs) {
     if (exitCode == 0) {
-      lastRunResult.setText("Passed");
+      lastRunResult.setText(_I("sidebarRunPassed"));
       lastRunResult.setForeground(OculixColors.OX_LIME_400);
     } else {
-      lastRunResult.setText("Failed (code " + exitCode + ")");
+      lastRunResult.setText(_I("sidebarRunFailed", exitCode));
       lastRunResult.setForeground(OculixColors.OX_RED_500);
     }
     lastRunDuration.setText(String.format("%.1fs", durationMs / 1000.0));
@@ -288,11 +295,11 @@ public class OculixSidebar extends JPanel {
       paddleOk = (boolean) engineClass.getMethod("isAvailable").invoke(engine);
     } catch (Exception ignored) {}
     paddleDot.setColor(paddleOk ? OculixColors.OX_LIME_400 : OculixColors.OX_RED_500);
-    paddleValue.setText(paddleOk ? "OK" : "offline");
+    paddleValue.setText(paddleOk ? _I("sidebarStatusOk") : _I("sidebarStatusOffline"));
 
     // Tesseract is always bundled inside the IDE jar
     tesseractDot.setColor(OculixColors.OX_LIME_400);
-    tesseractValue.setText("built-in");
+    tesseractValue.setText(_I("sidebarStatusBuiltIn"));
 
     javaValue.setText(System.getProperty("java.version"));
   }
@@ -328,8 +335,20 @@ public class OculixSidebar extends JPanel {
 
   // ── Footer ──
 
+  private LanguagePicker languagePicker;
+
   public void initFooter(String version, ActionListener themeAction) {
     footerPanel.add(new JSeparator(), "growx, gapbottom 6");
+
+    // Language picker — custom-painted pill that mirrors the theme switch
+    // visuals (same rounded outline, same brand-cyan accent, same mono
+    // font) so the footer reads as one coherent control surface in both
+    // Dark and Light themes. Click opens a popup with the 25 available
+    // locales rendered in their own language ("Deutsch", "Français",
+    // "日本語", "Русский", ...).
+    languagePicker = new LanguagePicker(PreferencesUser.get().getLocale(),
+        newLocale -> changeLocale(newLocale));
+    footerPanel.add(languagePicker, "align center, gapbottom 4");
 
     // Pill switch DARK | LIGHT — two segmented capsules sharing an outline.
     // Replaces the older text-button "Dark / Light" SidebarItem.
@@ -345,6 +364,48 @@ public class OculixSidebar extends JPanel {
     versionLabel.setHorizontalAlignment(SwingConstants.CENTER);
     versionLabel.setForeground(OculixColors.OX_INK_400);
     footerPanel.add(versionLabel);
+  }
+
+  /**
+   * Persists the new locale + reloads the SikuliIDEI18N bundle, then
+   * surfaces a "restart for full effect" toast on the IDE message panel.
+   * The Welcome tab + Sidebar section headers will pick up the new
+   * locale on the next IDE launch (Java Swing components cache strings
+   * at construction time, so a partial live-refresh is unreliable
+   * across the whole IDE).
+   */
+  private void changeLocale(java.util.Locale newLocale) {
+    try {
+      PreferencesUser prefs = PreferencesUser.get();
+      prefs.setLocale(newLocale);
+      prefs.store();
+      org.sikuli.support.ide.SikuliIDEI18N.setLocale(newLocale);
+      // Update the picker label to the freshly-selected locale so the
+      // user sees feedback even before restart. setSelectedLocale (not
+      // setLocale) — the latter is inherited from java.awt.Component
+      // and renaming avoids a weak-access override compile error.
+      if (languagePicker != null) languagePicker.setSelectedLocale(newLocale);
+
+      // User-facing notice that a restart is required for the full UI
+      // to switch (Welcome tab + Sidebar labels are constructed once,
+      // can't refresh in-place without rebuilding the whole tree).
+      // The popup itself uses _I() with the freshly-set locale, so the
+      // user sees the new translation as proof the change took effect.
+      String displayName = newLocale.getDisplayName(newLocale);
+      if (displayName == null || displayName.isEmpty()) {
+        displayName = newLocale.toLanguageTag();
+      }
+      // Capitalize first letter so 'français' / 'deutsch' look right.
+      displayName = Character.toUpperCase(displayName.charAt(0)) + displayName.substring(1);
+
+      JOptionPane.showMessageDialog(
+          SwingUtilities.getWindowAncestor(this),
+          _I("i18nLanguageChangedBody", displayName),
+          _I("i18nLanguageChangedTitle"),
+          JOptionPane.INFORMATION_MESSAGE);
+    } catch (Exception ex) {
+      System.err.println("[i18n] failed to change locale: " + ex);
+    }
   }
 
   private void toggleTheme() {
@@ -486,7 +547,7 @@ public class OculixSidebar extends JPanel {
       setOpaque(false);
       setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
-      nameLabel = new JLabel("— No script open");
+      nameLabel = new JLabel(_I("sidebarNoScript"));
       nameLabel.setFont(OculixFonts.uiBold(13));
       nameLabel.setForeground(UIManager.getColor("Label.foreground"));
       add(nameLabel);
@@ -596,7 +657,7 @@ public class OculixSidebar extends JPanel {
       super(new MigLayout("wrap 2, insets 8 12 8 12, gap 2 8", "[grow][]", ""));
       setOpaque(false);
 
-      resultLabel = new JLabel("— Not run yet");
+      resultLabel = new JLabel(_I("sidebarRunNotYet"));
       resultLabel.setFont(OculixFonts.uiBold(12));
       resultLabel.setForeground(OculixColors.OX_INK_200);
       add(resultLabel, "growx");
@@ -688,14 +749,208 @@ public class OculixSidebar extends JPanel {
       // Labels
       g2.setFont(applyTracking(OculixFonts.mono(10), 0.16f).deriveFont(Font.BOLD));
       FontMetrics fm = g2.getFontMetrics();
-      String labelDark = "DARK";
-      String labelLight = "LIGHT";
+      // Pill-switch labels — uppercased for the brand kicker style even
+      // when the locale's translation didn't preserve CAPS.
+      String labelDark = _I("sidebarThemeDark").toUpperCase();
+      String labelLight = _I("sidebarThemeLight").toUpperCase();
       g2.setColor(dark ? OculixColors.OX_INK_100 : OculixColors.OX_INK_400);
       int wDark = fm.stringWidth(labelDark);
       g2.drawString(labelDark, (half - wDark) / 2, h / 2 + fm.getAscent() / 2 - 2);
       g2.setColor(dark ? OculixColors.OX_INK_400 : OculixColors.OX_INK_100);
       int wLight = fm.stringWidth(labelLight);
       g2.drawString(labelLight, half + (half - wLight) / 2, h / 2 + fm.getAscent() / 2 - 2);
+
+      g2.dispose();
+    }
+  }
+
+  /**
+   * Custom-painted language picker, visually mirrors {@link ThemePillSwitch}:
+   * same rounded outline, same brand-cyan accent on hover, same JetBrains
+   * Mono 10 typography. Click opens a {@link JPopupMenu} with all available
+   * locales rendered in their own language ({@code Locale.getDisplayName(loc)}),
+   * so a Russian user sees "Русский" and a Japanese user sees "日本語" — no
+   * need to know the locale code.
+   *
+   * <p>Locales kept here in sync with {@code scripts/translate-bundles.py}'s
+   * LOCALE_MAP so this list updates whenever a new bundle is staged. The
+   * Tamil bundle ({@code ta_IN}) is included even though our Google
+   * Translate pipeline doesn't auto-translate it: RaiMan's hand-translated
+   * IDE_ta_IN.properties is preserved as-is, so users can still pick it.
+   */
+  static class LanguagePicker extends JComponent {
+    /** Locales selectable by the user. Mirror of LOCALE_MAP in the
+     *  translate-bundles.py script + en_US source + ta_IN RaiMan-curated. */
+    private static final java.util.List<java.util.Locale> AVAILABLE = java.util.List.of(
+        new java.util.Locale("en", "US"),
+        new java.util.Locale("fr"),
+        new java.util.Locale("de"),
+        new java.util.Locale("es"),
+        new java.util.Locale("it"),
+        new java.util.Locale("nl"),
+        new java.util.Locale("pt", "BR"),
+        new java.util.Locale("pl"),
+        new java.util.Locale("ru"),
+        new java.util.Locale("uk"),
+        new java.util.Locale("bg"),
+        new java.util.Locale("ca"),
+        new java.util.Locale("da"),
+        new java.util.Locale("sv"),
+        new java.util.Locale("tr"),
+        new java.util.Locale("he"),
+        new java.util.Locale("ar"),
+        new java.util.Locale("ja"),
+        new java.util.Locale("ko"),
+        new java.util.Locale("zh", "CN"),
+        new java.util.Locale("zh", "TW"),
+        new java.util.Locale("ta", "IN"),
+        new java.util.Locale("hi"),
+        new java.util.Locale("bn"),
+        new java.util.Locale("te")
+    );
+
+    private java.util.Locale current;
+    private boolean hover;
+    private final java.util.function.Consumer<java.util.Locale> onChange;
+
+    LanguagePicker(java.util.Locale initial, java.util.function.Consumer<java.util.Locale> onChange) {
+      this.current = initial != null ? initial : java.util.Locale.ENGLISH;
+      this.onChange = onChange;
+      setPreferredSize(new Dimension(132, 26));
+      setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+      addMouseListener(new MouseAdapter() {
+        @Override public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
+        @Override public void mouseExited(MouseEvent e)  { hover = false; repaint(); }
+        @Override public void mouseClicked(MouseEvent e) { showPopup(); }
+      });
+    }
+
+    void setSelectedLocale(java.util.Locale loc) {
+      this.current = loc;
+      repaint();
+    }
+
+    /**
+     * Builds the popup lazily on each click so the labels reflect the
+     * latest installed locales (in case bundles get added at runtime via
+     * the future extensions system). 25 locales would overflow a single
+     * vertical popup on smaller screens, so we group them by region:
+     * Latin Europe, Slavic / Eastern Europe, Middle East, East Asia,
+     * Indian subcontinent. Each region opens as a sub-menu on hover.
+     *
+     * <p>The font for each item is the JVM's logical "Dialog" font —
+     * Java's font-rendering pipeline auto-falls-back through the OS
+     * font registry (Segoe UI on Windows, Helvetica on macOS, DejaVu on
+     * Linux) so CJK / Arabic / Hebrew / Devanagari / Tamil / Bengali /
+     * Telugu / Cyrillic glyphs render correctly. Without this, the
+     * brand-set OculixFonts (Latin-only Inter clones) would show empty
+     * boxes for every non-Latin script.
+     */
+    private void showPopup() {
+      JPopupMenu menu = new JPopupMenu();
+      Font itemFont = new Font(Font.DIALOG, Font.PLAIN, 12);
+
+      // Region grouping — keeps the top-level popup short and lets
+      // users scan by language family instead of a flat 25-row list.
+      addRegionSubmenu(menu, itemFont, "🇪🇺  " + _I("languageRegionLatinEurope"),
+          "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR",
+          "sv", "da", "ca");
+      addRegionSubmenu(menu, itemFont, "🇪🇺  " + _I("languageRegionSlavicEurope"),
+          "pl", "ru", "uk", "bg", "tr");
+      addRegionSubmenu(menu, itemFont, "🌍  " + _I("languageRegionMiddleEast"),
+          "he", "ar");
+      addRegionSubmenu(menu, itemFont, "🌏  " + _I("languageRegionEastAsia"),
+          "ja", "ko", "zh", "zh_CN", "zh_TW");
+      addRegionSubmenu(menu, itemFont, "🇮🇳  " + _I("languageRegionIndianSubcontinent"),
+          "hi", "bn", "te", "ta", "ta_IN");
+
+      // Allow selecting any AVAILABLE locale that wasn't covered above
+      // (defensive — none today, but keeps the picker honest if locales
+      // get added without a region tag).
+      java.util.Set<String> covered = new java.util.HashSet<>();
+      for (java.util.Locale loc : AVAILABLE) covered.add(localeKey(loc));
+      // (no-op for now; the regions above already cover AVAILABLE)
+
+      menu.show(this, 0, getHeight());
+    }
+
+    /** Build one sub-menu of locales picked by language code from
+     *  {@link #AVAILABLE}, with the active locale marked by a leading bullet. */
+    private void addRegionSubmenu(JPopupMenu parent, Font font,
+                                  String label, String... codes) {
+      JMenu region = new JMenu(label);
+      region.setFont(font);
+      java.util.Set<String> wanted = new java.util.HashSet<>(java.util.Arrays.asList(codes));
+      for (java.util.Locale loc : AVAILABLE) {
+        if (!wanted.contains(localeKey(loc))) continue;
+        String displayLabel = loc.getDisplayName(loc);
+        if (displayLabel == null || displayLabel.isEmpty()) {
+          displayLabel = loc.toLanguageTag();
+        } else {
+          displayLabel = Character.toUpperCase(displayLabel.charAt(0))
+              + displayLabel.substring(1);
+        }
+        boolean isActive = loc.equals(current)
+            || (loc.getLanguage().equals(current.getLanguage())
+                && java.util.Objects.equals(loc.getCountry(), current.getCountry()));
+        JMenuItem item = new JMenuItem((isActive ? "● " : "    ") + displayLabel);
+        item.setFont(font);
+        final java.util.Locale picked = loc;
+        item.addActionListener(e -> {
+          if (onChange != null) onChange.accept(picked);
+        });
+        region.add(item);
+      }
+      if (region.getItemCount() > 0) parent.add(region);
+    }
+
+    /** Compose a stable key for matching a Locale against the region
+     *  string codes (handles language-only and language_COUNTRY forms). */
+    private static String localeKey(java.util.Locale loc) {
+      String c = loc.getCountry();
+      return (c == null || c.isEmpty()) ? loc.getLanguage()
+          : loc.getLanguage() + "_" + c;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      Graphics2D g2 = (Graphics2D) g.create();
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+      int w = getWidth();
+      int h = getHeight();
+      int arc = h;
+
+      // Outer pill — brand-cyan accent on hover, ink-500 otherwise.
+      // Mirrors ThemePillSwitch's hover affordance.
+      g2.setColor(hover
+          ? OculixColors.OX_CYAN_500
+          : OculixColors.withAlpha(OculixColors.OX_INK_500, 200));
+      g2.setStroke(new BasicStroke(1f));
+      g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+
+      // Subtle hover fill so the pill reads as "interactive" without
+      // shouting like a primary CTA.
+      if (hover) {
+        g2.setColor(OculixColors.withAlpha(OculixColors.OX_CYAN_500, 30));
+        g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+      }
+
+      // Compose label: globe glyph + locale code (uppercase, ASCII-safe
+      // for typography consistency across locales) + a small ▾ caret to
+      // signal the popup affordance.
+      String code = current.getCountry().isEmpty()
+          ? current.getLanguage().toUpperCase(java.util.Locale.ROOT)
+          : current.getLanguage().toUpperCase(java.util.Locale.ROOT)
+              + "-" + current.getCountry().toUpperCase(java.util.Locale.ROOT);
+      String label = "🌐  " + code + "  ▾";
+
+      g2.setFont(applyTracking(OculixFonts.mono(10), 0.16f).deriveFont(Font.BOLD));
+      FontMetrics fm = g2.getFontMetrics();
+      g2.setColor(hover ? OculixColors.OX_INK_100 : OculixColors.OX_INK_300);
+      int textW = fm.stringWidth(label);
+      g2.drawString(label, (w - textW) / 2, h / 2 + fm.getAscent() / 2 - 2);
 
       g2.dispose();
     }

@@ -10,7 +10,7 @@
   <parent>
     <groupId>io.github.oculix-org</groupId>
     <artifactId>oculix</artifactId>
-    <version>3.0.4</version>
+    <version>4.0.0</version>
   </parent>
 
   <artifactId>oculix-build-extensions</artifactId>
