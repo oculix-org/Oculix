@@ -348,10 +348,12 @@ public class ADBDevice {
     // Android 12+
     Pattern p2 = Pattern.compile("deviceWidth=(\\d+).*?deviceHeight=(\\d+)");
     Matcher match = p1.matcher(dump);
-    if (!match.find()) {
+    boolean found = match.find();
+    if (!found) {
       match = p2.matcher(dump);
+      found = match.find();
     }
-    if (match.find()) {
+    if (found) {
       return new Dimension(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)));
     }
 
