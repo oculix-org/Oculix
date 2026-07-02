@@ -54,7 +54,7 @@
 -->
     <apertix.opencv.version>4.10.0-3</apertix.opencv.version>
     <legerix.version>5.5.0-8</legerix.version>
-    <versiontess4j>5.18.0</versiontess4j>
+    <versiontess4j>5.19.0</versiontess4j>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd_HH:mm</maven.build.timestamp.format>
     <!--suppress UnresolvedMavenProperty -->
@@ -77,7 +77,7 @@
     <dependency>
       <groupId>org.json</groupId>
       <artifactId>json</artifactId>
-      <version>20251224</version>
+      <version>20260522</version>
     </dependency>
     <dependency>
       <groupId>io.github.oculix-org</groupId>
@@ -113,7 +113,7 @@
     <dependency>
       <groupId>net.java.dev.jna</groupId>
       <artifactId>jna-platform</artifactId>
-      <version>5.18.1</version>
+      <version>5.19.1</version>
     </dependency>
     <dependency>
       <groupId>net.oneandone.reflections8</groupId>
@@ -128,7 +128,7 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-nop</artifactId>
-      <version>2.0.17</version>
+      <version>2.0.18</version>
     </dependency>
     <dependency>
       <groupId>net.sf.py4j</groupId>
@@ -162,7 +162,7 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
-      <version>6.0.3</version>
+      <version>6.1.1</version>
       <scope>test</scope>
     </dependency>
     <!-- Legerix declared LAST so Maven Assembly unpacks it last in the fat-jar,
@@ -426,7 +426,7 @@
           <plugin>
             <groupId>org.sonatype.central</groupId>
             <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.10.0</version>
+            <version>0.11.0</version>
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>
@@ -521,7 +521,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.5.5</version>
+        <version>3.5.6</version>
       </plugin>
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
