@@ -617,6 +617,20 @@ public class App {
       return app;
     }
 
+    // Fallback: when no window title matched, try matching by process name.
+    // Aligns the implementation with the docstring "name or (part of) window
+    // title" and covers apps whose window title carries varying data
+    // (e.g. "Manual.pdf - Adobe Acrobat Reader") while a process-name focus
+    // stays stable ("Acrobat"). Refs #342.
+    List<App> apps = getApps(title).stream()
+            .filter(a -> a.isUserProcess() && a.hasWindow())
+            .collect(Collectors.toList());
+    if (apps.size() > index) {
+      App app = apps.get(index);
+      app.focus();
+      return app;
+    }
+
     return new App();
   }
 
