@@ -4,6 +4,7 @@
 package org.sikuli.natives;
 
 import java.awt.Rectangle;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -102,6 +103,57 @@ public class WinUtil extends GenericOsUtil {
 		public int hashCode() {
 			return hWnd != null ? hWnd.hashCode() : 0;
 		}
+	}
+
+	@Override
+	public OsProcess open(String[] cmd, String workDir) {
+		if (cmd == null || cmd.length == 0 || StringUtils.isBlank(cmd[0])) {
+			return super.open(cmd, workDir);
+		}
+
+		// Wrap with 'cmd /c start "" <target> [args...]' so Windows resolves the
+		// target via the App Paths registry, PATH, and Start Menu shortcuts.
+		// Users can pass a short app name like "Firefox" instead of a full path.
+		// The empty "" is the window title placeholder required by 'start' syntax
+		// — otherwise start would interpret cmd[0] as the title.
+		String[] wrapped = new String[cmd.length + 4];
+		wrapped[0] = "cmd";
+		wrapped[1] = "/c";
+		wrapped[2] = "start";
+		wrapped[3] = "";
+		System.arraycopy(cmd, 0, wrapped, 4, cmd.length);
+
+		try {
+			ProcessBuilder pb = new ProcessBuilder(wrapped);
+			if (StringUtils.isNotBlank(workDir)) {
+				pb.directory(new File(workDir));
+			}
+			pb.start();
+
+			// 'start' shells out and returns immediately, so the real app PID must
+			// be looked up separately. Poll allProcesses() for up to 3 seconds
+			// looking for a process whose base name matches cmd[0].
+			long deadline = System.currentTimeMillis() + 3000L;
+			while (System.currentTimeMillis() < deadline) {
+				List<OsProcess> found = findProcesses(cmd[0]);
+				if (!found.isEmpty()) {
+					return found.get(0);
+				}
+				try {
+					Thread.sleep(100);
+				} catch (InterruptedException ie) {
+					Thread.currentThread().interrupt();
+					break;
+				}
+			}
+		} catch (Exception e) {
+			System.out.println("[error] WinUtil.open (start wrapper):\n" + e.getMessage());
+		}
+
+		// Fallback to direct ProcessBuilder spawn: handles absolute paths and
+		// any case where 'start' silently succeeded but no matching process
+		// showed up within the polling window.
+		return super.open(cmd, workDir);
 	}
 
 	@Override
