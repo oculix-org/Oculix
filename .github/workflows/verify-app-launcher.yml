@@ -1,0 +1,74 @@
+name: Verify App Launcher (cross-OS)
+
+# Manual dispatch only — this workflow installs Firefox on each runner
+# and boots a real GUI, so it doesn't belong on every PR push. Trigger
+# it deliberately when validating changes to WinUtil.open / MacUtil.open
+# / GenericOsUtil.open or App.focus name resolution.
+on:
+  workflow_dispatch:
+    inputs:
+      app-name:
+        description: 'App name to open (must be installable via choco / brew / apt on all three runners)'
+        required: false
+        default: 'firefox'
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Install Firefox (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y firefox xvfb xdotool
+
+      - name: Install Firefox (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install --cask firefox
+
+      - name: Install Firefox (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install firefox -y --no-progress
+
+      - name: Build API jar
+        run: mvn -pl API -am package -DskipTests -B
+
+      - name: Locate API jar
+        id: jar
+        shell: bash
+        run: |
+          JAR=$(ls API/target/oculixapi-*.jar | grep -v sources | grep -v javadoc | head -1)
+          echo "path=$JAR" >> "$GITHUB_OUTPUT"
+          echo "Selected jar: $JAR"
+
+      - name: Compile VerifyAppLauncher
+        shell: bash
+        run: javac -cp "${{ steps.jar.outputs.path }}" scripts/VerifyAppLauncher.java
+
+      - name: Run VerifyAppLauncher (Ubuntu, xvfb)
+        if: matrix.os == 'ubuntu-latest'
+        run: xvfb-run -a java -cp "${{ steps.jar.outputs.path }}:scripts" VerifyAppLauncher "${{ inputs.app-name || 'firefox' }}"
+
+      - name: Run VerifyAppLauncher (macOS)
+        if: matrix.os == 'macos-latest'
+        run: java -cp "${{ steps.jar.outputs.path }}:scripts" VerifyAppLauncher "${{ inputs.app-name || 'firefox' }}"
+
+      - name: Run VerifyAppLauncher (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: java -cp "${{ steps.jar.outputs.path }};scripts" VerifyAppLauncher "${{ inputs.app-name || 'firefox' }}"
