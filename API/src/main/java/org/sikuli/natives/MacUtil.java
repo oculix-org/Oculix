@@ -4,10 +4,13 @@
 package org.sikuli.natives;
 
 import java.awt.Rectangle;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.sikuli.natives.mac.jna.CoreGraphics;
 import org.sikuli.natives.mac.jna.ObjC;
@@ -19,6 +22,60 @@ import com.sun.jna.platform.mac.CoreFoundation.CFNumberRef;
 import com.sun.jna.platform.mac.CoreFoundation.CFStringRef;
 
 public class MacUtil extends GenericOsUtil {
+
+  @Override
+  public OsProcess open(String[] cmd, String workDir) {
+    if (cmd == null || cmd.length == 0 || StringUtils.isBlank(cmd[0])) {
+      return super.open(cmd, workDir);
+    }
+
+    // Wrap with 'open -a <name> [--args ...]' so macOS resolves the target
+    // via LaunchServices (bundle name, display name, bundle identifier,
+    // aliases). Users can pass a short name like "Firefox" instead of the
+    // full path /Applications/Firefox.app/Contents/MacOS/firefox.
+    String[] wrapped;
+    if (cmd.length == 1) {
+      wrapped = new String[] { "open", "-a", cmd[0] };
+    } else {
+      // open -a NAME --args ARG1 ARG2 ...
+      wrapped = new String[cmd.length + 3];
+      wrapped[0] = "open";
+      wrapped[1] = "-a";
+      wrapped[2] = cmd[0];
+      wrapped[3] = "--args";
+      System.arraycopy(cmd, 1, wrapped, 4, cmd.length - 1);
+    }
+
+    try {
+      ProcessBuilder pb = new ProcessBuilder(wrapped);
+      if (StringUtils.isNotBlank(workDir)) {
+        pb.directory(new File(workDir));
+      }
+      pb.start();
+
+      // 'open' returns before the target app process is fully up, so we poll
+      // findProcesses(cmd[0]) for up to 3 seconds to grab the real PID.
+      long deadline = System.currentTimeMillis() + 3000L;
+      while (System.currentTimeMillis() < deadline) {
+        List<OsProcess> found = findProcesses(cmd[0]);
+        if (!found.isEmpty()) {
+          return found.get(0);
+        }
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
+      }
+    } catch (Exception e) {
+      System.out.println("[error] MacUtil.open (open -a wrapper):\n" + e.getMessage());
+    }
+
+    // Fallback to direct ProcessBuilder spawn — handles absolute paths and
+    // edge cases where 'open' silently succeeded without a matching process.
+    return super.open(cmd, workDir);
+  }
 
   // NSApplicationActivationOptions — see Apple docs for NSRunningApplication.
   private static final int NS_ACTIVATE_ALL_WINDOWS          = 1 << 0;
