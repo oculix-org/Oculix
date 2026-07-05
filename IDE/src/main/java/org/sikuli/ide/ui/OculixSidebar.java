@@ -5,6 +5,7 @@ package org.sikuli.ide.ui;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatLaf;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import net.miginfocom.swing.MigLayout;
 import org.sikuli.basics.PreferencesUser;
 import org.sikuli.ide.theme.OculixColors;
@@ -132,22 +133,25 @@ public class OculixSidebar extends JPanel {
     // the result so locales whose translation didn't preserve the CAPS
     // (e.g. zh_CN, ja) still render the consistent kicker style.
     addSectionHeader(_I("sidebarSectionScript"));
-    navFile = new SidebarItem("\uD83D\uDCC1  " + _I("menuFile") + "  \u25B8", null);
+    navFile = new SidebarItem(_I("menuFile") + "  \u25B8", null);
+    navFile.setIcon(new FlatSVGIcon("icons/sidebar/folder.svg", 18, 18));
     navFile.setMnemonic(java.awt.event.KeyEvent.VK_F);
     mainPanel.add(navFile);
-    navEdit = new SidebarItem("\u270F\uFE0F  " + _I("menuEdit") + "  \u25B8", null);
+    navEdit = new SidebarItem(_I("menuEdit") + "  \u25B8", null);
+    navEdit.setIcon(new FlatSVGIcon("icons/sidebar/pencil.svg", 18, 18));
     navEdit.setMnemonic(java.awt.event.KeyEvent.VK_E);
     mainPanel.add(navEdit);
     // Lime arrow on Ex\u00E9cuter only \u2014 the Run verb gets the brand color, no
     // decoration elsewhere. HTML lets us tint just the leading glyph.
-    navRun = new SidebarItem(
-        "<html><span style='color:#7DE356'>\u25B6</span>  " + _I("menuRun") + "  \u25B8</html>", null);
+    navRun = new SidebarItem(_I("menuRun") + "  \u25B8", null);
+    navRun.setIcon(new FlatSVGIcon("icons/sidebar/play.svg", 18, 18));
     navRun.setMnemonic(java.awt.event.KeyEvent.VK_R);
     mainPanel.add(navRun);
 
     // ── TOOLS section ──
     addSectionHeader(_I("sidebarSectionTools"));
-    navTools = new SidebarItem("\uD83D\uDD27  " + _I("menuTool") + "  \u25B8", null);
+    navTools = new SidebarItem(_I("menuTool") + "  \u25B8", null);
+    navTools.setIcon(new FlatSVGIcon("icons/sidebar/wrench.svg", 18, 18));
     navTools.setMnemonic(java.awt.event.KeyEvent.VK_T);
     mainPanel.add(navTools);
 
@@ -187,7 +191,8 @@ public class OculixSidebar extends JPanel {
 
     // ── HELP section ──
     addSectionHeader(_I("sidebarSectionHelp"));
-    navHelp = new SidebarItem("\u2753  " + _I("menuHelp") + "  \u25B8", null);
+    navHelp = new SidebarItem(_I("menuHelp") + "  \u25B8", null);
+    navHelp.setIcon(new FlatSVGIcon("icons/sidebar/circle-help.svg", 18, 18));
     navHelp.setMnemonic(java.awt.event.KeyEvent.VK_H);
     mainPanel.add(navHelp);
 
