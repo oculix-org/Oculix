@@ -133,24 +133,22 @@ public class OculixSidebar extends JPanel {
     // the result so locales whose translation didn't preserve the CAPS
     // (e.g. zh_CN, ja) still render the consistent kicker style.
     addSectionHeader(_I("sidebarSectionScript"));
-    navFile = new SidebarItem(_I("menuFile") + "  \u25B8", null);
+    navFile = new SidebarItem(_I("menuFile"), null);
     navFile.setIcon(new FlatSVGIcon("icons/sidebar/folder.svg", 18, 18));
     navFile.setMnemonic(java.awt.event.KeyEvent.VK_F);
     mainPanel.add(navFile);
-    navEdit = new SidebarItem(_I("menuEdit") + "  \u25B8", null);
+    navEdit = new SidebarItem(_I("menuEdit"), null);
     navEdit.setIcon(new FlatSVGIcon("icons/sidebar/pencil.svg", 18, 18));
     navEdit.setMnemonic(java.awt.event.KeyEvent.VK_E);
     mainPanel.add(navEdit);
-    // Lime arrow on Ex\u00E9cuter only \u2014 the Run verb gets the brand color, no
-    // decoration elsewhere. HTML lets us tint just the leading glyph.
-    navRun = new SidebarItem(_I("menuRun") + "  \u25B8", null);
+    navRun = new SidebarItem(_I("menuRun"), null);
     navRun.setIcon(new FlatSVGIcon("icons/sidebar/play.svg", 18, 18));
     navRun.setMnemonic(java.awt.event.KeyEvent.VK_R);
     mainPanel.add(navRun);
 
     // ── TOOLS section ──
     addSectionHeader(_I("sidebarSectionTools"));
-    navTools = new SidebarItem(_I("menuTool") + "  \u25B8", null);
+    navTools = new SidebarItem(_I("menuTool"), null);
     navTools.setIcon(new FlatSVGIcon("icons/sidebar/wrench.svg", 18, 18));
     navTools.setMnemonic(java.awt.event.KeyEvent.VK_T);
     mainPanel.add(navTools);
@@ -191,7 +189,7 @@ public class OculixSidebar extends JPanel {
 
     // ── HELP section ──
     addSectionHeader(_I("sidebarSectionHelp"));
-    navHelp = new SidebarItem(_I("menuHelp") + "  \u25B8", null);
+    navHelp = new SidebarItem(_I("menuHelp"), null);
     navHelp.setIcon(new FlatSVGIcon("icons/sidebar/circle-help.svg", 18, 18));
     navHelp.setMnemonic(java.awt.event.KeyEvent.VK_H);
     mainPanel.add(navHelp);
@@ -857,16 +855,24 @@ public class OculixSidebar extends JPanel {
 
       // Region grouping — keeps the top-level popup short and lets
       // users scan by language family instead of a flat 25-row list.
-      addRegionSubmenu(menu, itemFont, "🇪🇺  " + _I("languageRegionLatinEurope"),
+      // Region grouping. Each submenu carries an SVG icon (Apple Silicon
+      // Swing renders Unicode flag emojis as tofu; SVG bypasses the font
+      // fallback entirely).
+      addRegionSubmenu(menu, itemFont, _I("languageRegionLatinEurope"),
+          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
           "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR",
           "sv", "da", "ca");
-      addRegionSubmenu(menu, itemFont, "🇪🇺  " + _I("languageRegionSlavicEurope"),
+      addRegionSubmenu(menu, itemFont, _I("languageRegionSlavicEurope"),
+          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
           "pl", "ru", "uk", "bg", "tr");
-      addRegionSubmenu(menu, itemFont, "🌍  " + _I("languageRegionMiddleEast"),
+      addRegionSubmenu(menu, itemFont, _I("languageRegionMiddleEast"),
+          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
           "he", "ar");
-      addRegionSubmenu(menu, itemFont, "🌏  " + _I("languageRegionEastAsia"),
+      addRegionSubmenu(menu, itemFont, _I("languageRegionEastAsia"),
+          new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
           "ja", "ko", "zh", "zh_CN", "zh_TW");
-      addRegionSubmenu(menu, itemFont, "🇮🇳  " + _I("languageRegionIndianSubcontinent"),
+      addRegionSubmenu(menu, itemFont, _I("languageRegionIndianSubcontinent"),
+          new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
           "hi", "bn", "te", "ta", "ta_IN");
 
       // Allow selecting any AVAILABLE locale that wasn't covered above
@@ -880,11 +886,15 @@ public class OculixSidebar extends JPanel {
     }
 
     /** Build one sub-menu of locales picked by language code from
-     *  {@link #AVAILABLE}, with the active locale marked by a leading bullet. */
+     *  {@link #AVAILABLE}. The active locale is marked with bold + brand
+     *  green rather than a Unicode bullet (● renders as tofu on macOS
+     *  Apple Silicon Swing — same class as the emoji glyphs). */
     private void addRegionSubmenu(JPopupMenu parent, Font font,
-                                  String label, String... codes) {
+                                  String label, javax.swing.Icon icon,
+                                  String... codes) {
       JMenu region = new JMenu(label);
       region.setFont(font);
+      if (icon != null) region.setIcon(icon);
       java.util.Set<String> wanted = new java.util.HashSet<>(java.util.Arrays.asList(codes));
       for (java.util.Locale loc : AVAILABLE) {
         if (!wanted.contains(localeKey(loc))) continue;
@@ -898,8 +908,9 @@ public class OculixSidebar extends JPanel {
         boolean isActive = loc.equals(current)
             || (loc.getLanguage().equals(current.getLanguage())
                 && java.util.Objects.equals(loc.getCountry(), current.getCountry()));
-        JMenuItem item = new JMenuItem((isActive ? "● " : "    ") + displayLabel);
-        item.setFont(font);
+        JMenuItem item = new JMenuItem(displayLabel);
+        item.setFont(isActive ? font.deriveFont(Font.BOLD) : font);
+        if (isActive) item.setForeground(OculixColors.OX_LIME_400);
         final java.util.Locale picked = loc;
         item.addActionListener(e -> {
           if (onChange != null) onChange.accept(picked);
@@ -942,20 +953,29 @@ public class OculixSidebar extends JPanel {
         g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
       }
 
-      // Compose label: globe glyph + locale code (uppercase, ASCII-safe
-      // for typography consistency across locales) + a small ▾ caret to
-      // signal the popup affordance.
+      // Compose: SVG globe icon + locale code (uppercase, ASCII-safe).
+      // The former "🌐 + code + ▾" glyph string rendered as tofu on macOS
+      // Apple Silicon Swing; SVG bypasses the font fallback entirely.
       String code = current.getCountry().isEmpty()
           ? current.getLanguage().toUpperCase(java.util.Locale.ROOT)
           : current.getLanguage().toUpperCase(java.util.Locale.ROOT)
               + "-" + current.getCountry().toUpperCase(java.util.Locale.ROOT);
-      String label = "🌐  " + code + "  ▾";
 
       g2.setFont(applyTracking(OculixFonts.mono(10), 0.16f).deriveFont(Font.BOLD));
       FontMetrics fm = g2.getFontMetrics();
       g2.setColor(hover ? OculixColors.OX_INK_100 : OculixColors.OX_INK_300);
-      int textW = fm.stringWidth(label);
-      g2.drawString(label, (w - textW) / 2, h / 2 + fm.getAscent() / 2 - 2);
+
+      int iconSize = 14;
+      int iconGap = 6;
+      int textW = fm.stringWidth(code);
+      int totalW = iconSize + iconGap + textW;
+      int startX = (w - totalW) / 2;
+      int iconY = (h - iconSize) / 2;
+      int textY = h / 2 + fm.getAscent() / 2 - 2;
+
+      FlatSVGIcon globe = new FlatSVGIcon("icons/menu/globe-meridians.svg", iconSize, iconSize);
+      globe.paintIcon(this, g2, startX, iconY);
+      g2.drawString(code, startX + iconSize + iconGap, textY);
 
       g2.dispose();
     }
