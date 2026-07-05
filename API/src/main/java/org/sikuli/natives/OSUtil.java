@@ -57,5 +57,13 @@ public interface OSUtil {
 
 	OsProcess open(String[] cmd, String workDir);
 
+	// Overload with an explicit wait budget (seconds). Default routes to the
+	// timeout-agnostic signature above — implementations that shell out via
+	// launchers (WinUtil 'start', MacUtil 'open -a') override this to size
+	// their internal PID-lookup poll instead of using a hardcoded 3 s.
+	default OsProcess open(String[] cmd, String workDir, int waitSeconds) {
+		return open(cmd, workDir);
+	}
+
 	OsWindow getFocusedWindow();
 }

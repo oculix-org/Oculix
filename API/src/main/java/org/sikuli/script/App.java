@@ -444,7 +444,9 @@ public class App {
 
   private boolean openAndWait(int waitTime) {
     if (!isRunning(0)) {
-      process = osUtil.open(cmd.toStrings(), workDir);
+      // Pass waitTime down so WinUtil / MacUtil size their PID-lookup poll
+      // to the same budget the user asked for — no hidden 3 s ceiling.
+      process = osUtil.open(cmd.toStrings(), workDir, waitTime);
 
       if (process != null) {
         do {

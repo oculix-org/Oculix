@@ -6,8 +6,10 @@ package org.sikuli.natives;
 import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -25,19 +27,32 @@ public class MacUtil extends GenericOsUtil {
 
   @Override
   public OsProcess open(String[] cmd, String workDir) {
+    // Back-compat entry: callers who don't know about the wait budget get 3 s.
+    return open(cmd, workDir, 3);
+  }
+
+  @Override
+  public OsProcess open(String[] cmd, String workDir, int waitSeconds) {
     if (cmd == null || cmd.length == 0 || StringUtils.isBlank(cmd[0])) {
       return super.open(cmd, workDir);
     }
 
-    // Wrap with 'open -a <name> [--args ...]' so macOS resolves the target
-    // via LaunchServices (bundle name, display name, bundle identifier,
-    // aliases). Users can pass a short name like "Firefox" instead of the
-    // full path /Applications/Firefox.app/Contents/MacOS/firefox.
+    // 'open -a NAME' delegates resolution to LaunchServices (bundle name,
+    // display name, bundle identifier, aliases). It only returns a status,
+    // never the PID of the launched app — same design constraint that
+    // ShellExecuteEx solves on Windows. We compensate by snapshotting the
+    // PIDs already alive under this name BEFORE launch, then waiting for
+    // 'open' to hand off and picking the fresh PID that wasn't in the
+    // snapshot. Deterministic (delta identifies THE new instance), not the
+    // "any process with this name" lottery the previous poll played.
+    Set<Long> priorPids = findProcesses(cmd[0]).stream()
+            .map(OsProcess::getPid)
+            .collect(Collectors.toCollection(HashSet::new));
+
     String[] wrapped;
     if (cmd.length == 1) {
       wrapped = new String[] { "open", "-a", cmd[0] };
     } else {
-      // open -a NAME --args ARG1 ARG2 ...
       wrapped = new String[cmd.length + 3];
       wrapped[0] = "open";
       wrapped[1] = "-a";
@@ -51,18 +66,25 @@ public class MacUtil extends GenericOsUtil {
       if (StringUtils.isNotBlank(workDir)) {
         pb.directory(new File(workDir));
       }
-      pb.start();
+      Process openProc = pb.start();
+      int exit = openProc.waitFor();
+      if (exit != 0) {
+        // LaunchServices refused to resolve — genuine miss.
+        return super.open(cmd, workDir);
+      }
 
-      // 'open' returns before the target app process is fully up, so we poll
-      // findProcesses(cmd[0]) for up to 3 seconds to grab the real PID.
-      long deadline = System.currentTimeMillis() + 3000L;
+      // 'open' returned success, so LaunchServices has spawned the target.
+      // The kernel needs a beat to publish the new PID in ProcessHandle
+      // enumeration. Bounded poll on the DELTA against priorPids.
+      long deadline = System.currentTimeMillis() + Math.max(1, waitSeconds) * 1000L;
       while (System.currentTimeMillis() < deadline) {
-        List<OsProcess> found = findProcesses(cmd[0]);
-        if (!found.isEmpty()) {
-          return found.get(0);
+        for (OsProcess proc : findProcesses(cmd[0])) {
+          if (!priorPids.contains(proc.getPid())) {
+            return proc;
+          }
         }
         try {
-          Thread.sleep(100);
+          Thread.sleep(50);
         } catch (InterruptedException ie) {
           Thread.currentThread().interrupt();
           break;
@@ -72,8 +94,8 @@ public class MacUtil extends GenericOsUtil {
       System.out.println("[error] MacUtil.open (open -a wrapper):\n" + e.getMessage());
     }
 
-    // Fallback to direct ProcessBuilder spawn — handles absolute paths and
-    // edge cases where 'open' silently succeeded without a matching process.
+    // Absolute paths that skipped LaunchServices, or the app was
+    // single-instance and reused an existing PID (already in priorPids).
     return super.open(cmd, workDir);
   }
 

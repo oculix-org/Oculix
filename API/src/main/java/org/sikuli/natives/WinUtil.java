@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Shell32;
+import com.sun.jna.platform.win32.ShellAPI.SHELLEXECUTEINFO;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.DWORD;
 import com.sun.jna.platform.win32.WinDef.HWND;
@@ -107,53 +109,42 @@ public class WinUtil extends GenericOsUtil {
 
 	@Override
 	public OsProcess open(String[] cmd, String workDir) {
+		// Back-compat entry: callers who don't know about the wait budget get 3 s.
+		return open(cmd, workDir, 3);
+	}
+
+	@Override
+	public OsProcess open(String[] cmd, String workDir, int waitSeconds) {
 		if (cmd == null || cmd.length == 0 || StringUtils.isBlank(cmd[0])) {
 			return super.open(cmd, workDir);
 		}
 
-		// Wrap with 'cmd /c start "" <target> [args...]' so Windows resolves the
-		// target via the App Paths registry, PATH, and Start Menu shortcuts.
-		// Users can pass a short app name like "Firefox" instead of a full path.
-		// The empty "" is the window title placeholder required by 'start' syntax
-		// — otherwise start would interpret cmd[0] as the title.
-		String[] wrapped = new String[cmd.length + 4];
-		wrapped[0] = "cmd";
-		wrapped[1] = "/c";
-		wrapped[2] = "start";
-		wrapped[3] = "";
-		System.arraycopy(cmd, 0, wrapped, 4, cmd.length);
+		// Delegate to Windows' own ShellExecuteEx — the same API Explorer uses
+		// to launch things. It resolves the target via App Paths registry, PATH,
+		// .lnk files, and default verbs, and returns hProcess directly. No 'cmd
+		// /c start' quoting land-mines (JDK-6518827 drops empty title placeholders
+		// on ProcessBuilder) and no "poll allProcesses and hope" band-aid.
+		SHELLEXECUTEINFO info = new SHELLEXECUTEINFO();
+		info.fMask = 0x00000040; // SEE_MASK_NOCLOSEPROCESS — keep hProcess alive
+		info.lpFile = cmd[0];
+		if (cmd.length > 1) {
+			info.lpParameters = String.join(" ", Arrays.copyOfRange(cmd, 1, cmd.length));
+		}
+		if (StringUtils.isNotBlank(workDir)) {
+			info.lpDirectory = workDir;
+		}
+		info.nShow = WinUser.SW_SHOWDEFAULT;
 
-		try {
-			ProcessBuilder pb = new ProcessBuilder(wrapped);
-			if (StringUtils.isNotBlank(workDir)) {
-				pb.directory(new File(workDir));
-			}
-			pb.start();
-
-			// 'start' shells out and returns immediately, so the real app PID must
-			// be looked up separately. Poll allProcesses() for up to 3 seconds
-			// looking for a process whose base name matches cmd[0].
-			long deadline = System.currentTimeMillis() + 3000L;
-			while (System.currentTimeMillis() < deadline) {
-				List<OsProcess> found = findProcesses(cmd[0]);
-				if (!found.isEmpty()) {
-					return found.get(0);
-				}
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException ie) {
-					Thread.currentThread().interrupt();
-					break;
-				}
-			}
-		} catch (Exception e) {
-			System.out.println("[error] WinUtil.open (start wrapper):\n" + e.getMessage());
+		if (!Shell32.INSTANCE.ShellExecuteEx(info) || info.hProcess == null) {
+			// DDE-only apps, UWP single-instance where the shell reused an
+			// existing process, or genuine miss — fall back to POSIX-style spawn.
+			return super.open(cmd, workDir);
 		}
 
-		// Fallback to direct ProcessBuilder spawn: handles absolute paths and
-		// any case where 'start' silently succeeded but no matching process
-		// showed up within the polling window.
-		return super.open(cmd, workDir);
+		int pid = Kernel32.INSTANCE.GetProcessId(info.hProcess);
+		return ProcessHandle.of(pid)
+				.map(h -> (OsProcess) new GenericOsProcess(h))
+				.orElse(null);
 	}
 
 	@Override
