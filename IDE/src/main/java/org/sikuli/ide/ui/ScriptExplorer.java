@@ -4,6 +4,7 @@
 package org.sikuli.ide.ui;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import net.miginfocom.swing.MigLayout;
 
 import static org.sikuli.support.ide.SikuliIDEI18N._I;
@@ -70,7 +71,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     scrollPane.getViewport().setOpaque(false);
 
     // Empty state
-    emptyLabel = new JLabel("<html><center>No scripts open<br><br><span style='font-size:9px'>Use File \u25B8 New<br>to create a script</span></center></html>");
+    emptyLabel = new JLabel("<html><center>No scripts open<br><br><span style='font-size:9px'>Use File &gt; New<br>to create a script</span></center></html>");
     emptyLabel.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
     emptyLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
     emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -230,14 +231,16 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     }
 
     void updateInfo(ScriptInfo info) {
-      nameLabel.setText("\uD83D\uDCC4 " + info.name);
+      nameLabel.setIcon(new FlatSVGIcon("icons/menu/page.svg", 14, 14));
+      nameLabel.setText(info.name);
       nameLabel.setToolTipText(info.path);
 
       if (info.saved) {
-        statusLabel.setText("\u2713");
-        statusLabel.setForeground(new Color(0x3D, 0xDB, 0xA4));
+        statusLabel.setIcon(new FlatSVGIcon("icons/menu/check.svg", 12, 12));
+        statusLabel.setText("");
         statusLabel.setToolTipText("Saved");
       } else {
+        statusLabel.setIcon(null);
         statusLabel.setText("*");
         statusLabel.setForeground(new Color(0xFF, 0xAA, 0x33));
         statusLabel.setToolTipText(_I("workspaceCardUnsaved"));
@@ -246,7 +249,8 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
       String imgText = info.imageCount + " " + (info.imageCount != 1
           ? _I("workspaceCardImagesPlural")
           : _I("workspaceCardImagesSingular"));
-      infoLabel.setText("\uD83D\uDDBC " + imgText);
+      infoLabel.setIcon(new FlatSVGIcon("icons/menu/picture.svg", 12, 12));
+      infoLabel.setText(imgText);
     }
 
     void setActive(boolean active) {
