@@ -3,12 +3,14 @@
  */
 package org.sikuli.mcp.server;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.sikuli.mcp.audit.JournalWriter;
 import org.sikuli.mcp.crypto.Hashing;
 import org.sikuli.mcp.gate.ActionGate;
 import org.sikuli.mcp.gate.GateDecision;
 import org.sikuli.mcp.tools.ScreenLock;
+import org.sikuli.mcp.tools.SubstitutionVault;
 import org.sikuli.mcp.tools.Tool;
 import org.sikuli.mcp.tools.ToolRegistry;
 
@@ -104,12 +106,13 @@ public final class McpDispatcher {
       return JsonRpc.error(id, JsonRpc.INVALID_REQUEST, "Missing 'method'");
     }
 
-    // Any tools/* call before initialize must be rejected — it used to
-    // slip through under a random UUID minted by SessionContext.empty(),
-    // which polluted the audit journal with phantom sessions that never
-    // existed at the protocol level. initialize, ping and notifications
+    // Any tools/* or vault/* call before initialize must be rejected —
+    // tools/* used to slip through under a random UUID minted by
+    // SessionContext.empty(), and vault/* would leak into a phantom
+    // session with no lifecycle. initialize, ping and notifications
     // are always allowed (ping = heartbeat, notifications are one-way).
-    if (method.startsWith("tools/") && !handle.get().initialized) {
+    if ((method.startsWith("tools/") || method.startsWith("vault/"))
+        && !handle.get().initialized) {
       return JsonRpc.error(id, JsonRpc.INVALID_REQUEST,
           "Call " + method + " received before initialize; "
           + "call initialize first per MCP protocol.");
@@ -127,6 +130,8 @@ public final class McpDispatcher {
         return JsonRpc.result(id, new JSONObject().put("tools", tools.listAsJson()));
       case "tools/call":
         return handleToolsCall(id, params, handle);
+      case "vault/wrap":
+        return handleVaultWrap(id, params, handle);
       default:
         if (method.startsWith("notifications/")) return null;
         return JsonRpc.error(id, JsonRpc.METHOD_NOT_FOUND, "Unknown method: " + method);
@@ -204,10 +209,16 @@ public final class McpDispatcher {
       return JsonRpc.result(id, denied);
     }
 
+    // Resolve vault tokens (info1, info2, ...) into real values at the
+    // very last moment. The tool sees the real value; the journal (below)
+    // still logs the pre-resolve args so tokens — not secrets — end up
+    // signed on disk.
+    JSONObject resolvedArgs = resolveVaultTokens(args, handle.vault());
+
     JSONObject result;
     screenLock.lock();
     try {
-      result = tool.call(args);
+      result = tool.call(resolvedArgs);
     } catch (Exception e) {
       result = Tool.errorResult(e.getClass().getSimpleName() + ": " + e.getMessage());
     } finally {
@@ -216,6 +227,62 @@ public final class McpDispatcher {
 
     auditSafely(handle.get(), toolName, args, result);
     return JsonRpc.result(id, result);
+  }
+
+  /**
+   * Handle a {@code vault/wrap} JSON-RPC request. The client (a data-
+   * driven test harness) passes a real value that must never enter the
+   * LLM. The server stores it in the session-scoped vault and returns
+   * the opaque token the harness will inject into the LLM prompt
+   * instead. See {@link SubstitutionVault} for the threat model.
+   */
+  private JSONObject handleVaultWrap(Object id, JSONObject params, SessionHandle handle) {
+    if (!params.has("value")) {
+      return JsonRpc.error(id, JsonRpc.INVALID_PARAMS,
+          "vault/wrap requires params.value");
+    }
+    Object raw = params.opt("value");
+    if (raw == null || raw == JSONObject.NULL) {
+      return JsonRpc.error(id, JsonRpc.INVALID_PARAMS,
+          "vault/wrap params.value must not be null");
+    }
+    String token = handle.vault().wrap(raw.toString());
+    return JsonRpc.result(id, new JSONObject().put("token", token));
+  }
+
+  /**
+   * Deep-walk {@code args} and substitute any string that is a
+   * registered vault token with its real value. Non-string leaves and
+   * unregistered strings pass through unchanged. Returns a fresh
+   * {@link JSONObject} — the input is not mutated so the journal can
+   * still log the pre-resolve form.
+   */
+  static JSONObject resolveVaultTokens(JSONObject args, SubstitutionVault vault) {
+    if (args == null || vault == null) return args;
+    JSONObject out = new JSONObject();
+    for (String key : args.keySet()) {
+      out.put(key, resolveOne(args.opt(key), vault));
+    }
+    return out;
+  }
+
+  private static Object resolveOne(Object val, SubstitutionVault vault) {
+    if (val instanceof String) {
+      String s = (String) val;
+      return vault.isKnownToken(s) ? vault.resolve(s) : s;
+    }
+    if (val instanceof JSONObject) {
+      return resolveVaultTokens((JSONObject) val, vault);
+    }
+    if (val instanceof JSONArray) {
+      JSONArray in = (JSONArray) val;
+      JSONArray outArr = new JSONArray();
+      for (int i = 0; i < in.length(); i++) {
+        outArr.put(resolveOne(in.opt(i), vault));
+      }
+      return outArr;
+    }
+    return val;
   }
 
   private void auditSafely(SessionContext session, String toolName,
