@@ -90,7 +90,13 @@ Restart Claude Desktop. The nine OculiX tools should now appear in the model's t
 java -jar oculix-mcp-server.jar verify
 ```
 
-Walks every `audit-*.jsonl` file in `~/.oculix-mcp/journal/`, re-computes hashes, verifies signatures, and checks chain continuity. Outputs `OK` / `FAIL` per file.
+Runs a full chain sweep by default: every `audit-*.jsonl` in `~/.oculix-mcp/journal/` is checked per-file (entry hashes recomputed, Ed25519 signatures verified, `seq` and `prev_hash` chained), cross-file rotation links are resolved by hash lookup (not filename order), file heads must start at genesis or at a resolved `rotation_begin`, and the signed high-water-mark anchor at `~/.oculix-mcp/journal.hwm` is confronted to catch tail truncation.
+
+Exit codes are deterministic: `0` clean, `2` soft warning (anchor lags queue after a write-then-crash), `1` hard fail (tamper, truncation, orphan file, unresolved cross-file link). Precedence is `1 > 2 > 0` — the ordering of files in the report never changes the exit code.
+
+Use `verify --per-file` for the legacy single-file mode (or pass explicit paths). Handy when debugging one file in isolation, or in Phase 1 for files signed by an archived key: `verify` under the current key only.
+
+See [Verify: chain mode and coverage](#verify-chain-mode-and-coverage) below for the exact list of attacks that are detected and the ones that are not.
 
 ---
 
@@ -129,7 +135,11 @@ oculix-mcp serve [flags]          Start over HTTP (Streamable HTTP)
 oculix-mcp rotate-key             Rotate the Ed25519 audit signing key
 oculix-mcp rotate-session-key     Rotate the HMAC keyring for session tokens
 oculix-mcp recover                Record an unsigned-gap and start a fresh chain
-oculix-mcp verify [FILES...]      Verify audit journals (all by default)
+oculix-mcp verify [--per-file] [FILES...]
+                                  Default: full chain verification with anchor
+                                  --per-file: legacy single-file mode
+                                  Named FILES imply per-file mode
+                                  Exit codes: 0 clean, 2 warn (soft), 1 fail
 oculix-mcp --help                 Show usage
 ```
 
@@ -156,7 +166,46 @@ If the private key is genuinely lost (disk failure, operator error) and the chai
 oculix-mcp recover
 ```
 
-This writes an `UNSIGNED_GAP` marker and starts a fresh chain under a new key. The discontinuity is explicit and visible to `verify`.
+The command wipes the key files, generates a fresh Ed25519 pair, and writes a signed `RECOVERY_GAP` entry as the first line of a new `audit-*.jsonl` under the new key. The entry's `prev_hash` is forced back to genesis so the chain verifier identifies it as a legitimate fresh start. The high-water-mark anchor is re-signed under the new key at the same time.
+
+A human-readable `UNSIGNED_GAP-*.txt` artefact is left in the journal directory for operators skimming with a file browser, but the verifier ignores it entirely — the anchor of trust is the signed `RECOVERY_GAP` entry, not a plain text file. This matters: if the verifier honoured `.txt` markers, an attacker with write access to the journal directory could delete an `audit-*.jsonl` and drop a fake `.txt` to explain the gap. Trusting only the signed entry keeps the level of proof at "control of the private key".
+
+### Verify: chain mode and coverage
+
+The default `verify` runs a full sweep across the journal directory plus a confrontation with a signed high-water-mark anchor. Four passes plus an anchor check:
+
+1. **Per-file** — every `audit-*.jsonl` is checked line by line: entry hash recomputed, Ed25519 signature verified, `seq` monotonic, `prev_hash` chained, `ts_utc` monotonic.
+2. **Index** — every `rotation_end` entry's `entry_hash` is indexed into a map. This is the source of truth for chain order, not filename order: `openNewFile` suffixes millisecond collisions with `-1`, `-2`, and lexicographic order places `audit-...-000-1.jsonl` before `audit-...-000.jsonl` even though the suffixed file was created later. The hash chain does not lie.
+3. **Resolve** — every `rotation_begin` entry's `previous_marker_hash` is resolved against the index. A missing predecessor surfaces here as an unresolvable reference.
+4. **Genesis-anchored heads** — any file whose first entry has `prev_hash != genesis` and whose type is not `rotation_begin` is orphaned (attacker-injected, or predecessor missing). Legitimate starts are the very first file, a post-`recover` file (whose first entry is a `RECOVERY_GAP` at genesis), and a rotation successor whose predecessor was resolved above.
+
+The high-water-mark anchor lives at `~/.oculix-mcp/journal.hwm`, outside the journal directory so a cosmetic wipe of `journal/` leaves it behind. It is signed by the current key and holds `{last_entry_hash, last_seq, last_file, last_ts_utc}` — all four fields under the signature, including `last_file` (a rename must invalidate the anchor, otherwise a verifier resolving `last_file` → path could be misled without any signature failure to flag it). Every write to the journal updates the anchor; every key rotation or recovery re-signs it under the new key.
+
+Coverage:
+
+| Attack | Detected by |
+|---|---|
+| Modify an entry inside a file | Per-file entry hash + Ed25519 signature |
+| Delete an entry mid-file | Per-file `prev_hash` chain |
+| Delete a file in the middle of the directory | Cross-file `rotation_end`/`rotation_begin` hash resolution |
+| Rewrite a `rotation_begin.previous_marker_hash` | Same, plus per-file entry hash |
+| Inject an orphan `audit-*.jsonl` | Genesis-anchored head check |
+| Delete the last `audit-*.jsonl` file(s) | Signed anchor references a file that no longer exists |
+| Wipe of `journal/` alone | Anchor lives in `oculixDir`, references a missing file |
+| Rename `last_file` in the anchor | `last_file` sits under the anchor's signature |
+| Drop a fake `UNSIGNED_GAP-*.txt` to explain a deletion | Verifier ignores `.txt` entirely; only signed `RECOVERY_GAP` entries count |
+| Wipe of the whole `oculixDir` (key + journal + anchor) | Not detected in Phase 1 — Phase 2 issue tracks an external anchor (other volume, syslog forward, notary) |
+| Attacker with the private key | Not detectable by design — this is the security boundary the anchor and chain both rely on |
+
+Exit codes:
+
+| Code | Level | Meaning |
+|---|---|---|
+| `0` | OK | Chain intact, anchor agrees |
+| `2` | WARN | Soft deviation: anchor lags actual queue (write reached disk, anchor update crashed) — chain itself intact |
+| `1` | FAIL | Tamper, truncation, orphan, or unresolved cross-file link |
+
+Precedence is `1 > 2 > 0` — the ordering of files in the report never changes the exit code.
 
 ---
 
