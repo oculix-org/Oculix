@@ -622,7 +622,7 @@ public class SikulixIDE extends JFrame {
     int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 
     // ── Nouveau ──
-    JMenuItem newHeader = new JMenuItem("\u2500\u2500 " + _I("menuFileNew") + " \u2500\u2500");
+    JMenuItem newHeader = new JMenuItem("-- " + _I("menuFileNew") + " --");
     newHeader.setEnabled(false);
     newHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(newHeader);
@@ -635,7 +635,7 @@ public class SikulixIDE extends JFrame {
         null, e -> openNewWorkspaceDialog());
 
     // ── Ouvrir ──
-    JMenuItem openHeader = new JMenuItem("\u2500\u2500 " + _I("menuFileOpen") + " \u2500\u2500");
+    JMenuItem openHeader = new JMenuItem("-- " + _I("menuFileOpen") + " --");
     openHeader.setEnabled(false);
     openHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(openHeader);
@@ -2732,7 +2732,7 @@ public class SikulixIDE extends JFrame {
 
   /** Creates a disabled menu item used as a section header label. */
   JMenuItem createSectionLabel(String text) {
-    JMenuItem label = new JMenuItem("── " + text + " ──");
+    JMenuItem label = new JMenuItem("-- " + text + " --");
     label.setEnabled(false);
     label.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     return label;
@@ -4164,7 +4164,7 @@ public class SikulixIDE extends JFrame {
           resetErrorMark();
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
           doBeforeRun();
-          Debug.info(String.format("──────── Run started @ %s ──── %s ────", runStamp, contextName));
+          Debug.info(String.format("-------- Run started @ %s ---- %s ----", runStamp, contextName));
 
           long runStart = System.currentTimeMillis();
 
