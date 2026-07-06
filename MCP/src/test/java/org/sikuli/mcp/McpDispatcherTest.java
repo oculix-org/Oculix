@@ -77,14 +77,90 @@ class McpDispatcherTest {
     ToolRegistry r = new ToolRegistry();
     r.register(new EchoTool());
     McpDispatcher d = mkDispatcher(dir, r, new AutoApproveGate());
+    SessionHandle h = new SessionHandle();
 
-    JSONObject req = new JSONObject()
-        .put("jsonrpc", "2.0").put("id", 2).put("method", "tools/list");
-    JSONObject resp = d.dispatch(req, new SessionHandle());
+    // MCP protocol: initialize must precede tools/list.
+    d.dispatch(new JSONObject()
+        .put("jsonrpc", "2.0").put("id", 1).put("method", "initialize"), h);
+
+    JSONObject resp = d.dispatch(new JSONObject()
+        .put("jsonrpc", "2.0").put("id", 2).put("method", "tools/list"), h);
 
     JSONArray tools = resp.getJSONObject("result").getJSONArray("tools");
     assertEquals(1, tools.length());
     assertEquals("echo", tools.getJSONObject(0).getString("name"));
+  }
+
+  @Test
+  void toolsCallBeforeInitializeIsRejected(@TempDir Path dir) throws Exception {
+    ToolRegistry r = new ToolRegistry();
+    r.register(new EchoTool());
+    McpDispatcher d = mkDispatcher(dir, r, new AutoApproveGate());
+
+    JSONObject req = new JSONObject()
+        .put("jsonrpc", "2.0").put("id", 1).put("method", "tools/call")
+        .put("params", new JSONObject().put("name", "echo"));
+    JSONObject resp = d.dispatch(req, new SessionHandle());
+
+    assertTrue(resp.has("error"), () -> "Expected error, got: " + resp);
+    assertEquals(JsonRpc.INVALID_REQUEST,
+        resp.getJSONObject("error").getInt("code"));
+  }
+
+  @Test
+  void toolsListBeforeInitializeIsRejected(@TempDir Path dir) throws Exception {
+    ToolRegistry r = new ToolRegistry();
+    r.register(new EchoTool());
+    McpDispatcher d = mkDispatcher(dir, r, new AutoApproveGate());
+
+    JSONObject req = new JSONObject()
+        .put("jsonrpc", "2.0").put("id", 1).put("method", "tools/list");
+    JSONObject resp = d.dispatch(req, new SessionHandle());
+
+    assertTrue(resp.has("error"));
+    assertEquals(JsonRpc.INVALID_REQUEST,
+        resp.getJSONObject("error").getInt("code"));
+  }
+
+  @Test
+  void pingBeforeInitializeIsAllowed(@TempDir Path dir) throws Exception {
+    McpDispatcher d = mkDispatcher(dir, new ToolRegistry(), new AutoApproveGate());
+    JSONObject req = new JSONObject()
+        .put("jsonrpc", "2.0").put("id", 1).put("method", "ping");
+    JSONObject resp = d.dispatch(req, new SessionHandle());
+    assertTrue(resp.has("result"), () -> "Ping should be allowed pre-initialize: " + resp);
+  }
+
+  @Test
+  void protocolVersionNegotiation_echoesSupported() {
+    assertEquals(McpDispatcher.PROTOCOL_VERSION,
+        McpDispatcher.negotiateProtocolVersion(McpDispatcher.PROTOCOL_VERSION));
+  }
+
+  @Test
+  void protocolVersionNegotiation_fallsBackOnUnknown() {
+    // Unknown proposal → we respond with our canonical version and log a warn.
+    assertEquals(McpDispatcher.PROTOCOL_VERSION,
+        McpDispatcher.negotiateProtocolVersion("9999-12-31"));
+  }
+
+  @Test
+  void protocolVersionNegotiation_handlesMissingProposal() {
+    assertEquals(McpDispatcher.PROTOCOL_VERSION,
+        McpDispatcher.negotiateProtocolVersion(null));
+    assertEquals(McpDispatcher.PROTOCOL_VERSION,
+        McpDispatcher.negotiateProtocolVersion(""));
+  }
+
+  @Test
+  void serverVersionSourcedDynamically() {
+    // In test mode (no jar), we hit the dev sentinel. In a packaged jar,
+    // pom.properties provides the real Maven version. Both are non-blank
+    // and never the hard-coded 3.0.1 that used to lie.
+    assertNotNull(McpDispatcher.SERVER_VERSION);
+    assertFalse(McpDispatcher.SERVER_VERSION.isBlank());
+    assertNotEquals("3.0.1", McpDispatcher.SERVER_VERSION,
+        "SERVER_VERSION must not be the hard-coded 3.0.1 sentinel any more");
   }
 
   @Test
