@@ -12,6 +12,9 @@ import org.sikuli.mcp.tools.ScreenLock;
 import org.sikuli.mcp.tools.Tool;
 import org.sikuli.mcp.tools.ToolRegistry;
 
+import java.io.InputStream;
+import java.util.Properties;
+
 /**
  * Transport-agnostic dispatcher for MCP JSON-RPC messages.
  *
@@ -31,7 +34,35 @@ public final class McpDispatcher {
 
   public static final String PROTOCOL_VERSION = "2024-11-05";
   public static final String SERVER_NAME = "oculix-mcp-server";
-  public static final String SERVER_VERSION = "3.0.1";
+  /**
+   * Runtime-detected server version, sourced from the Maven-generated
+   * {@code META-INF/maven/.../pom.properties} that ships in every jar
+   * (falls back to the JAR manifest's {@code Implementation-Version},
+   * then to a dev sentinel). Prevents the class from drifting away
+   * from the pom version by hand-editing.
+   */
+  public static final String SERVER_VERSION = detectServerVersion();
+
+  static String detectServerVersion() {
+    // 1. Maven auto-generated pom.properties (present in every packaged jar)
+    try (InputStream in = McpDispatcher.class.getResourceAsStream(
+        "/META-INF/maven/io.github.oculix-org/oculixmcp/pom.properties")) {
+      if (in != null) {
+        Properties p = new Properties();
+        p.load(in);
+        String v = p.getProperty("version");
+        if (v != null && !v.isBlank()) return v;
+      }
+    } catch (Exception ignored) { }
+    // 2. Manifest Implementation-Version (also present in every jar)
+    Package pkg = McpDispatcher.class.getPackage();
+    if (pkg != null) {
+      String v = pkg.getImplementationVersion();
+      if (v != null && !v.isBlank()) return v;
+    }
+    // 3. Dev/test sentinel
+    return "0.0.0-dev";
+  }
 
   private final ToolRegistry tools;
   private final ActionGate gate;
@@ -73,6 +104,17 @@ public final class McpDispatcher {
       return JsonRpc.error(id, JsonRpc.INVALID_REQUEST, "Missing 'method'");
     }
 
+    // Any tools/* call before initialize must be rejected — it used to
+    // slip through under a random UUID minted by SessionContext.empty(),
+    // which polluted the audit journal with phantom sessions that never
+    // existed at the protocol level. initialize, ping and notifications
+    // are always allowed (ping = heartbeat, notifications are one-way).
+    if (method.startsWith("tools/") && !handle.get().initialized) {
+      return JsonRpc.error(id, JsonRpc.INVALID_REQUEST,
+          "Call " + method + " received before initialize; "
+          + "call initialize first per MCP protocol.");
+    }
+
     switch (method) {
       case "initialize":
         return handleInitialize(id, params, handle);
@@ -95,8 +137,15 @@ public final class McpDispatcher {
     JSONObject clientInfo = params.optJSONObject("clientInfo");
     handle.set(SessionContext.newSession(clientInfo, extractLlmInfo(params)));
 
+    // Protocol version negotiation: honour the client's proposal if we
+    // support it, otherwise fall back to our own and warn so the operator
+    // sees the mismatch. Silent divergence is the silent failure this
+    // fix removes.
+    String clientProposed = params.optString("protocolVersion", null);
+    String negotiated = negotiateProtocolVersion(clientProposed);
+
     JSONObject result = new JSONObject()
-        .put("protocolVersion", PROTOCOL_VERSION)
+        .put("protocolVersion", negotiated)
         .put("serverInfo", new JSONObject()
             .put("name", SERVER_NAME)
             .put("version", SERVER_VERSION))
@@ -104,6 +153,29 @@ public final class McpDispatcher {
             .put("tools", new JSONObject()));
     return JsonRpc.result(id, result);
   }
+
+  /**
+   * Return the version to advertise back to the client. If the client
+   * proposed one we support, we echo it back (that is what MCP clients
+   * expect for the negotiated response). Otherwise fall back to our
+   * canonical version and log a warning to stderr so operators see the
+   * skew instead of it happening silently.
+   */
+  public static String negotiateProtocolVersion(String clientProposed) {
+    if (clientProposed == null || clientProposed.isBlank()) {
+      return PROTOCOL_VERSION;
+    }
+    for (String supported : SUPPORTED_PROTOCOL_VERSIONS) {
+      if (supported.equals(clientProposed)) return clientProposed;
+    }
+    System.err.println("[oculix-mcp] WARN: client proposed protocolVersion=\""
+        + clientProposed + "\" which we do not support; responding with \""
+        + PROTOCOL_VERSION + "\". A future MCP client bump may need this "
+        + "server updated.");
+    return PROTOCOL_VERSION;
+  }
+
+  private static final String[] SUPPORTED_PROTOCOL_VERSIONS = { PROTOCOL_VERSION };
 
   private JSONObject handleToolsCall(Object id, JSONObject params, SessionHandle handle) {
     String toolName = params.optString("name", null);
