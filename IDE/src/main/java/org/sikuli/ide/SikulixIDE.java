@@ -3,6 +3,7 @@
  */
 package org.sikuli.ide;
 
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.sikuli.basics.*;
@@ -621,26 +622,30 @@ public class SikulixIDE extends JFrame {
     int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 
     // ── Nouveau ──
-    JMenuItem newHeader = new JMenuItem("\u2500\u2500 " + _I("menuFileNew") + " \u2500\u2500");
+    JMenuItem newHeader = new JMenuItem(_I("menuFileNew"));
     newHeader.setEnabled(false);
     newHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(newHeader);
-    sub.addItem("\uD83D\uDCC4  " + _I("cmdScript"),
+    sub.addItem(_I("cmdScript"),
+        new FlatSVGIcon("icons/menu/page.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
         e -> { createEmptyScriptContext(); });
-    sub.addItem("\uD83D\uDCC1  " + _I("cmdWorkspace"), null,
-        e -> openNewWorkspaceDialog());
+    sub.addItem(_I("cmdWorkspace"),
+        new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
+        null, e -> openNewWorkspaceDialog());
 
     // ── Ouvrir ──
-    JMenuItem openHeader = new JMenuItem("\u2500\u2500 " + _I("menuFileOpen") + " \u2500\u2500");
+    JMenuItem openHeader = new JMenuItem(_I("menuFileOpen"));
     openHeader.setEnabled(false);
     openHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(openHeader);
-    sub.addItem("\uD83D\uDCC4  " + _I("cmdScript"),
+    sub.addItem(_I("cmdScript"),
+        new FlatSVGIcon("icons/menu/page.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
         e -> { File f = selectFileToOpen(); if (f != null) createFileContext(f); });
-    sub.addItem("\uD83D\uDCC1  " + _I("cmdWorkspace"), null,
-        e -> openExistingWorkspace());
+    sub.addItem(_I("cmdWorkspace"),
+        new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
+        null, e -> openExistingWorkspace());
 
     sub.addSeparator();
 
@@ -680,14 +685,17 @@ public class SikulixIDE extends JFrame {
   private SidebarSubmenu buildRunSubmenu() {
     SidebarSubmenu sub = new SidebarSubmenu();
     int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-    scriptDependentItems.add(sub.addItem("\u25B6  " + _I("menuRunRun"),
+    scriptDependentItems.add(sub.addItem(_I("menuRunRun"),
+        new FlatSVGIcon("icons/sidebar/play.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, scMask),
         e -> btnRun.runCurrentScript()));
-    scriptDependentItems.add(sub.addItem("\u25B6  " + _I("menuRunRunAndShowActions"),
+    scriptDependentItems.add(sub.addItem(_I("menuRunRunAndShowActions"),
+        new FlatSVGIcon("icons/sidebar/play.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.ALT_DOWN_MASK | scMask),
         e -> btnRunSlow.runCurrentScript()));
     sub.addSeparator();
-    scriptDependentItems.add(sub.addItem("\u25B6  " + _I("menuRunRunSelection"),
+    scriptDependentItems.add(sub.addItem(_I("menuRunRunSelection"),
+        new FlatSVGIcon("icons/sidebar/play.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> getCurrentCodePane().runSelection()));
     return sub;
@@ -695,17 +703,21 @@ public class SikulixIDE extends JFrame {
 
   private SidebarSubmenu buildToolsSubmenu() {
     SidebarSubmenu sub = new SidebarSubmenu();
-    scriptDependentItems.add(sub.addItem("\uD83D\uDCF7  " + _I("menuToolCapture"), null,
+    scriptDependentItems.add(sub.addItem(_I("menuToolCapture"),
+        new FlatSVGIcon("icons/menu/camera.svg", 16, 16), null,
         e -> btnCapture.captureWithAutoDelay()));
     // Ins\u00E9rer image \u2014 picks a PNG/JPG from disk, copies it to the script
     // bundle and inserts the matching code. Same action class as the legacy
     // toolbar button. Auto-disabled when no script is open via
     // scriptDependentItems \u2192 no NPE on getActiveContext().getPane().
-    scriptDependentItems.add(sub.addItem("\uD83D\uDDBC\uFE0F  " + _I("btnInsertImageLabel"), null,
+    scriptDependentItems.add(sub.addItem(_I("btnInsertImageLabel"),
+        new FlatSVGIcon("icons/menu/picture.svg", 16, 16), null,
         e -> btnInsertImage.actionPerformed(e)));
-    scriptDependentItems.add(sub.addItem("\uD83D\uDD34  " + _I("menuToolRecord"), null,
+    scriptDependentItems.add(sub.addItem(_I("menuToolRecord"),
+        new FlatSVGIcon("icons/menu/red-dot.svg", 16, 16), null,
         e -> btnRecord.actionPerformed(e)));
-    scriptDependentItems.add(sub.addItem("\uD83D\uDFE2  " + _I("menuToolModernRecorder"), null,
+    scriptDependentItems.add(sub.addItem(_I("menuToolModernRecorder"),
+        new FlatSVGIcon("icons/menu/green-dot.svg", 16, 16), null,
         e -> {
           org.sikuli.ide.ui.recorder.RecorderConfigDialog config =
               new org.sikuli.ide.ui.recorder.RecorderConfigDialog(SikulixIDE.this);
@@ -2712,9 +2724,15 @@ public class SikulixIDE extends JFrame {
     return createMenuItem(item, shortcut, listener);
   }
 
+  JMenuItem createMenuItem(String name, Icon icon, KeyStroke shortcut, ActionListener listener) {
+    JMenuItem item = createMenuItem(name, shortcut, listener);
+    if (icon != null) item.setIcon(icon);
+    return item;
+  }
+
   /** Creates a disabled menu item used as a section header label. */
   JMenuItem createSectionLabel(String text) {
-    JMenuItem label = new JMenuItem("── " + text + " ──");
+    JMenuItem label = new JMenuItem(text);
     label.setEnabled(false);
     label.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     return label;
@@ -2783,19 +2801,23 @@ public class SikulixIDE extends JFrame {
 
     // ── Nouveau ──
     _fileMenu.add(createSectionLabel(_I("menuFileNew")));
-    _fileMenu.add(createMenuItem("\uD83D\uDCC4  Script",
+    _fileMenu.add(createMenuItem("Script",
+            new FlatSVGIcon("icons/menu/page.svg", 16, 16),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
             new FileAction(FileAction.NEW)));
-    _fileMenu.add(createMenuItem("\uD83D\uDCC1  Workspace",
+    _fileMenu.add(createMenuItem("Workspace",
+            new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
             null,
             e -> openNewWorkspaceDialog()));
 
     // ── Ouvrir ──
     _fileMenu.add(createSectionLabel(_I("menuFileOpen")));
-    _fileMenu.add(createMenuItem("\uD83D\uDCC4  Script",
+    _fileMenu.add(createMenuItem("Script",
+            new FlatSVGIcon("icons/menu/page.svg", 16, 16),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
             new FileAction(FileAction.OPEN)));
-    _fileMenu.add(createMenuItem("\uD83D\uDCC1  Workspace",
+    _fileMenu.add(createMenuItem("Workspace",
+            new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
             null,
             e -> openExistingWorkspace()));
 
@@ -4142,7 +4164,7 @@ public class SikulixIDE extends JFrame {
           resetErrorMark();
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
           doBeforeRun();
-          Debug.info(String.format("──────── Run started @ %s ──── %s ────", runStamp, contextName));
+          Debug.info(String.format("-------- Run started @ %s ---- %s ----", runStamp, contextName));
 
           long runStart = System.currentTimeMillis();
 

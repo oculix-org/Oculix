@@ -146,14 +146,14 @@ public class WelcomeTab extends JPanel {
     JPanel primaryCtas = new JPanel(new MigLayout("insets 0, gap 10", "[]10[]push"));
     primaryCtas.setOpaque(false);
     primaryCtas.add(new HeroButton("+  " + _I("welcomeBtnNewScript"), "Ctrl+N", true, onNew));
-    primaryCtas.add(new HeroButton("↗  " + _I("welcomeBtnOpenScript"), "Ctrl+O", false, onOpen));
+    primaryCtas.add(new HeroButton(_I("welcomeBtnOpenScript"), "Ctrl+O", false, onOpen));
     column.add(primaryCtas, "gapbottom 10");
 
     // ── Secondary grid ──
     JPanel secondary = new JPanel(new MigLayout("insets 0, wrap 2, gap 4 18", "[grow, fill][grow, fill]", ""));
     secondary.setOpaque(false);
-    secondary.add(new SecondaryRow("⊞  " + _I("welcomeBtnNewWorkspace"), "Ctrl+Shift+N", onNewWorkspace));
-    secondary.add(new SecondaryRow("↓  " + _I("welcomeBtnOpenWorkspace"), "Ctrl+Shift+O", onOpenWorkspace));
+    secondary.add(new SecondaryRow(_I("welcomeBtnNewWorkspace"), "Ctrl+Shift+N", onNewWorkspace));
+    secondary.add(new SecondaryRow(_I("welcomeBtnOpenWorkspace"), "Ctrl+Shift+O", onOpenWorkspace));
     column.add(secondary, "gapbottom 18");
 
     // ── Footer ──
@@ -199,7 +199,7 @@ public class WelcomeTab extends JPanel {
   }
 
   private static JLabel footerLink(String label, String url) {
-    JLabel l = new JLabel(label + " ↗");
+    JLabel l = new JLabel(label);
     l.setFont(OculixFonts.mono(11));
     l.setForeground(OculixColors.OX_CYAN_300);
     l.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));

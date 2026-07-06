@@ -3,6 +3,7 @@
  */
 package org.sikuli.ide;
 
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -116,7 +117,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     JPanel leftToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
     leftToolbar.setOpaque(false);
 
-    JLabel filterLabel = new JLabel("🔎");
+    JLabel filterLabel = new JLabel(new FlatSVGIcon("icons/menu/magnifier.svg", 16, 16));
     filterLabel.setToolTipText("Live filter — show only lines containing this text (case-insensitive)");
     leftToolbar.add(filterLabel);
 
@@ -143,7 +144,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
     rightToolbar.setOpaque(false);
 
-    JButton saveBtn = new JButton("💾  Save…");
+    JButton saveBtn = new JButton("Save…", new FlatSVGIcon("icons/menu/floppy.svg", 16, 16));
     saveBtn.setFocusable(false);
     saveBtn.setToolTipText("Save the entire log to a .txt file (UTF-8)");
     saveBtn.addActionListener(e -> {
@@ -162,7 +163,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     });
     rightToolbar.add(saveBtn);
 
-    JButton copyBtn = new JButton("⧉  Copy all");
+    JButton copyBtn = new JButton("Copy all", new FlatSVGIcon("icons/menu/copy.svg", 16, 16));
     copyBtn.setFocusable(false);
     copyBtn.setToolTipText("Copy entire log to clipboard (plain text)");
     copyBtn.addActionListener(e -> {
@@ -177,7 +178,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     });
     rightToolbar.add(copyBtn);
 
-    JButton clearBtn = new JButton("⌫  Clear");
+    JButton clearBtn = new JButton("Clear", new FlatSVGIcon("icons/menu/clear.svg", 16, 16));
     clearBtn.setFocusable(false);
     clearBtn.setToolTipText("Clear log buffer and view");
     clearBtn.addActionListener(e -> {
@@ -186,7 +187,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     });
     rightToolbar.add(clearBtn);
 
-    JButton reportBtn = new JButton("🐞  Report bug…");
+    JButton reportBtn = new JButton("Report bug…", new FlatSVGIcon("icons/menu/ladybug.svg", 16, 16));
     reportBtn.setFocusable(false);
     reportBtn.setToolTipText("Copy log to clipboard and open the OculiX bug report form on GitHub");
     reportBtn.addActionListener(e -> {
@@ -200,15 +201,18 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
       }
       // 2) Inform the user — what was done, what to paste, where to paste it.
+      java.awt.Image geckoRaw = new ImageIcon(getClass().getResource("/icons/gecko_cyclope.png")).getImage();
+      ImageIcon gecko = new ImageIcon(geckoRaw.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
       JOptionPane.showMessageDialog(
           EditorConsolePane.this,
           "Your log has been copied to the clipboard.\n\n"
               + "The OculiX bug report form will open in your browser.\n"
               + "Please paste the log into the \"Logs / console output\" field,\n"
               + "fill in the other sections, then submit.\n\n"
-              + "Thanks for helping us improve OculiX 🦎",
+              + "Thanks for helping us improve OculiX.",
           "Report a bug",
-          JOptionPane.INFORMATION_MESSAGE);
+          JOptionPane.INFORMATION_MESSAGE,
+          gecko);
       // 3) Open the bug_report.yml template — no API call, no auto-creation,
       // the user stays in full control of what gets submitted.
       try {

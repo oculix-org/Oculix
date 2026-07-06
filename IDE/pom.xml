@@ -103,6 +103,12 @@
       <artifactId>flatlaf</artifactId>
       <version>3.7.1</version>
     </dependency>
+    <!-- flatlaf-extras : FlatSVGIcon (SVG rendering) for sidebar icons -->
+    <dependency>
+      <groupId>com.formdev</groupId>
+      <artifactId>flatlaf-extras</artifactId>
+      <version>3.7.1</version>
+    </dependency>
     <!-- DJ-Raven : modal dialogs, toasts, animations -->
     <dependency>
       <groupId>io.github.dj-raven</groupId>

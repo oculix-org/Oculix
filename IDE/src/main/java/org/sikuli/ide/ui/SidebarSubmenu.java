@@ -21,7 +21,11 @@ public class SidebarSubmenu extends JPopupMenu {
   }
 
   public JMenuItem addItem(String text, KeyStroke accelerator, ActionListener action) {
-    JMenuItem item = new JMenuItem(text);
+    return addItem(text, null, accelerator, action);
+  }
+
+  public JMenuItem addItem(String text, Icon icon, KeyStroke accelerator, ActionListener action) {
+    JMenuItem item = new JMenuItem(text, icon);
     if (accelerator != null) {
       item.setAccelerator(accelerator);
     }
@@ -33,7 +37,7 @@ public class SidebarSubmenu extends JPopupMenu {
   }
 
   public JMenuItem addItem(String text, ActionListener action) {
-    return addItem(text, null, action);
+    return addItem(text, null, null, action);
   }
 
   public void showBelow(Component invoker) {

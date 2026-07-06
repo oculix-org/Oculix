@@ -73,7 +73,7 @@ class SikuliIDEStatusBar extends JPanel {
   }
 
   public void resetMessage() {
-    String message = "OculiX " + Commons.getSXVersionShort() + "  \u2502  Java " + Commons.getJavaVersion();
+    String message = "OculiX " + Commons.getSXVersionShort() + "  |  Java " + Commons.getJavaVersion();
     setMessage(message);
     starting = 0;
   }
