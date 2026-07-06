@@ -3,6 +3,7 @@
  */
 package org.sikuli.mcp.cli;
 
+import org.sikuli.mcp.audit.HighWaterMark;
 import org.sikuli.mcp.audit.JournalVerifier;
 import org.sikuli.mcp.audit.JournalWriter;
 import org.sikuli.mcp.crypto.KeyManager;
@@ -20,9 +21,14 @@ import org.sikuli.mcp.transport.TokenIssuer;
 
 import java.nio.file.*;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,6 +52,17 @@ public final class Main {
   // Rotation thresholds — can be tuned later via env vars
   private static final long MAX_ENTRIES_PER_FILE = 10_000L;
   private static final long MAX_AGE_MILLIS = 24 * 60 * 60 * 1000L; // 24h
+
+  // Signed anchor file. Lives in oculixDir (next to the key files), not in
+  // journalDir: a cosmetic wipe of journalDir alone leaves the HWM behind
+  // so the missing tail becomes detectable. A wipe of the whole oculixDir
+  // takes the HWM with it and cannot be caught in Phase 1 — documented in
+  // the README, external anchor is the Phase 2 answer.
+  static final String HWM_ANCHOR_FILENAME = "journal.hwm";
+
+  static Path defaultHwmPath(Path oculixDir) {
+    return oculixDir.resolve(HWM_ANCHOR_FILENAME);
+  }
 
   public static void main(String[] rawArgs) throws Exception {
     String[] args = rawArgs == null ? new String[0] : rawArgs;
@@ -87,8 +104,9 @@ public final class Main {
 
     OcrBootstrap.applyDefaultLanguage();
 
+    HighWaterMark hwm = new HighWaterMark(defaultHwmPath(oculixDir), keys);
     try (JournalWriter journal = new JournalWriter(journalDir, keys,
-             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS)) {
+             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS, hwm)) {
       McpServer server = new McpServer(
           ToolRegistry.defaultRegistry(),
           new AutoApproveGate(),
@@ -164,8 +182,9 @@ public final class Main {
     ToolRegistry.Mode mode = ToolRegistry.Mode.fromEnv();
     ToolRegistry registry = ToolRegistry.defaultRegistry(mode);
 
+    HighWaterMark hwm = new HighWaterMark(defaultHwmPath(oculixDir), keys);
     try (JournalWriter journal = new JournalWriter(journalDir, keys,
-             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS)) {
+             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS, hwm)) {
       McpDispatcher dispatcher = new McpDispatcher(
           registry, new AutoApproveGate(), journal);
       SessionStore sessions = new SessionStore();
@@ -174,8 +193,33 @@ public final class Main {
           oculixDir.resolve("session-hmac-keyring.json"));
       TokenIssuer issuer = new TokenIssuer(keyring);
 
+      // Session purge scheduler. Without this, in an HTTP long-running
+      // process every `initialize` adds an entry to the SessionStore's
+      // ConcurrentHashMap and only DELETE /mcp removes it. Any client
+      // that crashes, kill -9s, or drops the socket leaves an entry
+      // behind for good — the RAM grows monotonically. We sweep
+      // expired sessions every 5 minutes.
+      ScheduledExecutorService purgeExec = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "oculix-mcp-session-purge");
+        t.setDaemon(true);
+        return t;
+      });
+      purgeExec.scheduleAtFixedRate(() -> {
+        try {
+          int dropped = sessions.purgeExpired(System.currentTimeMillis() / 1000L);
+          if (dropped > 0) {
+            System.err.println("[oculix-mcp] purged " + dropped + " expired session(s)");
+          }
+        } catch (Throwable t) {
+          // Never let a purge failure kill the scheduler thread.
+          System.err.println("[oculix-mcp] session purge error: " + t);
+        }
+      }, 5, 5, TimeUnit.MINUTES);
+
+      Set<String> allowedOrigins = parseAllowedOrigins(
+          System.getenv("OCULIX_MCP_ALLOWED_ORIGINS"));
       HttpTransport http = new HttpTransport(dispatcher, sessions, issuer,
-          clientToken, host, port);
+          clientToken, host, port, allowedOrigins);
       http.start();
 
       int bound = http.boundPort();
@@ -186,16 +230,36 @@ public final class Main {
       System.err.println("[oculix-mcp] session tokens: HMAC-SHA256, kid=" + keyring.currentKid()
           + " (" + keyring.size() + " kid(s) in ring)");
       System.err.println("[oculix-mcp] token TTL: " + HttpTransport.DEFAULT_TOKEN_TTL_SECONDS + "s");
+      System.err.println("[oculix-mcp] Origin allowlist: "
+          + (allowedOrigins.isEmpty()
+              ? "empty (any non-null Origin will be refused)"
+              : allowedOrigins.toString()));
+      System.err.println("[oculix-mcp] session purge: every 5 min");
 
       // Block the main thread; shutdown on Ctrl-C / SIGTERM.
       Thread shutdown = new Thread(() -> {
         try { http.close(); } catch (Exception ignored) {}
+        purgeExec.shutdownNow();
       }, "oculix-mcp-shutdown");
       Runtime.getRuntime().addShutdownHook(shutdown);
 
       // Park forever.
       synchronized (http) { http.wait(); }
     }
+  }
+
+  /**
+   * Parse a comma-separated allowlist of Origin values from an env var.
+   * Whitespace around entries is trimmed; empty entries dropped. An empty
+   * or null env var yields an empty set — the strictest possible policy
+   * (any non-null Origin will be refused by the transport).
+   */
+  static Set<String> parseAllowedOrigins(String envValue) {
+    if (envValue == null || envValue.isBlank()) return Set.of();
+    return Arrays.stream(envValue.split(","))
+        .map(String::trim)
+        .filter(s -> !s.isEmpty())
+        .collect(Collectors.toUnmodifiableSet());
   }
 
   // ── rotate-session-key ──
@@ -250,9 +314,18 @@ public final class Main {
     Path stagingDir = oculixDir.resolve("staging-" + System.currentTimeMillis());
     KeyManager newKeys = KeyManager.generateAndStore(stagingDir);
 
+    // Anchor lives in oculixDir so it survives the archive/promote below.
+    // The rotate() call writes rotation_end + rotation_begin — the HWM
+    // hook re-signs the anchor after each writeLine with the outgoing key.
+    // We resign it with the incoming key at the end of this method so the
+    // next verify sees a chain-anchor pair that agrees on the current
+    // public key.
+    Path anchorPath = defaultHwmPath(oculixDir);
+    HighWaterMark hwmOld = new HighWaterMark(anchorPath, oldKeys);
+
     // Write rotation_end marker to the current journal, signed by the OLD key
     try (JournalWriter journal = new JournalWriter(journalDir, oldKeys,
-             Long.MAX_VALUE, Long.MAX_VALUE)) {
+             Long.MAX_VALUE, Long.MAX_VALUE, hwmOld)) {
       journal.rotate("manual_rotation", newKeys.publicKeySha256Hex());
     }
 
@@ -269,8 +342,20 @@ public final class Main {
     KeyManager.restrictPrivate(privKey);
     Files.deleteIfExists(stagingDir);
 
+    // Re-sign the anchor under the newly-promoted key. Same four fields
+    // as the rotate() call wrote — we are not moving the anchor, just
+    // switching whose signature vouches for it. Without this step the
+    // next verify would read a HWM signed by the archived key and
+    // misread the fresh chain as tampered.
+    HighWaterMark.Snapshot afterRotate = hwmOld.load().orElseThrow(() ->
+        new IllegalStateException("HWM disappeared between rotate write and re-sign"));
+    HighWaterMark hwmNew = new HighWaterMark(anchorPath, KeyManager.loadOrInit(oculixDir));
+    hwmNew.reset(afterRotate.lastEntryHash, afterRotate.lastSeq,
+        afterRotate.lastFile, afterRotate.lastTsUtc);
+
     System.out.println("Key rotated successfully.");
     System.out.println("Old key archived to " + archiveDir);
+    System.out.println("Anchor re-signed under new key: " + anchorPath);
     System.out.println("New public key SHA-256: " + newKeys.publicKeySha256Hex());
   }
 
@@ -281,12 +366,18 @@ public final class Main {
     Path journalDir = StartupCheck.defaultJournalDir();
 
     Files.createDirectories(journalDir);
+
+    // Human-readable artefact only — the verifier ignores .txt files and
+    // anchors solely on the signed RECOVERY_GAP entry written below. Kept
+    // for operators skimming the directory with a file browser.
     String ts = String.valueOf(System.currentTimeMillis());
     Path gap = journalDir.resolve("UNSIGNED_GAP-" + ts + ".txt");
     Files.writeString(gap,
         "Audit chain broken at " + java.time.Instant.now() + ".\n"
             + "Reason: operator-initiated recovery (key lost or chain corruption).\n"
-            + "Subsequent entries start a fresh chain under a new Ed25519 key pair.\n",
+            + "Subsequent entries start a fresh chain under a new Ed25519 key pair.\n"
+            + "The verifier anchors on the signed RECOVERY_GAP entry in the next\n"
+            + "audit-*.jsonl, not on this file.\n",
         StandardOpenOption.CREATE_NEW);
 
     // Wipe existing keys if any — recovery means we accept the break
@@ -298,26 +389,139 @@ public final class Main {
     // Generate a fresh pair
     KeyManager fresh = KeyManager.generateAndStore(oculixDir);
 
+    // Anchor + journal writer are both bound to the NEW key. The
+    // appendRecoveryGap call below writes the signed break declaration
+    // AND re-signs the HWM under the new key via the writer's HWM hook,
+    // so the next verify reads a fully-consistent chain and anchor.
+    Path anchorPath = defaultHwmPath(oculixDir);
+    HighWaterMark hwm = new HighWaterMark(anchorPath, fresh);
+    Path recoveryJournal;
+    try (JournalWriter writer = new JournalWriter(
+        journalDir, fresh, MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS, hwm)) {
+      writer.appendRecoveryGap(
+          "operator_recovery",
+          java.time.Instant.now().toString(),
+          "lost");
+      recoveryJournal = writer.currentFile();
+    }
+
     System.out.println("Recovery complete.");
-    System.out.println("Unsigned gap marker: " + gap);
+    System.out.println("Signed RECOVERY_GAP written to: " + recoveryJournal);
+    System.out.println("Informational artefact:         " + gap);
+    System.out.println("Anchor re-signed under new key: " + anchorPath);
     System.out.println("Fresh key pair generated.");
     System.out.println("New public key SHA-256: " + fresh.publicKeySha256Hex());
   }
 
   // ── verify ──
 
+  /**
+   * Verify the audit chain.
+   *
+   * <p>Default mode (no flags): full chain verification via
+   * {@link JournalVerifier#verifyChain}. Every {@code audit-*.jsonl} in
+   * the journal directory is checked per-file, cross-file rotation
+   * links are resolved by hash lookup (not filename order), file heads
+   * are checked to start at genesis or at a resolved
+   * {@code rotation_begin}, and the {@link HighWaterMark} anchor is
+   * confronted to catch tail truncation.
+   *
+   * <p>{@code --per-file}: legacy single-file check only. Useful when
+   * debugging one file in isolation, or in Phase 1 when some files
+   * were signed by an archived key that {@code verify} does not yet
+   * load — those would fail signature under the current key but are
+   * clean under their original key.
+   *
+   * <p>Explicit paths after the command switch straight to per-file
+   * mode on the named files, whether or not {@code --per-file} is
+   * passed.
+   *
+   * <p>Exit codes (default chain mode): {@code 0} clean, {@code 2}
+   * soft warnings (anchor lags queue, empty dir with anchor present),
+   * {@code 1} hard fail (tamper, truncation, orphan file, unresolved
+   * cross-file link). Precedence is deterministic: {@code 1 > 2 > 0}.
+   * Legacy per-file mode exits {@code 1} on any failure.
+   */
   private static void cmdVerify(String[] args) throws Exception {
     Path oculixDir = StartupCheck.defaultOculixDir();
     Path pubKeyPath = oculixDir.resolve(KeyManager.PUBLIC_KEY_FILENAME);
 
-    List<Path> files;
-    if (args.length == 0) {
-      Path journalDir = StartupCheck.defaultJournalDir();
-      if (!Files.isDirectory(journalDir)) {
-        System.err.println("No journal directory at " + journalDir);
-        System.exit(5);
+    boolean perFileMode = false;
+    List<String> pathArgs = new ArrayList<>();
+    for (String a : args) {
+      if ("--per-file".equals(a)) {
+        perFileMode = true;
+      } else if (a.startsWith("--")) {
+        System.err.println("Unknown verify flag: " + a);
+        System.exit(1);
         return;
+      } else {
+        pathArgs.add(a);
       }
+    }
+
+    Path journalDir = StartupCheck.defaultJournalDir();
+    if (!Files.isDirectory(journalDir) && pathArgs.isEmpty()) {
+      System.err.println("No journal directory at " + journalDir);
+      System.exit(5);
+      return;
+    }
+
+    PublicKey pub = JournalVerifier.loadPublicKey(pubKeyPath);
+
+    if (perFileMode || !pathArgs.isEmpty()) {
+      runPerFileMode(journalDir, pathArgs, pub);
+      return;
+    }
+
+    // Default: chain verification with HWM confrontation.
+    Path anchorPath = defaultHwmPath(oculixDir);
+    JournalVerifier.ChainResult r =
+        JournalVerifier.verifyChain(journalDir, pub, anchorPath);
+
+    System.out.println("Chain verification of " + journalDir);
+    System.out.println("  files checked:   " + r.filesChecked);
+    System.out.println("  entries checked: " + r.entriesChecked);
+    System.out.println("  anchor:          " + anchorPath);
+    System.out.println();
+    for (JournalVerifier.FileVerification fv : r.perFile) {
+      String tag = fv.result.ok ? "OK  " : "FAIL";
+      System.out.println("  " + tag + "  " + fv.file.getFileName()
+          + "  (" + fv.result.entriesChecked + " entries)");
+    }
+    if (!r.warnings.isEmpty()) {
+      System.out.println();
+      System.out.println("WARNINGS:");
+      for (String w : r.warnings) System.out.println("  ! " + w);
+    }
+    if (!r.issues.isEmpty()) {
+      System.out.println();
+      System.out.println("ISSUES:");
+      for (String iss : r.issues) System.out.println("  X " + iss);
+    }
+
+    System.out.println();
+    switch (r.level) {
+      case OK:
+        System.out.println("VERDICT: OK — chain intact, anchor agrees.");
+        System.exit(0);
+        break;
+      case WARN:
+        System.out.println("VERDICT: WARN — soft deviation, chain structurally intact.");
+        System.exit(2);
+        break;
+      case FAIL:
+        System.out.println("VERDICT: FAIL — tamper, truncation, or orphan file detected.");
+        System.out.println("(Rerun `verify --per-file <file>` on individual files for detail.)");
+        System.exit(1);
+        break;
+    }
+  }
+
+  private static void runPerFileMode(Path journalDir, List<String> pathArgs,
+                                     PublicKey pub) throws Exception {
+    List<Path> files;
+    if (pathArgs.isEmpty()) {
       try (Stream<Path> s = Files.list(journalDir)) {
         files = s.filter(p -> p.getFileName().toString().startsWith("audit-")
                            && p.getFileName().toString().endsWith(".jsonl"))
@@ -325,10 +529,9 @@ public final class Main {
                  .collect(Collectors.toList());
       }
     } else {
-      files = Arrays.stream(args).map(Paths::get).collect(Collectors.toList());
+      files = pathArgs.stream().map(Paths::get).collect(Collectors.toList());
     }
 
-    PublicKey pub = JournalVerifier.loadPublicKey(pubKeyPath);
     boolean allOk = true;
     for (Path f : files) {
       JournalVerifier.Result r = JournalVerifier.verify(f, pub);
@@ -342,7 +545,7 @@ public final class Main {
         }
       }
     }
-    if (!allOk) System.exit(6);
+    if (!allOk) System.exit(1);
   }
 
   private static void printUsage() {
@@ -363,8 +566,11 @@ public final class Main {
     System.out.println("  oculix-mcp rotate-key            Rotate the Ed25519 audit signing key");
     System.out.println("  oculix-mcp rotate-session-key    Rotate the HMAC keyring for session tokens");
     System.out.println("  oculix-mcp recover      Record an unsigned gap and start a fresh chain");
-    System.out.println("  oculix-mcp verify [FILES...]");
-    System.out.println("                          Verify journal files (all by default)");
+    System.out.println("  oculix-mcp verify [--per-file] [FILES...]");
+    System.out.println("                          Default: full chain verification with anchor check");
+    System.out.println("                          --per-file: legacy single-file mode (opt-in)");
+    System.out.println("                          Named FILES imply per-file mode");
+    System.out.println("                          Exit codes: 0 clean, 2 warn (soft), 1 fail (hard)");
     System.out.println();
     System.out.println("Config dir: " + StartupCheck.defaultOculixDir());
     System.out.println("Journal dir: " + StartupCheck.defaultJournalDir());

@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -90,15 +91,34 @@ public final class HttpTransport implements AutoCloseable {
   private final long maxRequestBytes;
   private final long tokenTtlSeconds;
   private final Runnable onAuditFailure;
+  /**
+   * Allowlist of {@code Origin} header values. A request that carries
+   * an {@code Origin} not in this set is rejected with {@code 403}.
+   * A request without an {@code Origin} header (non-browser clients:
+   * curl, MCP Inspector, native SDK) passes through. Empty set means
+   * the strictest policy — any non-null {@code Origin} is refused.
+   *
+   * <p>Prevents DNS-rebind / cross-origin abuse: a browser page hosted
+   * on {@code evil.com} that resolves the loopback bind and POSTs
+   * {@code initialize} would otherwise mint a bearer and drive the mouse.
+   */
+  private final Set<String> allowedOrigins;
 
   private Undertow server;
 
   public HttpTransport(McpDispatcher dispatcher, SessionStore sessions,
                        TokenIssuer issuer, BearerAuth.StaticToken clientToken,
                        String host, int port) {
+    this(dispatcher, sessions, issuer, clientToken, host, port, Set.of());
+  }
+
+  public HttpTransport(McpDispatcher dispatcher, SessionStore sessions,
+                       TokenIssuer issuer, BearerAuth.StaticToken clientToken,
+                       String host, int port,
+                       Set<String> allowedOrigins) {
     this(dispatcher, sessions, issuer, clientToken, host, port,
         DEFAULT_MAX_REQUEST_BYTES, DEFAULT_TOKEN_TTL_SECONDS,
-        () -> System.exit(2));
+        () -> System.exit(2), allowedOrigins);
   }
 
   public HttpTransport(McpDispatcher dispatcher, SessionStore sessions,
@@ -106,6 +126,16 @@ public final class HttpTransport implements AutoCloseable {
                        String host, int port,
                        long maxRequestBytes, long tokenTtlSeconds,
                        Runnable onAuditFailure) {
+    this(dispatcher, sessions, issuer, clientToken, host, port,
+        maxRequestBytes, tokenTtlSeconds, onAuditFailure, Set.of());
+  }
+
+  public HttpTransport(McpDispatcher dispatcher, SessionStore sessions,
+                       TokenIssuer issuer, BearerAuth.StaticToken clientToken,
+                       String host, int port,
+                       long maxRequestBytes, long tokenTtlSeconds,
+                       Runnable onAuditFailure,
+                       Set<String> allowedOrigins) {
     this.dispatcher = dispatcher;
     this.sessions = sessions;
     this.issuer = issuer;
@@ -115,6 +145,7 @@ public final class HttpTransport implements AutoCloseable {
     this.maxRequestBytes = maxRequestBytes;
     this.tokenTtlSeconds = tokenTtlSeconds;
     this.onAuditFailure = onAuditFailure;
+    this.allowedOrigins = allowedOrigins == null ? Set.of() : Set.copyOf(allowedOrigins);
   }
 
   public synchronized void start() {
@@ -164,6 +195,20 @@ public final class HttpTransport implements AutoCloseable {
     }
     if (ex.isInIoThread()) {
       ex.dispatch(this::handle);
+      return;
+    }
+
+    // Origin allowlist. Absent Origin = non-browser client (curl, MCP
+    // Inspector, native SDK) → pass through. Present Origin must be in
+    // the allowlist, otherwise 403. Empty allowlist means every non-null
+    // Origin is refused — the safest default for a loopback bind.
+    String origin = firstHeader(ex.getRequestHeaders(), "Origin");
+    if (origin != null && !allowedOrigins.contains(origin)) {
+      ex.setStatusCode(StatusCodes.FORBIDDEN);
+      ex.getResponseHeaders().put(new HttpString("Content-Type"), "application/json");
+      ex.getResponseSender().send(
+          "{\"error\":\"origin not allowed\"}",
+          StandardCharsets.UTF_8);
       return;
     }
 

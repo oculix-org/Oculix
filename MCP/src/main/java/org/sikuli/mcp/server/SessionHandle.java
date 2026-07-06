@@ -3,6 +3,8 @@
  */
 package org.sikuli.mcp.server;
 
+import org.sikuli.mcp.tools.SubstitutionVault;
+
 /**
  * Thin mutable holder around a {@link SessionContext}.
  *
@@ -11,6 +13,11 @@ package org.sikuli.mcp.server;
  * rather than passing the context by value lets the dispatcher mutate
  * state transparently for both stdio (single session) and HTTP (many
  * concurrent sessions owned by a {@link SessionStore}).
+ *
+ * <p>Also owns the per-session {@link SubstitutionVault} used to
+ * detokenise PII/secret arguments the LLM operates on as opaque
+ * tokens. The vault is created fresh with the handle and dies with
+ * it — no cross-session leakage.
  *
  * <p>Access is synchronized because an HTTP transport may expose the same
  * handle to overlapping request threads for the same session id.
@@ -21,6 +28,7 @@ package org.sikuli.mcp.server;
 public final class SessionHandle {
 
   private SessionContext ctx;
+  private final SubstitutionVault vault = new SubstitutionVault();
 
   public SessionHandle() {
     this.ctx = SessionContext.empty();
@@ -36,5 +44,10 @@ public final class SessionHandle {
 
   public synchronized void set(SessionContext next) {
     this.ctx = next;
+  }
+
+  /** Session-scoped PII/secret detokeniser. Never null. */
+  public SubstitutionVault vault() {
+    return vault;
   }
 }
