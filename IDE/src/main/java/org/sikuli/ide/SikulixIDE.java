@@ -622,7 +622,7 @@ public class SikulixIDE extends JFrame {
     int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 
     // ── Nouveau ──
-    JMenuItem newHeader = new JMenuItem("-- " + _I("menuFileNew") + " --");
+    JMenuItem newHeader = new JMenuItem(_I("menuFileNew"));
     newHeader.setEnabled(false);
     newHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(newHeader);
@@ -635,7 +635,7 @@ public class SikulixIDE extends JFrame {
         null, e -> openNewWorkspaceDialog());
 
     // ── Ouvrir ──
-    JMenuItem openHeader = new JMenuItem("-- " + _I("menuFileOpen") + " --");
+    JMenuItem openHeader = new JMenuItem(_I("menuFileOpen"));
     openHeader.setEnabled(false);
     openHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(openHeader);
@@ -2732,7 +2732,7 @@ public class SikulixIDE extends JFrame {
 
   /** Creates a disabled menu item used as a section header label. */
   JMenuItem createSectionLabel(String text) {
-    JMenuItem label = new JMenuItem("-- " + text + " --");
+    JMenuItem label = new JMenuItem(text);
     label.setEnabled(false);
     label.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     return label;
