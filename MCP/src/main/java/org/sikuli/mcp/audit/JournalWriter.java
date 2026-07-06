@@ -95,12 +95,27 @@ public final class JournalWriter implements AutoCloseable {
                                                 String toolName,
                                                 JSONObject args,
                                                 String resultSha256) throws IOException {
-    maybeEmitClockRegression();
+    // Order matters: rotate BEFORE emitting a clock regression, not
+    // after. If the wall clock has regressed and we emit the marker
+    // first, the marker lands in the old file — then rotate opens a
+    // new file where the very next tsUtc may still be regressive
+    // against nothing (empty new file), but hides the regression
+    // relative to the old file's tail. Rotating first anchors the
+    // regression marker in the new file, so both files stay internally
+    // monotonic and the invariant the guard exists to protect holds.
     maybeRotate();
+    maybeEmitClockRegression();
+
+    // Redact sensitive values in args before signing. The journal is
+    // append-only and signed for life — a password in a tool_call arg
+    // would live forever in plaintext. ArgsRedactor keeps structure
+    // and marks redacted values with a short SHA-256 fingerprint so
+    // auditors can still correlate identical values across entries.
+    JSONObject safeArgs = ArgsRedactor.redact(args);
 
     AuditEntry entry = buildEntry(
         AuditEntry.Type.TOOL_CALL, sessionId, clientInfo, llmInfo,
-        toolName, args, resultSha256, null);
+        toolName, safeArgs, resultSha256, null);
     writeLine(entry);
     return entry;
   }
