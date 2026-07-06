@@ -21,6 +21,7 @@ import org.sikuli.mcp.transport.TokenIssuer;
 
 import java.nio.file.*;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -365,18 +366,113 @@ public final class Main {
 
   // ── verify ──
 
+  /**
+   * Verify the audit chain.
+   *
+   * <p>Default mode (no flags): full chain verification via
+   * {@link JournalVerifier#verifyChain}. Every {@code audit-*.jsonl} in
+   * the journal directory is checked per-file, cross-file rotation
+   * links are resolved by hash lookup (not filename order), file heads
+   * are checked to start at genesis or at a resolved
+   * {@code rotation_begin}, and the {@link HighWaterMark} anchor is
+   * confronted to catch tail truncation.
+   *
+   * <p>{@code --per-file}: legacy single-file check only. Useful when
+   * debugging one file in isolation, or in Phase 1 when some files
+   * were signed by an archived key that {@code verify} does not yet
+   * load — those would fail signature under the current key but are
+   * clean under their original key.
+   *
+   * <p>Explicit paths after the command switch straight to per-file
+   * mode on the named files, whether or not {@code --per-file} is
+   * passed.
+   *
+   * <p>Exit codes (default chain mode): {@code 0} clean, {@code 2}
+   * soft warnings (anchor lags queue, empty dir with anchor present),
+   * {@code 1} hard fail (tamper, truncation, orphan file, unresolved
+   * cross-file link). Precedence is deterministic: {@code 1 > 2 > 0}.
+   * Legacy per-file mode exits {@code 1} on any failure.
+   */
   private static void cmdVerify(String[] args) throws Exception {
     Path oculixDir = StartupCheck.defaultOculixDir();
     Path pubKeyPath = oculixDir.resolve(KeyManager.PUBLIC_KEY_FILENAME);
 
-    List<Path> files;
-    if (args.length == 0) {
-      Path journalDir = StartupCheck.defaultJournalDir();
-      if (!Files.isDirectory(journalDir)) {
-        System.err.println("No journal directory at " + journalDir);
-        System.exit(5);
+    boolean perFileMode = false;
+    List<String> pathArgs = new ArrayList<>();
+    for (String a : args) {
+      if ("--per-file".equals(a)) {
+        perFileMode = true;
+      } else if (a.startsWith("--")) {
+        System.err.println("Unknown verify flag: " + a);
+        System.exit(1);
         return;
+      } else {
+        pathArgs.add(a);
       }
+    }
+
+    Path journalDir = StartupCheck.defaultJournalDir();
+    if (!Files.isDirectory(journalDir) && pathArgs.isEmpty()) {
+      System.err.println("No journal directory at " + journalDir);
+      System.exit(5);
+      return;
+    }
+
+    PublicKey pub = JournalVerifier.loadPublicKey(pubKeyPath);
+
+    if (perFileMode || !pathArgs.isEmpty()) {
+      runPerFileMode(journalDir, pathArgs, pub);
+      return;
+    }
+
+    // Default: chain verification with HWM confrontation.
+    Path anchorPath = defaultHwmPath(oculixDir);
+    JournalVerifier.ChainResult r =
+        JournalVerifier.verifyChain(journalDir, pub, anchorPath);
+
+    System.out.println("Chain verification of " + journalDir);
+    System.out.println("  files checked:   " + r.filesChecked);
+    System.out.println("  entries checked: " + r.entriesChecked);
+    System.out.println("  anchor:          " + anchorPath);
+    System.out.println();
+    for (JournalVerifier.FileVerification fv : r.perFile) {
+      String tag = fv.result.ok ? "OK  " : "FAIL";
+      System.out.println("  " + tag + "  " + fv.file.getFileName()
+          + "  (" + fv.result.entriesChecked + " entries)");
+    }
+    if (!r.warnings.isEmpty()) {
+      System.out.println();
+      System.out.println("WARNINGS:");
+      for (String w : r.warnings) System.out.println("  ! " + w);
+    }
+    if (!r.issues.isEmpty()) {
+      System.out.println();
+      System.out.println("ISSUES:");
+      for (String iss : r.issues) System.out.println("  X " + iss);
+    }
+
+    System.out.println();
+    switch (r.level) {
+      case OK:
+        System.out.println("VERDICT: OK — chain intact, anchor agrees.");
+        System.exit(0);
+        break;
+      case WARN:
+        System.out.println("VERDICT: WARN — soft deviation, chain structurally intact.");
+        System.exit(2);
+        break;
+      case FAIL:
+        System.out.println("VERDICT: FAIL — tamper, truncation, or orphan file detected.");
+        System.out.println("(Rerun `verify --per-file <file>` on individual files for detail.)");
+        System.exit(1);
+        break;
+    }
+  }
+
+  private static void runPerFileMode(Path journalDir, List<String> pathArgs,
+                                     PublicKey pub) throws Exception {
+    List<Path> files;
+    if (pathArgs.isEmpty()) {
       try (Stream<Path> s = Files.list(journalDir)) {
         files = s.filter(p -> p.getFileName().toString().startsWith("audit-")
                            && p.getFileName().toString().endsWith(".jsonl"))
@@ -384,10 +480,9 @@ public final class Main {
                  .collect(Collectors.toList());
       }
     } else {
-      files = Arrays.stream(args).map(Paths::get).collect(Collectors.toList());
+      files = pathArgs.stream().map(Paths::get).collect(Collectors.toList());
     }
 
-    PublicKey pub = JournalVerifier.loadPublicKey(pubKeyPath);
     boolean allOk = true;
     for (Path f : files) {
       JournalVerifier.Result r = JournalVerifier.verify(f, pub);
@@ -401,7 +496,7 @@ public final class Main {
         }
       }
     }
-    if (!allOk) System.exit(6);
+    if (!allOk) System.exit(1);
   }
 
   private static void printUsage() {
@@ -422,8 +517,11 @@ public final class Main {
     System.out.println("  oculix-mcp rotate-key            Rotate the Ed25519 audit signing key");
     System.out.println("  oculix-mcp rotate-session-key    Rotate the HMAC keyring for session tokens");
     System.out.println("  oculix-mcp recover      Record an unsigned gap and start a fresh chain");
-    System.out.println("  oculix-mcp verify [FILES...]");
-    System.out.println("                          Verify journal files (all by default)");
+    System.out.println("  oculix-mcp verify [--per-file] [FILES...]");
+    System.out.println("                          Default: full chain verification with anchor check");
+    System.out.println("                          --per-file: legacy single-file mode (opt-in)");
+    System.out.println("                          Named FILES imply per-file mode");
+    System.out.println("                          Exit codes: 0 clean, 2 warn (soft), 1 fail (hard)");
     System.out.println();
     System.out.println("Config dir: " + StartupCheck.defaultOculixDir());
     System.out.println("Journal dir: " + StartupCheck.defaultJournalDir());
