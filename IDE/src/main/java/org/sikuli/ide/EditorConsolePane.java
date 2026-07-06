@@ -201,6 +201,8 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
       }
       // 2) Inform the user — what was done, what to paste, where to paste it.
+      java.awt.Image geckoRaw = new ImageIcon(getClass().getResource("/icons/gecko_cyclope.png")).getImage();
+      ImageIcon gecko = new ImageIcon(geckoRaw.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
       JOptionPane.showMessageDialog(
           EditorConsolePane.this,
           "Your log has been copied to the clipboard.\n\n"
@@ -210,7 +212,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
               + "Thanks for helping us improve OculiX.",
           "Report a bug",
           JOptionPane.INFORMATION_MESSAGE,
-          new FlatSVGIcon("icons/menu/gecko.svg", 48, 48));
+          gecko);
       // 3) Open the bug_report.yml template — no API call, no auto-creation,
       // the user stays in full control of what gets submitted.
       try {
