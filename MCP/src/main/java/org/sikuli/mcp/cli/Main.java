@@ -99,8 +99,9 @@ public final class Main {
 
     OcrBootstrap.applyDefaultLanguage();
 
+    HighWaterMark hwm = new HighWaterMark(defaultHwmPath(oculixDir), keys);
     try (JournalWriter journal = new JournalWriter(journalDir, keys,
-             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS)) {
+             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS, hwm)) {
       McpServer server = new McpServer(
           ToolRegistry.defaultRegistry(),
           new AutoApproveGate(),
@@ -176,8 +177,9 @@ public final class Main {
     ToolRegistry.Mode mode = ToolRegistry.Mode.fromEnv();
     ToolRegistry registry = ToolRegistry.defaultRegistry(mode);
 
+    HighWaterMark hwm = new HighWaterMark(defaultHwmPath(oculixDir), keys);
     try (JournalWriter journal = new JournalWriter(journalDir, keys,
-             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS)) {
+             MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS, hwm)) {
       McpDispatcher dispatcher = new McpDispatcher(
           registry, new AutoApproveGate(), journal);
       SessionStore sessions = new SessionStore();
@@ -262,9 +264,18 @@ public final class Main {
     Path stagingDir = oculixDir.resolve("staging-" + System.currentTimeMillis());
     KeyManager newKeys = KeyManager.generateAndStore(stagingDir);
 
+    // Anchor lives in oculixDir so it survives the archive/promote below.
+    // The rotate() call writes rotation_end + rotation_begin — the HWM
+    // hook re-signs the anchor after each writeLine with the outgoing key.
+    // We resign it with the incoming key at the end of this method so the
+    // next verify sees a chain-anchor pair that agrees on the current
+    // public key.
+    Path anchorPath = defaultHwmPath(oculixDir);
+    HighWaterMark hwmOld = new HighWaterMark(anchorPath, oldKeys);
+
     // Write rotation_end marker to the current journal, signed by the OLD key
     try (JournalWriter journal = new JournalWriter(journalDir, oldKeys,
-             Long.MAX_VALUE, Long.MAX_VALUE)) {
+             Long.MAX_VALUE, Long.MAX_VALUE, hwmOld)) {
       journal.rotate("manual_rotation", newKeys.publicKeySha256Hex());
     }
 
@@ -281,8 +292,20 @@ public final class Main {
     KeyManager.restrictPrivate(privKey);
     Files.deleteIfExists(stagingDir);
 
+    // Re-sign the anchor under the newly-promoted key. Same four fields
+    // as the rotate() call wrote — we are not moving the anchor, just
+    // switching whose signature vouches for it. Without this step the
+    // next verify would read a HWM signed by the archived key and
+    // misread the fresh chain as tampered.
+    HighWaterMark.Snapshot afterRotate = hwmOld.load().orElseThrow(() ->
+        new IllegalStateException("HWM disappeared between rotate write and re-sign"));
+    HighWaterMark hwmNew = new HighWaterMark(anchorPath, KeyManager.loadOrInit(oculixDir));
+    hwmNew.reset(afterRotate.lastEntryHash, afterRotate.lastSeq,
+        afterRotate.lastFile, afterRotate.lastTsUtc);
+
     System.out.println("Key rotated successfully.");
     System.out.println("Old key archived to " + archiveDir);
+    System.out.println("Anchor re-signed under new key: " + anchorPath);
     System.out.println("New public key SHA-256: " + newKeys.publicKeySha256Hex());
   }
 
