@@ -25,6 +25,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -189,8 +193,33 @@ public final class Main {
           oculixDir.resolve("session-hmac-keyring.json"));
       TokenIssuer issuer = new TokenIssuer(keyring);
 
+      // Session purge scheduler. Without this, in an HTTP long-running
+      // process every `initialize` adds an entry to the SessionStore's
+      // ConcurrentHashMap and only DELETE /mcp removes it. Any client
+      // that crashes, kill -9s, or drops the socket leaves an entry
+      // behind for good — the RAM grows monotonically. We sweep
+      // expired sessions every 5 minutes.
+      ScheduledExecutorService purgeExec = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "oculix-mcp-session-purge");
+        t.setDaemon(true);
+        return t;
+      });
+      purgeExec.scheduleAtFixedRate(() -> {
+        try {
+          int dropped = sessions.purgeExpired(System.currentTimeMillis() / 1000L);
+          if (dropped > 0) {
+            System.err.println("[oculix-mcp] purged " + dropped + " expired session(s)");
+          }
+        } catch (Throwable t) {
+          // Never let a purge failure kill the scheduler thread.
+          System.err.println("[oculix-mcp] session purge error: " + t);
+        }
+      }, 5, 5, TimeUnit.MINUTES);
+
+      Set<String> allowedOrigins = parseAllowedOrigins(
+          System.getenv("OCULIX_MCP_ALLOWED_ORIGINS"));
       HttpTransport http = new HttpTransport(dispatcher, sessions, issuer,
-          clientToken, host, port);
+          clientToken, host, port, allowedOrigins);
       http.start();
 
       int bound = http.boundPort();
@@ -201,16 +230,36 @@ public final class Main {
       System.err.println("[oculix-mcp] session tokens: HMAC-SHA256, kid=" + keyring.currentKid()
           + " (" + keyring.size() + " kid(s) in ring)");
       System.err.println("[oculix-mcp] token TTL: " + HttpTransport.DEFAULT_TOKEN_TTL_SECONDS + "s");
+      System.err.println("[oculix-mcp] Origin allowlist: "
+          + (allowedOrigins.isEmpty()
+              ? "empty (any non-null Origin will be refused)"
+              : allowedOrigins.toString()));
+      System.err.println("[oculix-mcp] session purge: every 5 min");
 
       // Block the main thread; shutdown on Ctrl-C / SIGTERM.
       Thread shutdown = new Thread(() -> {
         try { http.close(); } catch (Exception ignored) {}
+        purgeExec.shutdownNow();
       }, "oculix-mcp-shutdown");
       Runtime.getRuntime().addShutdownHook(shutdown);
 
       // Park forever.
       synchronized (http) { http.wait(); }
     }
+  }
+
+  /**
+   * Parse a comma-separated allowlist of Origin values from an env var.
+   * Whitespace around entries is trimmed; empty entries dropped. An empty
+   * or null env var yields an empty set — the strictest possible policy
+   * (any non-null Origin will be refused by the transport).
+   */
+  static Set<String> parseAllowedOrigins(String envValue) {
+    if (envValue == null || envValue.isBlank()) return Set.of();
+    return Arrays.stream(envValue.split(","))
+        .map(String::trim)
+        .filter(s -> !s.isEmpty())
+        .collect(Collectors.toUnmodifiableSet());
   }
 
   // ── rotate-session-key ──
