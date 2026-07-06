@@ -3,6 +3,7 @@
  */
 package org.sikuli.mcp.cli;
 
+import org.sikuli.mcp.audit.HighWaterMark;
 import org.sikuli.mcp.audit.JournalVerifier;
 import org.sikuli.mcp.audit.JournalWriter;
 import org.sikuli.mcp.crypto.KeyManager;
@@ -46,6 +47,17 @@ public final class Main {
   // Rotation thresholds — can be tuned later via env vars
   private static final long MAX_ENTRIES_PER_FILE = 10_000L;
   private static final long MAX_AGE_MILLIS = 24 * 60 * 60 * 1000L; // 24h
+
+  // Signed anchor file. Lives in oculixDir (next to the key files), not in
+  // journalDir: a cosmetic wipe of journalDir alone leaves the HWM behind
+  // so the missing tail becomes detectable. A wipe of the whole oculixDir
+  // takes the HWM with it and cannot be caught in Phase 1 — documented in
+  // the README, external anchor is the Phase 2 answer.
+  static final String HWM_ANCHOR_FILENAME = "journal.hwm";
+
+  static Path defaultHwmPath(Path oculixDir) {
+    return oculixDir.resolve(HWM_ANCHOR_FILENAME);
+  }
 
   public static void main(String[] rawArgs) throws Exception {
     String[] args = rawArgs == null ? new String[0] : rawArgs;
@@ -281,12 +293,18 @@ public final class Main {
     Path journalDir = StartupCheck.defaultJournalDir();
 
     Files.createDirectories(journalDir);
+
+    // Human-readable artefact only — the verifier ignores .txt files and
+    // anchors solely on the signed RECOVERY_GAP entry written below. Kept
+    // for operators skimming the directory with a file browser.
     String ts = String.valueOf(System.currentTimeMillis());
     Path gap = journalDir.resolve("UNSIGNED_GAP-" + ts + ".txt");
     Files.writeString(gap,
         "Audit chain broken at " + java.time.Instant.now() + ".\n"
             + "Reason: operator-initiated recovery (key lost or chain corruption).\n"
-            + "Subsequent entries start a fresh chain under a new Ed25519 key pair.\n",
+            + "Subsequent entries start a fresh chain under a new Ed25519 key pair.\n"
+            + "The verifier anchors on the signed RECOVERY_GAP entry in the next\n"
+            + "audit-*.jsonl, not on this file.\n",
         StandardOpenOption.CREATE_NEW);
 
     // Wipe existing keys if any — recovery means we accept the break
@@ -298,8 +316,26 @@ public final class Main {
     // Generate a fresh pair
     KeyManager fresh = KeyManager.generateAndStore(oculixDir);
 
+    // Anchor + journal writer are both bound to the NEW key. The
+    // appendRecoveryGap call below writes the signed break declaration
+    // AND re-signs the HWM under the new key via the writer's HWM hook,
+    // so the next verify reads a fully-consistent chain and anchor.
+    Path anchorPath = defaultHwmPath(oculixDir);
+    HighWaterMark hwm = new HighWaterMark(anchorPath, fresh);
+    Path recoveryJournal;
+    try (JournalWriter writer = new JournalWriter(
+        journalDir, fresh, MAX_ENTRIES_PER_FILE, MAX_AGE_MILLIS, hwm)) {
+      writer.appendRecoveryGap(
+          "operator_recovery",
+          java.time.Instant.now().toString(),
+          "lost");
+      recoveryJournal = writer.currentFile();
+    }
+
     System.out.println("Recovery complete.");
-    System.out.println("Unsigned gap marker: " + gap);
+    System.out.println("Signed RECOVERY_GAP written to: " + recoveryJournal);
+    System.out.println("Informational artefact:         " + gap);
+    System.out.println("Anchor re-signed under new key: " + anchorPath);
     System.out.println("Fresh key pair generated.");
     System.out.println("New public key SHA-256: " + fresh.publicKeySha256Hex());
   }
