@@ -37,7 +37,17 @@ public class VNCScreen extends Region implements IScreen, EventObserver {
   private int port = -1;
   private String id = "";
 
-  private static Map<String, org.sikuli.vnc.VNCScreen> screens = new HashMap<>();
+  // The active-screens registry is scoped per thread so that two parallel test
+  // suites connecting to the same host:port never share the same VNCScreen
+  // instance. Historical upstream design was a single static Map ; that shape
+  // silently coalesced two independent sessions in Katalon/JUnit parallel
+  // runners and became one of the RETEX topics of the 2026 OculiX reprise.
+  private static final ThreadLocal<Map<String, org.sikuli.vnc.VNCScreen>> screensPerThread =
+      ThreadLocal.withInitial(HashMap::new);
+
+  private static Map<String, org.sikuli.vnc.VNCScreen> screens() {
+    return screensPerThread.get();
+  }
 
   private static int startUpWait = 3;
 
@@ -103,7 +113,7 @@ public class VNCScreen extends Region implements IScreen, EventObserver {
     }).start();
     client.refreshFramebuffer();
 
-    screens.put(id, this);
+    screens().put(id, this);
     this.wait((double) startUpWait);
   }
 
@@ -129,8 +139,8 @@ public class VNCScreen extends Region implements IScreen, EventObserver {
       validIP = !new InetSocketAddress(theIP, thePort).isUnresolved();
     }
     if (validIP) {
-      if (screens.size() > 0) {
-        vncScreen = screens.get(address);
+      if (screens().size() > 0) {
+        vncScreen = screens().get(address);
         if (null != vncScreen) {
           return vncScreen;
         }
@@ -154,16 +164,16 @@ public class VNCScreen extends Region implements IScreen, EventObserver {
 
   public void stop() {
     close();
-    screens.remove(this.id);
+    screens().remove(this.id);
   }
 
   public static void stopAll() {
-    if (screens.size() > 0) {
+    if (screens().size() > 0) {
       Debug.log(3, "VNCScreen: stopping all");
-      for (org.sikuli.vnc.VNCScreen scr : screens.values()) {
+      for (org.sikuli.vnc.VNCScreen scr : screens().values()) {
         scr.close();
       }
-      screens.clear();
+      screens().clear();
     }
   }
 
