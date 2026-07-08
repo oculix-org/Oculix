@@ -4,6 +4,34 @@ OculiX is a Java visual automation platform that succeeds where invisible click-
 
 This file honors the people whose contribution is hard to see in the default GitHub Contributors view — bug reporters whose analysis shaped a fix, native-language reviewers who caught false-friends in every locale we ship, and voices that made the diff smarter. The GitHub graph tracks commits ; this file tracks intent.
 
+## 🎓 Original Sikuli lineage — MIT UIST 2009 → SikuliX1
+
+OculiX descends from a research project born at MIT CSAIL. Every line of Java shipped today rests on their vision, even where the code has since been rewritten.
+
+### Founders
+
+| Name | Role | Reference |
+|---|---|---|
+| Prof. Rob Miller | Founder of the UI Design Group (later Usable Programming) at MIT CSAIL, supervised the original Sikuli research from 2003 onward | UI Design Group / Usable Programming, MIT CSAIL |
+| @doubleshow (Tom Yeh) | Co-author of the seminal Sikuli paper — 87 dense commits on the original codebase | *Sikuli: Using GUI Screenshots for Search and Automation*, UIST 2009 |
+| @vgod (Tsung-Hsiang Chang) | Co-author of the seminal Sikuli paper — 981 commits, main codebase author on the original repository | *Sikuli: Using GUI Screenshots for Search and Automation*, UIST 2009 |
+
+### Early Sikuli contributors (github.com/sikuli/sikuli, 2010–2013)
+
+Before @RaiMan took over sole maintenance and forked SikuliX1, the original Sikuli repository welcomed a small early community. Nobody forgotten :
+
+| Contributor | Commits |
+|---|---|
+| @karlmicha (Karl-Michael Schneider) | 28 |
+| @techtonik (anatoly techtonik) | 8 |
+| @niknah | 2 |
+| @EarthCitizen | 1 |
+| @ksmyth (Kevin Smyth) | 1 |
+| @ChrisOelmueller (Chris Oelmueller) | 1 |
+| @Liam-Deacon (Liam Deacon) | 1 |
+
+The @RaiMan → OculiX lineage that followed (2010–present) stands on all their shoulders.
+
 ## 🌍 Native language reviewers — v3.0.4 i18n campaign
 
 The v3.0.4 release shipped six locales validated by native speakers. Each one read every string, corrected false-friends, and pushed back on Google-translated placeholders that would have made real users close the IDE at first launch.
