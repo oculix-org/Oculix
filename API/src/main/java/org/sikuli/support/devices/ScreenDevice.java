@@ -130,6 +130,18 @@ public class ScreenDevice extends Devices {
         } else {
           nScreen++;
         }
+        // #441 defensive fix: when no screen contains (0,0), nScreen can overflow
+        // past nDevices and hit AIOOBE on devices[actualScreen]. Fall back to the
+        // first null slot so every screen is preserved and the loop finishes.
+        // Reproduces on Manjaro KDE Plasma 6.6.5 + OpenJDK 26 (issue #441).
+        if (actualScreen >= nDevices) {
+          for (int k = 0; k < nDevices; k++) {
+            if (devices[k] == null) {
+              actualScreen = k;
+              break;
+            }
+          }
+        }
         final ScreenDevice device = new ScreenDevice(currentBounds, gdev);
         device.id = i;
         device.screenId = actualScreen;
@@ -147,6 +159,20 @@ public class ScreenDevice extends Devices {
 
   public static int numDevices() {
     return nDevices;
+  }
+
+  /**
+   * Reset the static device state so {@link #initDevices()} runs again on the
+   * next call. Called by {@link org.sikuli.script.Screen#resetScreens()} to make
+   * monitor re-evaluation actually work after a hot-plug or resolution change.
+   * Fixes the {@code resetMonitors()} early-return identified during audit of
+   * Epic #442 — the "experimental" reset used to be a no-op because {@code
+   * initDevices()} early-returns as long as {@code mainMonitor > -1}.
+   */
+  public static void reset() {
+    mainMonitor = -1;
+    devices = null;
+    nDevices = 0;
   }
 
   public static ScreenDevice primary() {
