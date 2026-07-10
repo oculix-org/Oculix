@@ -134,6 +134,24 @@ public class Commons {
       startLog(3, "[OculiX] Native library path: " + getNativeLibDir());
     }
 
+    // Linux Wayland-strict runtime warning. java.awt.Robot captures return a
+    // black image (JDK-8269245) and xdotool / Robot input events are silently
+    // dropped (JDK-8280983 / Project Wakefield). Both fail without raising
+    // an exception, which is worse than a crash — the user sees nothing.
+    // Turn the silence into an audible signal. Tracked in #299 (capture) and
+    // #417 (input); root fix planned in Epic #442.
+    if (runningLinux) {
+      String sessionType = System.getenv("XDG_SESSION_TYPE");
+      if ("wayland".equalsIgnoreCase(sessionType)) {
+        startLog(3, "[OculiX] WARNING: XDG_SESSION_TYPE=wayland detected");
+        startLog(3, "[OculiX]   java.awt.Robot screen captures will return a BLACK image");
+        startLog(3, "[OculiX]   xdotool / Robot input events are SILENTLY DROPPED");
+        startLog(3, "[OculiX]   tracked in issues #299 (capture) and #417 (input)");
+        startLog(3, "[OculiX]   workaround: log out and select 'Ubuntu on Xorg' at login");
+        startLog(3, "[OculiX]   (note: Xorg session removed in Ubuntu 25.10+, only 24.04 LTS still ships it)");
+      }
+    }
+
     Properties sxProps = new Properties();
     String svf = "/Settings/sikulixversion.txt";
     try {
