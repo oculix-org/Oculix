@@ -88,7 +88,13 @@ public class Screen extends Region implements IScreen, EventObserver {
   }
 
   public static void resetScreens() {
+    // Reset ScreenDevice state as well, otherwise ScreenDevice.initDevices()
+    // early-returns because its static mainMonitor is still > -1, and the
+    // "re-evaluation" that resetMonitors() promises does nothing. Fix
+    // identified during audit of Epic #442.
     screens = null;
+    primaryScreen = -1;
+    ScreenDevice.reset();
     initScreens();
   }
 
