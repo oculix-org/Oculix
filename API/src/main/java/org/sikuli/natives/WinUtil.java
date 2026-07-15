@@ -3,7 +3,11 @@
  */
 package org.sikuli.natives;
 
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +23,7 @@ import com.sun.jna.platform.win32.ShellAPI.SHELLEXECUTEINFO;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.DWORD;
 import com.sun.jna.platform.win32.WinDef.HWND;
+import com.sun.jna.platform.win32.WinDef.POINT;
 import com.sun.jna.platform.win32.WinDef.RECT;
 import com.sun.jna.platform.win32.WinUser;
 import com.sun.jna.ptr.IntByReference;
@@ -26,6 +31,48 @@ import com.sun.jna.ptr.IntByReference;
 public class WinUtil extends GenericOsUtil {
 
 	static final SXUser32 user32 = SXUser32.INSTANCE;
+
+	// GetWindowRect returns physical pixels; AWT (Robot, Region) works in
+	// logical pixels since JEP 263 (JDK 9 Per-Monitor DPI Aware). We divide
+	// by the scale that the JVM itself applies -- single source of truth,
+	// matching whatever coordinate space Region.getImage() will feed to
+	// Robot.createScreenCapture (#444). The device is resolved by the physical
+	// centre of the window to support mixed-DPI multi-monitor layouts.
+	private static Rectangle physicalToLogical(Rectangle physical) {
+		if (physical == null) {
+			return null;
+		}
+		int cx = physical.x + physical.width / 2;
+		int cy = physical.y + physical.height / 2;
+		AffineTransform tx = null;
+		for (GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+			GraphicsConfiguration gc = gd.getDefaultConfiguration();
+			AffineTransform gcTx = gc.getDefaultTransform();
+			Rectangle bounds = gc.getBounds(); // pixels logiques
+			int px = (int) (bounds.x * gcTx.getScaleX());
+			int py = (int) (bounds.y * gcTx.getScaleY());
+			int pw = (int) (bounds.width * gcTx.getScaleX());
+			int ph = (int) (bounds.height * gcTx.getScaleY());
+			if (cx >= px && cx < px + pw && cy >= py && cy < py + ph) {
+				tx = gcTx;
+				break;
+			}
+		}
+		if (tx == null) {
+			tx = GraphicsEnvironment.getLocalGraphicsEnvironment()
+					.getDefaultScreenDevice().getDefaultConfiguration().getDefaultTransform();
+		}
+		double sx = tx.getScaleX();
+		double sy = tx.getScaleY();
+		if (sx == 1.0 && sy == 1.0) {
+			return physical;
+		}
+		return new Rectangle(
+				(int) Math.round(physical.x / sx),
+				(int) Math.round(physical.y / sy),
+				(int) Math.round(physical.width / sx),
+				(int) Math.round(physical.height / sy));
+	}
 
 	private static final class WinWindow implements OsWindow {
 		private HWND hWnd;
@@ -59,7 +106,7 @@ public class WinUtil extends GenericOsUtil {
 		public Rectangle getBounds() {
 			RECT rect = new User32.RECT();
 			boolean success = user32.GetWindowRect(hWnd, rect);
-			return success ? rect.toRectangle() : null;
+			return success ? physicalToLogical(rect.toRectangle()) : null;
 		}
 
 		@Override
