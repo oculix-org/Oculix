@@ -3397,7 +3397,14 @@ public class Region extends Element {
 
     public void shouldStop() {
       if (!hasFinished()) {
-        rfArray[subN].setShouldStop();
+        // #425: race between "sub A finished" and "sub B hasn't reached line 1
+        // of its run() yet" — the slot may still be null when the main thread
+        // fans out shouldStop() on every runner. A sub not yet initialized
+        // simply gets no stop signal; its run() completes normally a moment
+        // later and either lands a match in mArray or exits cleanly.
+        if (rfArray[subN] != null) {
+          rfArray[subN].setShouldStop();
+        }
       }
     }
   }
