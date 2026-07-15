@@ -8,9 +8,14 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.oculix-org</groupId>
+  <parent>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculix</artifactId>
+    <version>${revision}</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
   <artifactId>oculixmcp</artifactId>
-  <version>4.0.0</version>
 
   <packaging>jar</packaging>
 
@@ -47,11 +52,13 @@
   </properties>
 
   <dependencies>
-    <!-- OculiX API: visual automation engine (OpenCV, OCR, Robot) -->
+    <!-- OculiX API: visual automation engine (OpenCV, OCR, Robot).
+         Version tracks the reactor's ${project.version} which resolves via
+         the parent pom's ${revision} property. -->
     <dependency>
-      <groupId>io.github.oculix-org</groupId>
+      <groupId>${project.groupId}</groupId>
       <artifactId>oculixapi</artifactId>
-      <version>4.0.0</version>
+      <version>${project.version}</version>
     </dependency>
 
     <!-- JSON (already used by API, keep consistent) -->

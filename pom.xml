@@ -7,7 +7,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.oculix-org</groupId>
   <artifactId>oculix</artifactId>
-  <version>4.0.0</version>
+  <version>${revision}</version>
   <name>OculiX</name>
   <description>Visual automation - if you can see it, you can automate it</description>
   <url>https://github.com/oculix-org/Oculix</url>
@@ -34,6 +34,19 @@
     <url>https://github.com/oculix-org/Oculix</url>
   </scm>
 
+  <!-- Local staging target for `mvn site site:stage` — the aggregated multi-module
+       site lands under target/staging with a Reflow-skinned navigation.
+       ${session.executionRootDirectory} resolves to the directory where `mvn`
+       was invoked (i.e. the reactor root), and stays constant across all
+       inherited child modules — unlike ${project.basedir} which would point
+       at each child's own basedir and break site:stage on submodules. -->
+  <distributionManagement>
+    <site>
+      <id>local-site</id>
+      <url>file://${session.executionRootDirectory}/target/staging</url>
+    </site>
+  </distributionManagement>
+
   <modules>
     <!-- build-extensions is the Maven core extension that prints the OculiX
          gecko banner on every mvn invocation. Listed FIRST so it builds
@@ -45,6 +58,22 @@
     <module>MCP</module>
     <module>Reporter</module>
   </modules>
+
+  <properties>
+    <!-- Single source of truth for the reactor version. Every module (root + 5 children)
+         resolves ${revision} from here, so a release bump is a one-line edit. The
+         flatten-maven-plugin below rewrites this to the concrete value in each module's
+         .flattened-pom.xml before publication so Maven Central users never see the
+         unresolved property. Pattern: CI-friendly versions, Maven 3.5+. -->
+    <revision>4.0.0</revision>
+
+    <!-- Kill the "Input file encoding has not been set, using platform encoding UTF-8"
+         warning at the reactor root. Each child module already sets this locally, but
+         the aggregator pom needs its own copy so the reactor-level goals (site, install)
+         don't emit the platform-dependent build warning. -->
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+  </properties>
 
   <!-- Security: force transitive versions to kill known CVEs (mostly brought by Jython 2.7.4).
        Refresh quarterly or whenever Scorecard / Dependency-Check flags new ones. -->
@@ -84,6 +113,108 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
+  <!-- Multi-module site generation with the wcm-io fork of Reflow skin.
+       Workflow: `mvn install site site:stage` -> target/staging/index.html.
+       The wcm-io fork is the maintained continuation of the upstream Velykis
+       skin (last upstream push 2022, wcm-io actively released since).
+       In <pluginManagement> so the 3.21.0 version is inherited by every
+       child module — otherwise API/IDE/MCP/Reporter default-resolve to the
+       3.12.1 shipped with Maven core, whose bundled doxia is too old for
+       maven-project-info-reports-plugin 3.9.0 (NoSuchMethodError Sink.verbatim). -->
+  <build>
+    <!-- maven-site-plugin: <pluginManagement> is REQUIRED to override the super POM
+         binding (which pins 3.12.1 via its own pluginManagement in maven-core 3.9.x).
+         A plain <build><plugins> block in a parent pom does NOT override the super POM's
+         pluginManagement when resolved from a child — Maven inherits pluginManagement
+         first, then applies plugins on top. Only <pluginManagement> in the user parent
+         wins at the child level.
+         The reflow-velocity-tools dep pulls the right velocity-tools-generic transitively.
+         The attach-descriptor execution is required since site-plugin 3.x removed the
+         automatic lifecycle binding.
+         The <plugins> block below activates the plugin on the parent itself; version
+         and config are picked up from <pluginManagement> above via the standard merge. -->
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-site-plugin</artifactId>
+          <version>3.21.0</version>
+          <configuration>
+            <generateReports>true</generateReports>
+            <inputEncoding>UTF-8</inputEncoding>
+            <outputEncoding>UTF-8</outputEncoding>
+          </configuration>
+          <dependencies>
+            <dependency>
+              <groupId>io.wcm.maven.skins</groupId>
+              <artifactId>reflow-velocity-tools</artifactId>
+              <version>1.1.0</version>
+            </dependency>
+          </dependencies>
+          <executions>
+            <execution>
+              <id>attach-descriptor</id>
+              <goals>
+                <goal>attach-descriptor</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>flatten-maven-plugin</artifactId>
+          <version>1.7.0</version>
+          <configuration>
+            <!-- resolveCiFriendliesOnly = only rewrite ${revision}/${sha1}/${changelist}
+                 to their concrete values; keep everything else (dependencyManagement,
+                 build config, comments) as-is. This is the mode you want when you only
+                 use CI-friendly versions and not the full pom-flattening machinery. -->
+            <flattenMode>resolveCiFriendliesOnly</flattenMode>
+            <updatePomFile>true</updatePomFile>
+          </configuration>
+          <executions>
+            <execution>
+              <id>flatten</id>
+              <phase>process-resources</phase>
+              <goals><goal>flatten</goal></goals>
+            </execution>
+            <execution>
+              <id>flatten.clean</id>
+              <phase>clean</phase>
+              <goals><goal>clean</goal></goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-site-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>flatten-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <!-- Reports picked up by `mvn site` and rendered inside the Reflow-skinned site. -->
+  <reporting>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-project-info-reports-plugin</artifactId>
+        <version>3.9.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-report-plugin</artifactId>
+        <version>3.6.0-M1</version>
+      </plugin>
+    </plugins>
+  </reporting>
 
   <profiles>
     <profile>

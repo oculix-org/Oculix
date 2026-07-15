@@ -8,9 +8,14 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.oculix-org</groupId>
+  <parent>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculix</artifactId>
+    <version>${revision}</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
   <artifactId>oculixide</artifactId>
-  <version>4.0.0</version>
 
   <name>OculiX IDE</name>
   <description>Visual automation IDE - edit and run OculiX scripts</description>
