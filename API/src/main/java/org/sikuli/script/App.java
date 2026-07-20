@@ -696,9 +696,16 @@ public class App {
   public Region window(int winNum) {
     List<OsWindow> windows = osUtil.getWindows(process);
     Region windowRegion = null;
-    Rectangle windowRect = windows.get(winNum).getBounds();
+    OsWindow win = windows.get(winNum);
+    Rectangle windowRect = win.getBounds();
     if (null != windowRect) {
-      windowRegion = asRegion(windowRect, windows.get(winNum).getTitle());
+      windowRegion = asRegion(windowRect, win.getTitle());
+      // v5 (#444): attach the source window so Region.captureSelf() can route
+      // through the native window capture path (Windows: PrintWindow) instead
+      // of the classic Robot-based screen capture.
+      if (windowRegion != null) {
+        windowRegion.setSourceWindow(win);
+      }
     }
     return windowRegion;
   }
@@ -720,7 +727,15 @@ public class App {
   public static Region focusedWindow() {
     OsWindow window = osUtil.getFocusedWindow();
     if (window != null) {
-      return asRegion(osUtil.getFocusedWindow().getBounds());
+      Region region = asRegion(window.getBounds());
+      // v5 (#444): attach the source window so Region.captureSelf() can route
+      // through the native window capture path (Windows: PrintWindow) instead
+      // of the classic Robot-based screen capture, which fails on mixed-DPI
+      // multi-monitor layouts and straddling windows.
+      if (region != null) {
+        region.setSourceWindow(window);
+      }
+      return region;
     } else {
       return new Region();
     }
