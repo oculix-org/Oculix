@@ -3319,7 +3319,19 @@ public class Region extends Element {
             // v5 (#444): captureSelf routes through PrintWindow when applicable.
             // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
             finder = new Finder(captureSelf(x, y, w, h), this);
-            finder.findAll(img);
+            // v5 (#343): if the loaded PNG declares a non-trivially opaque
+            // alpha channel, wrap it into a Pattern with automatic mask so
+            // the matcher respects the declared transparency. Without this,
+            // the transparent zones are flattened to black and the template
+            // matches every dark region at the right spacing (documented on
+            // StackOverflow by akazen in May 2023, present in the code since
+            // the first Sikuli upload circa 2009). The opt-in .mask() route
+            // on user-built Patterns keeps working unchanged.
+            if (img.hasEffectiveAlpha()) {
+              finder.findAll(new Pattern(img).mask());
+            } else {
+              finder.findAll(img);
+            }
           } else if (img.isText()) {
             findingText = true;
             someText = img.getNameGiven();
@@ -3343,7 +3355,15 @@ public class Region extends Element {
           // v5 (#444): captureSelf routes through PrintWindow when applicable.
           // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
           finder = new Finder(captureSelf(x, y, w, h), this);
-          finder.findAll((Image) ptn);
+          // v5 (#343): same alpha-aware wrap as the String branch above —
+          // when the Image declares transparency, feed it via a Pattern
+          // with automatic mask instead of the raw Image, which would
+          // otherwise trigger the flattened-alpha false-positive storm.
+          if (img.hasEffectiveAlpha()) {
+            finder.findAll(new Pattern(img).mask());
+          } else {
+            finder.findAll((Image) ptn);
+          }
         }
       } else {
         throw new RuntimeException(String.format("SikuliX: Region: doFind: invalid parameter: %s", ptn));
