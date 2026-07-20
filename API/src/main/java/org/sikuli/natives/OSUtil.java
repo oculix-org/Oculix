@@ -4,6 +4,7 @@
 package org.sikuli.natives;
 
 import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
 import java.util.List;
 
 public interface OSUtil {
@@ -33,6 +34,26 @@ public interface OSUtil {
 		boolean maximize();
 
 		boolean restore();
+
+		/**
+		 * Native window capture bypassing {@code Robot.createScreenCapture}.
+		 * Windows path uses {@code PrintWindow(PW_RENDERFULLCONTENT)} to ask the
+		 * WM to render the window into an off-screen HDC, which handles
+		 * mixed-DPI multi-monitor layouts, straddling windows, and partially
+		 * off-screen windows correctly (#444).
+		 *
+		 * <p>Default implementation returns {@code null}. Non-Windows platforms
+		 * (macOS, Linux X11, Wayland) inherit the null and callers fall back
+		 * to the classic Robot-based capture — macOS Quartz already handles
+		 * mixed-DPI correctly, X11 has no equivalent native, and Wayland
+		 * requires the portal-based route out of scope of this API.
+		 *
+		 * @param logicalBounds  target logical size (may be null → physical)
+		 * @return the captured window content, or {@code null} to fall back
+		 */
+		default BufferedImage captureNative(Rectangle logicalBounds) {
+			return null;
+		}
 	}
 
 	/**
