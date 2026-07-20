@@ -5,6 +5,7 @@ package org.sikuli.script;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
+import org.sikuli.natives.OSUtil.OsWindow;
 import org.sikuli.support.*;
 import org.sikuli.support.Observer;
 import org.sikuli.support.devices.HelpDevice;
@@ -317,7 +318,10 @@ public class Region extends Element {
     BufferedImage previousImage = null;
 
     while (System.currentTimeMillis() - startTime < maxWaitMs) {
-      ScreenImage shot = getScreen().capture(this);
+      // v5 (#444): captureSelf() routes through PrintWindow when a source
+      // window is attached, otherwise falls back to getScreen().capture(this).
+      // Old line: ScreenImage shot = getScreen().capture(this);
+      ScreenImage shot = captureSelf(this);
       BufferedImage currentImage = shot == null ? null : shot.getImage();
       if (currentImage == null) {
         try { Thread.sleep(100); } catch (InterruptedException ignored) {}
@@ -478,8 +482,143 @@ public class Region extends Element {
 
   //<editor-fold defaultstate="collapsed" desc="005 Init & special use">
 
+  /**
+   * The OS-level window this Region originates from, if any. Set by
+   * {@link App#focusedWindow()} and {@link App#window()} so that capture
+   * operations on the Region can route to the native window capture path
+   * (Windows: {@code PrintWindow}) instead of the classic Robot-based screen
+   * capture, which suffers from clip-to-one-monitor and mixed-DPI issues
+   * when the window spans monitors or sits partially off-screen (#444).
+   *
+   * <p>Null on Regions that are not tied to an OS window (any Region built
+   * from raw coordinates, from a Pattern match, from {@link Screen#getRegion()},
+   * etc.), which is the majority — those keep the classic capture path.
+   */
+  private OsWindow sourceWindow = null;
+
+  // Short-lived cache of the native window capture. Kept for a small TTL so
+  // that rapid successive calls (getImage(), then find(), then wait() on the
+  // same Region within a few frames) reuse the same bitmap and therefore
+  // report consistent Match coordinates. Without this, physicalToLogical's
+  // intermittent variance across calls produces slightly different bounds on
+  // each captureSelf(), and the pattern extracted from the first image gets
+  // found at a shifted offset in the second — a real bug on straddling
+  // mixed-DPI windows that would otherwise leak into user code.
+  private static final long NATIVE_CAPTURE_CACHE_TTL_MS = 3000;
+  private transient BufferedImage cachedNativeImage = null;
+  private transient Rectangle cachedNativeBounds = null;
+  private transient long cachedNativeAt = 0L;
+
+  /**
+   * Attach an OS-level source window to this Region. When set, capture calls
+   * on the Region ({@link #getImage()}, {@link #find}, {@link #wait},
+   * {@link #exists}, {@link #text}, etc.) route through the window's native
+   * capture path if the platform supports one. See {@link #captureSelf}.
+   */
+  public Region setSourceWindow(OsWindow window) {
+    this.sourceWindow = window;
+    return this;
+  }
+
+  public OsWindow getSourceWindow() {
+    return sourceWindow;
+  }
+
+  /**
+   * Internal capture helper — routes to native window capture (Windows:
+   * PrintWindow) when a {@link #sourceWindow} is attached and the platform
+   * supports it, otherwise falls back to the classic Screen-device capture.
+   *
+   * <p>The native path handles what the Robot path cannot:
+   * <ul>
+   *   <li>Windows straddling monitors at different DPI scales</li>
+   *   <li>Windows partially off-screen (Robot returns black on those pixels)</li>
+   *   <li>Windows visually behind another window (Robot captures what is on
+   *       screen, {@code PrintWindow} asks the WM to re-render the target)</li>
+   * </ul>
+   *
+   * <p>When the sub-region requested does not exactly match the window
+   * bounds, the full window bitmap is captured natively and then cropped
+   * to the requested rectangle. The crop is O(1) via
+   * {@link BufferedImage#getSubimage} (shared pixel buffer).
+   */
+  // Package-private so Finder.java can route its own captures through the same
+  // window-aware path (Finder used to call where.getScreen().capture(where)
+  // directly, which bypassed the sourceWindow / PrintWindow route and produced
+  // Match coordinates that were shifted vs the getImage() reference #444).
+  ScreenImage captureSelf(int cx, int cy, int cw, int ch) {
+    if (sourceWindow != null) {
+      long now = System.currentTimeMillis();
+      Rectangle wb;
+      BufferedImage nativeImg;
+
+      // Reuse the cached native image if the previous capture is fresh enough.
+      // This is what makes find(), wait() and exists() report consistent Match
+      // coordinates even when physicalToLogical drifts between successive
+      // calls on straddling mixed-DPI windows.
+      if (cachedNativeImage != null
+          && cachedNativeBounds != null
+          && (now - cachedNativeAt) < NATIVE_CAPTURE_CACHE_TTL_MS) {
+        wb = cachedNativeBounds;
+        nativeImg = cachedNativeImage;
+      } else {
+        wb = sourceWindow.getBounds();
+        nativeImg = (wb == null)
+            ? null
+            : sourceWindow.captureNative(new Rectangle(0, 0, wb.width, wb.height));
+        if (wb != null && nativeImg != null) {
+          cachedNativeBounds = wb;
+          cachedNativeImage = nativeImg;
+          cachedNativeAt = now;
+        }
+      }
+
+      if (wb != null && nativeImg != null) {
+        // Full-window path: caller passed (this.x, this.y, this.w, this.h)
+        // — that's what getImage() and captureSelf(this) do. Interpret as
+        // "give me the full window": refresh this Region's bounds to track
+        // the window's current position/size and return the full image.
+        if (cx == this.x && cy == this.y && cw == this.w && ch == this.h) {
+          this.x = wb.x;
+          this.y = wb.y;
+          this.w = wb.width;
+          this.h = wb.height;
+          return new ScreenImage(new Rectangle(wb.x, wb.y, wb.width, wb.height),
+              nativeImg);
+        }
+        // Sub-region path: caller passed explicit (cx, cy, cw, ch) that
+        // differ from this Region's bounds — typically checkLastSeen()
+        // cropping to a ROI around the previous match. Return the requested
+        // slice cropped from the full-window bitmap so Match coordinates
+        // stay in the caller's coord space.
+        int localX = Math.max(0, cx - wb.x);
+        int localY = Math.max(0, cy - wb.y);
+        int localW = Math.min(cw, nativeImg.getWidth() - localX);
+        int localH = Math.min(ch, nativeImg.getHeight() - localY);
+        if (localW > 0 && localH > 0) {
+          BufferedImage sub = (localX == 0 && localY == 0
+              && localW == nativeImg.getWidth()
+              && localH == nativeImg.getHeight())
+              ? nativeImg
+              : nativeImg.getSubimage(localX, localY, localW, localH);
+          return new ScreenImage(new Rectangle(cx, cy, cw, ch), sub);
+        }
+      }
+    }
+    // Classic Robot-based capture through the Screen device.
+    return getScreen().capture(cx, cy, cw, ch);
+  }
+
+  ScreenImage captureSelf(Region r) {
+    return captureSelf(r.x, r.y, r.w, r.h);
+  }
+
   public Image getImage() {
-    return new Image(getScreen().capture(x, y, w, h));
+    // v5 (#444): route through captureSelf() so App.focusedWindow().getImage()
+    // uses PrintWindow when a sourceWindow is attached. Original line kept
+    // commented for historical reference and quick rollback.
+    // return new Image(getScreen().capture(x, y, w, h));
+    return new Image(captureSelf(x, y, w, h));
   }
 
   /**
@@ -2925,7 +3064,9 @@ public class Region extends Element {
     }
     if (repeating != null && repeating._finder != null) {
       finder = repeating._finder;
-      simg = getScreen().capture(this);
+      // v5 (#444): captureSelf() routes through PrintWindow when applicable.
+      // Old line: simg = getScreen().capture(this);
+      simg = captureSelf(this);
       finder.setScreenImage(simg);
       finder.setRepeating();
       if (Settings.FindProfiling) {
@@ -3108,7 +3249,9 @@ public class Region extends Element {
           log(logLevel, "checkLastSeen: skipping (scaled cache %dx%d cannot expand to fit template %dx%d in region)",
               r.w, r.h, imgSize.width, imgSize.height);
           if (base == null) {
-            base = getScreen().capture(this);
+            // v5 (#444): captureSelf routes through PrintWindow when applicable.
+            // Old line: base = getScreen().capture(this);
+            base = captureSelf(this);
           }
           return new Finder(base, this);
         }
@@ -3116,8 +3259,11 @@ public class Region extends Element {
       if (this.contains(r)) {
         // #353: capture ONLY the ROI when no base was provided (single-find path) —
         // ~ROI capture + match, no full-screen BitBlt. Multi-find passes a base.
+        // v5 (#444): captureSelf handles the ROI crop natively when a source
+        // window is attached (crops the full-window bitmap to the ROI).
+        // Old line: getScreen().capture(r.x, r.y, r.w, r.h)
         ScreenImage roiShot = (base != null) ? base.getSub(r.getRect())
-                                             : getScreen().capture(r.x, r.y, r.w, r.h);
+                                             : captureSelf(r.x, r.y, r.w, r.h);
         Finder f = new Finder(roiShot, r);
         if (Debug.shouldHighlight()) {
           if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
@@ -3139,7 +3285,9 @@ public class Region extends Element {
     }
     // #353: fallback full-screen search — capture now if we deferred it above.
     if (base == null) {
-      base = getScreen().capture(this);
+      // v5 (#444): captureSelf routes through PrintWindow when applicable.
+      // Old line: base = getScreen().capture(this);
+      base = captureSelf(this);
     }
     return new Finder(base, this);
   }
@@ -3154,7 +3302,9 @@ public class Region extends Element {
     String someText = "";
     if (repeating != null && repeating._finder != null) {
       finder = repeating._finder;
-      finder.setScreenImage(getScreen().capture(x, y, w, h));
+      // v5 (#444): captureSelf routes through PrintWindow when applicable.
+      // Old line: finder.setScreenImage(getScreen().capture(x, y, w, h));
+      finder.setScreenImage(captureSelf(x, y, w, h));
       finder.setRepeating();
       finder.findAllRepeat();
     } else {
@@ -3166,7 +3316,9 @@ public class Region extends Element {
         } else {
           img = repeating._image;//Image.create((String) ptn);
           if (img.isValid()) {
-            finder = new Finder(getScreen().capture(x, y, w, h), this);
+            // v5 (#444): captureSelf routes through PrintWindow when applicable.
+            // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+            finder = new Finder(captureSelf(x, y, w, h), this);
             finder.findAll(img);
           } else if (img.isText()) {
             findingText = true;
@@ -3180,13 +3332,17 @@ public class Region extends Element {
       } else if (ptn instanceof Pattern) {
         if (((Pattern) ptn).isValid()) {
           img = ((Pattern) ptn).getImage();
-          finder = new Finder(getScreen().capture(x, y, w, h), this);
+          // v5 (#444): captureSelf routes through PrintWindow when applicable.
+          // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+          finder = new Finder(captureSelf(x, y, w, h), this);
           finder.findAll((Pattern) ptn);
         }
       } else if (ptn instanceof Image) {
         if (((Image) ptn).isValid()) {
           img = ((Image) ptn);
-          finder = new Finder(getScreen().capture(x, y, w, h), this);
+          // v5 (#444): captureSelf routes through PrintWindow when applicable.
+          // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+          finder = new Finder(captureSelf(x, y, w, h), this);
           finder.findAll((Image) ptn);
         }
       } else {
@@ -3411,7 +3567,9 @@ public class Region extends Element {
     RepeatableFind[] rfArray = new RepeatableFind[pList.size()];
     SubFindRun[] theSubs = new SubFindRun[pList.size()];
     int nobj = 0;
-    ScreenImage base = getScreen().capture(this);
+    // v5 (#444): captureSelf routes through PrintWindow when applicable.
+    // Old line: ScreenImage base = getScreen().capture(this);
+    ScreenImage base = captureSelf(this);
     for (Object obj : pList) {
       mArray[nobj] = null;
 
@@ -3485,7 +3643,9 @@ public class Region extends Element {
       }
       if (findingText) {
         log(logLevel, "findInImage: Switching to TextSearch");
-        finder = new Finder(getScreen().capture(x, y, w, h), this);
+        // v5 (#444): captureSelf routes through PrintWindow when applicable.
+        // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+        finder = new Finder(captureSelf(x, y, w, h), this);
         finder.findText((String) target);
       }
     } else if (target instanceof Pattern) {
@@ -3978,7 +4138,9 @@ public class Region extends Element {
     Observing.addRunningObserver(this);
     while (observing && stop_t > (new Date()).getTime()) {
       long before_find = (new Date()).getTime();
-      ScreenImage simg = getScreen().capture(x, y, w, h);
+      // v5 (#444): captureSelf routes through PrintWindow when applicable.
+      // Old line: ScreenImage simg = getScreen().capture(x, y, w, h);
+      ScreenImage simg = captureSelf(x, y, w, h);
       if (!regionObserver.update(simg)) {
         observing = false;
         break;
