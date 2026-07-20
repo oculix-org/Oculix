@@ -361,6 +361,45 @@ public class Image extends Element {
     this.captureDpi = dpi;
   }
 
+  /**
+   * Returns {@code true} when the underlying {@link BufferedImage} carries an
+   * alpha channel with at least one non-fully-opaque pixel &mdash; i.e. the
+   * PNG declares transparent zones that a template matcher should respect via
+   * a mask.
+   *
+   * <p>Returns {@code false} for opaque image types
+   * ({@code TYPE_3BYTE_BGR}, {@code TYPE_INT_RGB}, &hellip;) and for RGBA
+   * images whose alpha channel is uniformly {@code 255}. Callers use the
+   * result to decide whether to wrap the {@code Image} into a {@link Pattern}
+   * with an automatic mask before feeding it to {@link Finder#findAll} &mdash;
+   * see {@code Region.doFindAll} (#343).</p>
+   *
+   * <p>Costs one {@code getRGB} per pixel in the worst case (fully opaque
+   * RGBA), short-circuits on the first transparent pixel encountered. Called
+   * at most once per {@code Image} in the affected dispatch branches, so the
+   * amortised cost is negligible compared to the matchTemplate that would
+   * otherwise return hundreds of false positives on flattened alpha.</p>
+   *
+   * @return {@code true} if the image needs mask-aware matching,
+   *         {@code false} otherwise (opaque image or unset {@code bimg})
+   */
+  public boolean hasEffectiveAlpha() {
+    BufferedImage b = get();
+    if (b == null || !b.getColorModel().hasAlpha()) {
+      return false;
+    }
+    int bw = b.getWidth();
+    int bh = b.getHeight();
+    for (int y = 0; y < bh; y++) {
+      for (int x = 0; x < bw; x++) {
+        if (((b.getRGB(x, y) >> 24) & 0xFF) < 255) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   public static BufferedImage getSubimage(BufferedImage bimg, Rectangle rect) {
     return bimg.getSubimage(rect.x, rect.y, (int) rect.getWidth(), (int) rect.getHeight());
   }
