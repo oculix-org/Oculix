@@ -156,7 +156,17 @@ public class WinUtil extends GenericOsUtil {
 		HANDLE hOld = GDI32.INSTANCE.SelectObject(hdcMem, hBitmap);
 
 		try {
-			if (!user32.PrintWindow(hWnd, hdcMem, PW_RENDERFULLCONTENT)) {
+			boolean printed = user32.PrintWindow(hWnd, hdcMem, PW_RENDERFULLCONTENT);
+
+			// Restore the DC's original bitmap before GetDIBits: MSDN requires
+			// the bitmap NOT be selected into any device context during the
+			// call, otherwise the result is undefined on some drivers. hBitmap
+			// keeps its content (PrintWindow already rendered into it); it is
+			// deleted in the finally block. GetDIBits below reads it through the
+			// unrelated hdcScreen, which only serves as a format reference.
+			GDI32.INSTANCE.SelectObject(hdcMem, hOld);
+
+			if (!printed) {
 				return null;
 			}
 
@@ -169,23 +179,25 @@ public class WinUtil extends GenericOsUtil {
 			bmi.bmiHeader.biCompression = 0;  // BI_RGB
 
 			Memory pixels = new Memory((long) physW * physH * 4);
-			int scanLines = GDI32.INSTANCE.GetDIBits(hdcMem, hBitmap, 0, physH, pixels, bmi, 0);
+			int scanLines = GDI32.INSTANCE.GetDIBits(hdcScreen, hBitmap, 0, physH, pixels, bmi, 0);
 			if (scanLines == 0) {
 				return null;
 			}
 
-			// Convert BGRA (Windows DIB layout) → ARGB Java in a single pass.
-			// The byte-per-byte loop is slower than DataBufferByte direct access
-			// but matches the classic captureNative pattern and avoids surprises
-			// when the returned image is later resized or serialised.
+			// Convert BGRA (Windows DIB layout) → RGB Java. Read the whole pixel
+			// buffer in ONE JNA call (getByteArray) instead of 4 getByte() per
+			// pixel: on a 1920x1080 window that collapses ~8M JNA crossings into
+			// a single bulk copy (~100x faster). The per-byte unpacking then runs
+			// on the local byte[], not across the native boundary.
 			BufferedImage physImg = new BufferedImage(physW, physH, BufferedImage.TYPE_INT_RGB);
 			int total = physW * physH;
+			byte[] buf = pixels.getByteArray(0, total * 4);
 			int[] argb = new int[total];
 			for (int i = 0; i < total; i++) {
-				long off = i * 4L;
-				int b = pixels.getByte(off) & 0xFF;
-				int g = pixels.getByte(off + 1) & 0xFF;
-				int r = pixels.getByte(off + 2) & 0xFF;
+				int off = i * 4;
+				int b = buf[off] & 0xFF;
+				int g = buf[off + 1] & 0xFF;
+				int r = buf[off + 2] & 0xFF;
 				argb[i] = (r << 16) | (g << 8) | b;
 			}
 			physImg.setRGB(0, 0, physW, physH, argb, 0, physW);
@@ -206,7 +218,9 @@ public class WinUtil extends GenericOsUtil {
 			g2.dispose();
 			return logImg;
 		} finally {
-			GDI32.INSTANCE.SelectObject(hdcMem, hOld);
+			// hOld was already restored into hdcMem right after PrintWindow (see
+			// above), so the DC no longer holds hBitmap and we can delete it
+			// safely. Only resource disposal remains here.
 			GDI32.INSTANCE.DeleteObject(hBitmap);
 			GDI32.INSTANCE.DeleteDC(hdcMem);
 			user32.ReleaseDC(null, hdcScreen);
