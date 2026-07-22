@@ -2433,8 +2433,47 @@ public class Region extends Element {
     if (regionHighlight != null) {
       highlightClose();
     }
+    // #444: when this Region is attached to an OS window, draw a single
+    // continuous frame in the physical coordinate space, so a window straddling
+    // several monitors at different DPI scales is framed by ONE unbroken
+    // rectangle instead of the Swing overlay's biggest-part-only approximation.
+    // The user-facing call is unchanged — always highlight(); the routing is
+    // internal. Falls through to the Swing Highlight below when there is no
+    // source window, or the native overlay declines (non-Windows / not drawable).
+    if (sourceWindow != null && sourceWindow.highlightNative(highlightColorToArgb(color), secs)) {
+      return this;
+    }
+    // Classic Swing overlay — kept live: it serves every non-window Region
+    // (raw find() matches, coordinate regions) and is the fallback above.
     regionHighlight = new Highlight(this, color).doShow(secs);
     return this;
+  }
+
+  // #444: resolve a highlight colour spec to 0xRRGGBB for the native spanning
+  // overlay. Mirrors the common cases of Highlight.evalColor (null → red,
+  // #hex, #rrrgggbbb, named java.awt.Color) without pulling in the Swing class.
+  private static int highlightColorToArgb(String color) {
+    if (color == null || color.isEmpty()) {
+      color = Settings.DefaultHighlightColor;
+    }
+    if (color == null || color.isEmpty()) {
+      return 0xFF0000;
+    }
+    try {
+      if (color.startsWith("#")) {
+        if (color.length() == 10) { // #rrrgggbbb (9 decimal digits)
+          int r = Integer.parseInt(color.substring(1, 4));
+          int g = Integer.parseInt(color.substring(4, 7));
+          int b = Integer.parseInt(color.substring(7, 10));
+          return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
+        }
+        return java.awt.Color.decode(color).getRGB() & 0xFFFFFF;
+      }
+      java.lang.reflect.Field f = java.awt.Color.class.getField(color.toUpperCase());
+      return ((java.awt.Color) f.get(null)).getRGB() & 0xFFFFFF;
+    } catch (Exception e) {
+      return 0xFF0000;
+    }
   }
   //</editor-fold>
 
