@@ -3,6 +3,8 @@
  */
 package org.sikuli.natives;
 
+import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
@@ -11,6 +13,7 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,9 +38,12 @@ import com.sun.jna.platform.win32.WinDef.RECT;
 import com.sun.jna.platform.win32.WinGDI.BITMAPINFO;
 import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.platform.win32.WinUser;
+import com.sun.jna.platform.win32.WinUser.BLENDFUNCTION;
 import com.sun.jna.platform.win32.WinUser.HMONITOR;
 import com.sun.jna.platform.win32.WinUser.MONITORINFOEX;
+import com.sun.jna.platform.win32.WinUser.SIZE;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
 
 public class WinUtil extends GenericOsUtil {
 
@@ -227,6 +233,141 @@ public class WinUtil extends GenericOsUtil {
 		}
 	}
 
+	// ═══════════════════════════════════════════════════════════════════════
+	// #444 SpanningHighlight — one continuous frame across mixed-DPI monitors
+	// ═══════════════════════════════════════════════════════════════════════
+	private static final int WS_EX_LAYERED     = 0x00080000;
+	private static final int WS_EX_TRANSPARENT = 0x00000020;
+	private static final int WS_EX_TOPMOST     = 0x00000008;
+	private static final int WS_EX_NOACTIVATE  = 0x08000000;
+	private static final int WS_EX_TOOLWINDOW  = 0x00000080;
+	private static final int WS_POPUP          = 0x80000000;
+	private static final int SW_SHOWNOACTIVATE = 4;
+	private static final byte AC_SRC_OVER      = 0;
+	private static final byte AC_SRC_ALPHA     = 1;
+	private static final int ULW_ALPHA         = 0x00000002;
+	private static final int DIB_RGB_COLORS    = 0;
+
+	/**
+	 * Draws a single continuous coloured frame around the window in physical
+	 * pixels, spanning monitors seamlessly if the window straddles them.
+	 *
+	 * <p>The trick: a straddling window is NOT a single rectangle in AWT logical
+	 * space (each monitor has its own scale), but it IS one continuous rectangle
+	 * in the OS physical virtual-screen space. So we take the raw
+	 * {@code GetWindowRect} (physical), render the outline into a premultiplied
+	 * ARGB bitmap, and blit it through a {@code WS_EX_LAYERED} overlay via
+	 * {@code UpdateLayeredWindow} — one window, one rect, no per-monitor seam.
+	 * The overlay is click-through ({@code WS_EX_TRANSPARENT}) and never steals
+	 * focus ({@code WS_EX_NOACTIVATE}).</p>
+	 *
+	 * @param hWnd the window to frame
+	 * @param argb frame colour {@code 0xRRGGBB} (forced opaque)
+	 * @param secs seconds to keep it on screen (blocks the caller, like Swing Highlight)
+	 * @return {@code true} if the overlay was drawn, {@code false} to fall back to Swing
+	 */
+	static boolean highlightWindowNative(HWND hWnd, int argb, double secs) {
+		RECT wr = new RECT();
+		if (!user32.GetWindowRect(hWnd, wr)) {
+			return false;
+		}
+		int x = wr.left, y = wr.top;
+		int w = wr.right - wr.left, h = wr.bottom - wr.top;
+		if (w <= 0 || h <= 0) {
+			return false;
+		}
+
+		// Premultiplied ARGB outline: opaque coloured border, transparent inside.
+		int thickness = 4;
+		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB_PRE);
+		Graphics2D g = img.createGraphics();
+		g.setComposite(AlphaComposite.Src);
+		g.setColor(new Color(0, 0, 0, 0));
+		g.fillRect(0, 0, w, h);
+		g.setColor(new Color((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, 255));
+		for (int t = 0; t < thickness; t++) {
+			g.drawRect(t, t, w - 1 - 2 * t, h - 1 - 2 * t);
+		}
+		g.dispose();
+
+		HDC screenDC = user32.GetDC(null);
+		HDC memDC = GDI32.INSTANCE.CreateCompatibleDC(screenDC);
+
+		BITMAPINFO bmi = new BITMAPINFO();
+		bmi.bmiHeader.biSize = bmi.bmiHeader.size();
+		bmi.bmiHeader.biWidth = w;
+		bmi.bmiHeader.biHeight = -h;      // negative = top-down DIB
+		bmi.bmiHeader.biPlanes = 1;
+		bmi.bmiHeader.biBitCount = 32;
+		bmi.bmiHeader.biCompression = 0;  // BI_RGB
+
+		PointerByReference ppvBits = new PointerByReference();
+		HBITMAP dib = GDI32.INSTANCE.CreateDIBSection(memDC, bmi, DIB_RGB_COLORS, ppvBits, null, 0);
+		HWND overlay = null;
+		HANDLE oldBmp = null;
+		try {
+			if (dib == null) {
+				return false;
+			}
+			// ARGB_PRE ints (0xAARRGGBB) -> BGRA bytes the DIB expects.
+			int[] px = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
+			byte[] buf = new byte[w * h * 4];
+			for (int i = 0; i < px.length; i++) {
+				int p = px[i];
+				int j = i * 4;
+				buf[j]     = (byte) (p & 0xFF);          // B
+				buf[j + 1] = (byte) ((p >> 8) & 0xFF);   // G
+				buf[j + 2] = (byte) ((p >> 16) & 0xFF);  // R
+				buf[j + 3] = (byte) ((p >>> 24) & 0xFF); // A (premultiplied)
+			}
+			ppvBits.getValue().write(0, buf, 0, buf.length);
+
+			oldBmp = GDI32.INSTANCE.SelectObject(memDC, dib);
+
+			overlay = user32.CreateWindowEx(
+					WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+					"Static", null, WS_POPUP, x, y, w, h, null, null, null, null);
+			if (overlay == null) {
+				return false;
+			}
+
+			SIZE size = new SIZE();
+			size.cx = w;
+			size.cy = h;
+			POINT ptSrc = new POINT(0, 0);
+			POINT ptDst = new POINT(x, y);
+			BLENDFUNCTION blend = new BLENDFUNCTION();
+			blend.BlendOp = AC_SRC_OVER;
+			blend.BlendFlags = 0;
+			blend.SourceConstantAlpha = (byte) 255;
+			blend.AlphaFormat = AC_SRC_ALPHA;
+
+			user32.UpdateLayeredWindow(overlay, screenDC, ptDst, size, memDC, ptSrc, 0, blend, ULW_ALPHA);
+			user32.ShowWindow(overlay, SW_SHOWNOACTIVATE);
+
+			if (secs > 0) {
+				try {
+					Thread.sleep((long) (secs * 1000));
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			}
+			return true;
+		} finally {
+			if (overlay != null) {
+				user32.DestroyWindow(overlay);
+			}
+			if (oldBmp != null) {
+				GDI32.INSTANCE.SelectObject(memDC, oldBmp);
+			}
+			if (dib != null) {
+				GDI32.INSTANCE.DeleteObject(dib);
+			}
+			GDI32.INSTANCE.DeleteDC(memDC);
+			user32.ReleaseDC(null, screenDC);
+		}
+	}
+
 	private static final class WinWindow implements OsWindow {
 		private HWND hWnd;
 
@@ -265,6 +406,11 @@ public class WinUtil extends GenericOsUtil {
 		@Override
 		public BufferedImage captureNative(Rectangle logicalBounds) {
 			return WinUtil.captureWindowNative(hWnd, logicalBounds);
+		}
+
+		@Override
+		public boolean highlightNative(int argb, double secs) {
+			return WinUtil.highlightWindowNative(hWnd, argb, secs);
 		}
 
 		@Override
