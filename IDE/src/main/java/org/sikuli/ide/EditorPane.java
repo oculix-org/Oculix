@@ -222,6 +222,11 @@ public class EditorPane extends JTextPane implements ThemeAware {
     // remove+reinsert later ones.
     for (int idx = savedThumbOffsets.size() - 1; idx >= 0; idx--) {
       int pos = savedThumbOffsets.get(idx)[0];
+      // Validate position is within document bounds (document may have changed since thumbnails were inserted)
+      if (pos < 0 || pos >= doc.getLength()) {
+        trace("afterThemeChange: skipping stale thumbnail at %d (document length: %d)", pos, doc.getLength());
+        continue;
+      }
       EditorImageButton old = savedThumbButtons.get(idx);
       EditorImageButton fresh = old.cloneForRefresh(this);
       if (fresh == null) continue;

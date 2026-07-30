@@ -326,25 +326,29 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
   @Override
   public void afterThemeChange() {
-    applyThemeColors();
-    // Re-render every line of scrollback under the new palette so existing
-    // logs match the new theme (otherwise they keep the colors they had at
-    // insertion time). Cheap in practice — typical scrollback is < a few
-    // hundred lines.
-    if (textArea != null) {
-      synchronized (textArea) {
-        java.util.List<String> snapshot;
-        synchronized (rawLines) {
-          snapshot = new java.util.ArrayList<>(rawLines);
-        }
-        textArea.setText("");
-        for (String line : snapshot) {
-          appendMsg(htmlize(line));
+    try {
+      applyThemeColors();
+      // Re-render every line of scrollback under the new palette so existing
+      // logs match the new theme (otherwise they keep the colors they had at
+      // insertion time). Cheap in practice — typical scrollback is < a few
+      // hundred lines.
+      if (textArea != null) {
+        synchronized (textArea) {
+          java.util.List<String> snapshot;
+          synchronized (rawLines) {
+            snapshot = new java.util.ArrayList<>(rawLines);
+          }
+          textArea.setText("");
+          for (String line : snapshot) {
+            appendMsg(htmlize(line));
+          }
         }
       }
+      revalidate();
+      repaint();
+    } catch (Exception e) {
+      Debug.logx(-1, "EditorConsolePane: afterThemeChange failed: %s", e.getMessage());
     }
-    revalidate();
-    repaint();
   }
 
   private HTMLEditorKit editorKitWithLineWrap() {
