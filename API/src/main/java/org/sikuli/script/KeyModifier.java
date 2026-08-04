@@ -32,20 +32,27 @@ public class KeyModifier {
   public static final int KEY_WIN = InputEvent.META_MASK;
 
   public static String getModifierNames(int modifier) {
+    // Preferences (and some callers) have historically stored modifiers using
+    // the extended InputEvent.*_DOWN_MASK convention (e.g. SHIFT_DOWN_MASK=64,
+    // META_DOWN_MASK=256) instead of the legacy *_MASK convention documented
+    // for this class (SHIFT=1, META=4, ...). Checking both bit patterns keeps
+    // a stale/mismatched preference value from silently resolving to "no
+    // modifiers", which previously turned e.g. "Shift+Cmd+C" into a bare,
+    // globally-captured 'C' hotkey.
     String names = "";
-    if (0 != (modifier & CTRL)) {
+    if (0 != (modifier & CTRL) || 0 != (modifier & InputEvent.CTRL_DOWN_MASK)) {
       names += "ctrl ";
     }
-    if (0 != (modifier & SHIFT)) {
+    if (0 != (modifier & SHIFT) || 0 != (modifier & InputEvent.SHIFT_DOWN_MASK)) {
       names += "shift ";
     }
-    if (0 != (modifier & ALT)) {
+    if (0 != (modifier & ALT) || 0 != (modifier & InputEvent.ALT_DOWN_MASK)) {
       names += "alt ";
     }
-    if (0 != (modifier & ALTGR)) {
+    if (0 != (modifier & ALTGR) || 0 != (modifier & InputEvent.ALT_GRAPH_DOWN_MASK)) {
       names += "altGraph ";
     }
-    if (0 != (modifier & META)) {
+    if (0 != (modifier & META) || 0 != (modifier & InputEvent.META_DOWN_MASK)) {
       names += "meta ";
     }
     return names.trim();
