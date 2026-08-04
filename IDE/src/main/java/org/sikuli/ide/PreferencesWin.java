@@ -271,14 +271,20 @@ public class PreferencesWin extends JFrame {
                         .add(GroupLayout.TRAILING, _lblHotkey)
                         .add(GroupLayout.TRAILING, _lblStopHotkey))
                     .addPreferredGap(LayoutStyle.RELATED)
+                    // Explicit min/pref/max rather than DEFAULT_SIZE for the minimum:
+                    // DEFAULT_SIZE means "never shrink below your content", so a long
+                    // validation message would drive the panel's minimum width and push
+                    // the fields past the right edge of the window. A hotkey renders as
+                    // a handful of characters ("⌘+⇧ C"), so the fields stay modest and
+                    // the messages wrap instead of stretching the layout.
                     .add(paneHotkeysLayout.createParallelGroup()
-                        .add(_txtHotkey, GroupLayout.DEFAULT_SIZE, 315, Short.MAX_VALUE)
-                        .add(_txtStopHotkey, GroupLayout.DEFAULT_SIZE, 315, Short.MAX_VALUE)
+                        .add(_txtHotkey, 90, 150, 180)
+                        .add(_txtStopHotkey, 90, 150, 180)
                         .add(_chkStopHotkeyEnabled)
-                        .add(_lblHotkeyError, GroupLayout.DEFAULT_SIZE, 315, Short.MAX_VALUE)
-                        .add(_lblHotkeyHint, GroupLayout.DEFAULT_SIZE, 315, Short.MAX_VALUE)
+                        .add(_lblHotkeyError, 90, 300, 300)
+                        .add(_lblHotkeyHint, 90, 300, 300)
                         .add(_btnHotkeyReset))
-                    .add(69, 69, 69)));
+                    .add(26, 26, 26)));
         paneHotkeysLayout.setVerticalGroup(
             paneHotkeysLayout.createParallelGroup()
                 .add(paneHotkeysLayout.createSequentialGroup()
@@ -293,9 +299,11 @@ public class PreferencesWin extends JFrame {
                     .addPreferredGap(LayoutStyle.RELATED)
                     .add(_chkStopHotkeyEnabled, GroupLayout.PREFERRED_SIZE, 22, GroupLayout.PREFERRED_SIZE)
                     .addPreferredGap(LayoutStyle.RELATED)
-                    .add(_lblHotkeyError, GroupLayout.PREFERRED_SIZE, 22, GroupLayout.PREFERRED_SIZE)
+                    // Two lines' worth: these labels are HTML so they wrap within the
+                    // column rather than widening it.
+                    .add(_lblHotkeyError, GroupLayout.PREFERRED_SIZE, 36, GroupLayout.PREFERRED_SIZE)
                     .addPreferredGap(LayoutStyle.RELATED)
-                    .add(_lblHotkeyHint, GroupLayout.PREFERRED_SIZE, 22, GroupLayout.PREFERRED_SIZE)
+                    .add(_lblHotkeyHint, GroupLayout.PREFERRED_SIZE, 36, GroupLayout.PREFERRED_SIZE)
                     .addPreferredGap(LayoutStyle.UNRELATED)
                     .add(_btnHotkeyReset)
                     .add(40, 40, 40)));
@@ -525,7 +533,7 @@ public class PreferencesWin extends JFrame {
     _lblStopHotkey.setText(SikuliIDEI18N._I("prefStopHotkey"));
     _chkStopHotkeyEnabled.setText(SikuliIDEI18N._I("prefStopHotkeyEnabled"));
     _btnHotkeyReset.setText(SikuliIDEI18N._I("prefHotkeyReset"));
-    _lblHotkeyHint.setText(SikuliIDEI18N._I("prefHotkeyHint"));
+    _lblHotkeyHint.setText(wrapped(SikuliIDEI18N._I("prefHotkeyHint")));
   }
 
   private void loadPrefs() {
@@ -817,7 +825,9 @@ public class PreferencesWin extends JFrame {
   }
 
   private void showHotkeyError(String message) {
-    _lblHotkeyError.setText(message);
+    // HTML so a long message wraps inside the field column instead of widening
+    // the panel and pushing the hotkey fields off the right edge of the window.
+    _lblHotkeyError.setText(wrapped(message));
     _btnOk.setEnabled(false);
     _btnApply.setEnabled(false);
   }
@@ -826,6 +836,10 @@ public class PreferencesWin extends JFrame {
     _lblHotkeyError.setText(" ");
     _btnOk.setEnabled(true);
     _btnApply.setEnabled(true);
+  }
+
+  private static String wrapped(String text) {
+    return "<html><body style='width:290px'>" + text + "</body></html>";
   }
 
   /** Greys the stop-hotkey field when the hotkey is switched off. */
