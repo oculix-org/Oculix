@@ -4040,6 +4040,11 @@ public class SikulixIDE extends JFrame {
       setToolTipText(_I("btnRecord", stopHint));
     }
 
+    /** Re-render the tooltip after the stop hotkey has been rebound. */
+    void refreshTooltip() {
+      initTooltip();
+    }
+
     @Override
     public void actionPerformed(ActionEvent ae) {
       ideWindow.setVisible(false);
@@ -4119,6 +4124,11 @@ public class SikulixIDE extends JFrame {
               pref.getStopHotkey(), pref.getStopHotkeyModifiers());
       String stopHint = _I("btnRunStopHint", strHotkey);
       setToolTipText(_I("btnRun", stopHint));
+    }
+
+    /** Re-render the tooltip after the stop hotkey has been rebound. */
+    void refreshTooltip() {
+      initTooltip();
     }
 
     @Override
@@ -4358,8 +4368,11 @@ public class SikulixIDE extends JFrame {
     HotkeyManager.getInstance().removeHotkey("Capture");
   }
 
-  void installCaptureHotkey() {
-    HotkeyManager.getInstance().addHotkey("Capture", new HotkeyListener() {
+  /**
+   * @return true if the OS accepted the registration
+   */
+  boolean installCaptureHotkey() {
+    boolean registered = HotkeyManager.getInstance().addHotkey("Capture", new HotkeyListener() {
       @Override
       public void hotkeyPressed(HotkeyEvent e) {
         if (sikulixIDE.isVisible()) {
@@ -4367,15 +4380,73 @@ public class SikulixIDE extends JFrame {
         }
       }
     });
+    if (!registered) {
+      warnHotkeyNotRegistered("prefCaptureHotkey",
+          PreferencesUser.get().getCaptureHotkey(),
+          PreferencesUser.get().getCaptureHotkeyModifiers());
+    }
+    btnCapture.refreshTooltip();
+    return registered;
   }
 
-  void installStopHotkey() {
-    HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
-      @Override
-      public void hotkeyPressed(HotkeyEvent e) {
-        onStopRunning();
+  void removeStopHotkey() {
+    HotkeyManager.getInstance().removeHotkey("Abort");
+  }
+
+  /**
+   * Registers the global stop/abort hotkey, unless the user has switched it off.
+   *
+   * @return true if the hotkey is not wanted, or if the OS accepted it; false if
+   *         registration was refused (typically another application already owns
+   *         the combination)
+   */
+  boolean installStopHotkey() {
+    PreferencesUser pref = PreferencesUser.get();
+    boolean registered = true;
+    if (pref.getStopHotkeyEnabled()) {
+      registered = HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
+        @Override
+        public void hotkeyPressed(HotkeyEvent e) {
+          onStopRunning();
+        }
+      });
+      if (!registered) {
+        warnHotkeyNotRegistered("prefStopHotkey", pref.getStopHotkey(), pref.getStopHotkeyModifiers());
       }
-    });
+    } else {
+      Debug.log(3, "IDE: stop hotkey is disabled by preference — not registering");
+    }
+    refreshStopHotkeyTooltips();
+    return registered;
+  }
+
+  /**
+   * The stop hotkey is baked into the Run and Record button tooltips, so it has to
+   * be re-rendered whenever the binding changes or the IDE would keep advertising
+   * the old combination until restart.
+   */
+  void refreshStopHotkeyTooltips() {
+    if (btnRun != null) {
+      btnRun.refreshTooltip();
+    }
+    if (btnRecord != null) {
+      btnRecord.refreshTooltip();
+    }
+  }
+
+  /**
+   * Tells the user that a hotkey could not be claimed. Without this the failure is
+   * completely silent: the hotkey simply never fires and there is nothing to
+   * suggest why. This is the "conflict case" #335 is about.
+   */
+  private void warnHotkeyNotRegistered(String labelKey, int key, int mod) {
+    String combination = Key.convertKeyToText(key, mod);
+    Debug.error("IDE: could not register hotkey %s (%s) — already in use by another application?",
+        combination, labelKey);
+    EventQueue.invokeLater(() -> JOptionPane.showMessageDialog(ideWindow,
+        _I("msgHotkeyNotRegistered", combination),
+        _I("msgHotkeyNotRegisteredTitle"),
+        JOptionPane.WARNING_MESSAGE));
   }
 
   void onStopRunning() {

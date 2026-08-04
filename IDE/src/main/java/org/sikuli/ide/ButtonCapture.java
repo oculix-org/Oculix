@@ -37,12 +37,25 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
   public ButtonCapture() {
     super();
     buttonText = SikulixIDE._I("btnCaptureLabel");
+    buttonHint = captureHint();
+    iconFile = "/icons/sxcapture-x.png";
+    init();
+  }
+
+  private static String captureHint() {
     PreferencesUser pref = PreferencesUser.get();
     String strHotkey = Key.convertKeyToText(
         pref.getCaptureHotkey(), pref.getCaptureHotkeyModifiers());
-    buttonHint = SikulixIDE._I("btnCaptureHint", strHotkey);
-    iconFile = "/icons/sxcapture-x.png";
-    init();
+    return SikulixIDE._I("btnCaptureHint", strHotkey);
+  }
+
+  /**
+   * Re-render the tooltip after the capture hotkey has been rebound — otherwise the
+   * button keeps advertising the previous combination until the IDE is restarted.
+   */
+  void refreshTooltip() {
+    buttonHint = captureHint();
+    setToolTipText(buttonHint);
   }
 
   @Override
