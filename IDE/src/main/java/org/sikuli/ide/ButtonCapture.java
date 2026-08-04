@@ -140,13 +140,7 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
           } catch (Exception e) {
             // OCR failure is silent — fall back to a blank suggestion
           }
-          givenName = (String) JOptionPane.showInputDialog(
-              SikulixIDE.get(),
-              SikuliIDEI18N._I("msgEnterScreenshotFilename"),
-              SikuliIDEI18N._I("dlgEnterScreenshotFilename"),
-              JOptionPane.PLAIN_MESSAGE,
-              null,
-              null,
+          givenName = askForScreenshotName(
               (nameOCR == null || nameOCR.isEmpty()) ? "noname" : nameOCR);
           if (givenName == null || givenName.isEmpty()) {
             givenName = Settings.getTimestamp();
@@ -188,6 +182,57 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
    * _line = elmLine;
    * }*/
   //</editor-fold>
+
+  /**
+   * Asks for the filename to save a capture under.
+   *
+   * <p>Built by hand rather than through {@code JOptionPane.showInputDialog(parent, …)},
+   * which cannot be made reliably visible here. Two things work against it:
+   *
+   * <ul>
+   * <li>{@link #capture(int)} calls {@code SikulixIDE.doHide()} first and
+   *     {@code showAgain()} only runs after this prompt returns, so the main IDE
+   *     window — the parent the convenience method would use — is <em>hidden</em>
+   *     while the prompt is up, leaving the dialog without a visible anchor.</li>
+   * <li>The Preferences window is a separate top-level frame, outside that owner
+   *     hierarchy. JOptionPane dialogs are application-modal, so with Preferences
+   *     open the prompt blocks it while rendering <em>behind</em> it. The IDE then
+   *     looks frozen for no visible reason and there is no way to recover except
+   *     finding the hidden dialog.</li>
+   * </ul>
+   *
+   * <p>Owning the dialog to the active window keeps it above whatever the user is
+   * actually looking at, and always-on-top guarantees it regardless. Easy to hit now
+   * that the Hotkeys tab invites testing the capture hotkey from inside Preferences.
+   *
+   * @param suggestedName value the input starts pre-filled and selected with; the
+   *                      OCR-derived suggestion when AUTO_NAMING_OFF found text,
+   *                      otherwise "noname"
+   * @return the chosen name, or null if cancelled
+   */
+  private static String askForScreenshotName(String suggestedName) {
+    Window owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+    if (owner == null || !owner.isShowing()) {
+      owner = SikulixIDE.get();
+    }
+    JOptionPane pane = new JOptionPane(
+        SikuliIDEI18N._I("msgEnterScreenshotFilename"),
+        JOptionPane.PLAIN_MESSAGE,
+        JOptionPane.OK_CANCEL_OPTION,
+        null, null, null);
+    pane.setWantsInput(true);
+    pane.setInitialSelectionValue(suggestedName);
+    JDialog dialog = pane.createDialog(owner, SikuliIDEI18N._I("dlgEnterScreenshotFilename"));
+    dialog.setAlwaysOnTop(true);
+    pane.selectInitialValue();
+    dialog.setVisible(true); // modal — blocks here until dismissed
+    dialog.dispose();
+    Object value = pane.getInputValue();
+    if (value == null || value == JOptionPane.UNINITIALIZED_VALUE) {
+      return null;
+    }
+    return value.toString();
+  }
 
   private boolean replaceButton(Element src, String imgFullPath) {
     if (captureCancelled) {
