@@ -107,7 +107,9 @@ public class PreferencesWin extends JFrame {
   private JLabel _lblStopHotkey;
   private JTextField _txtStopHotkey;
   private JCheckBox _chkStopHotkeyEnabled;
-  private JButton _btnHotkeyReset;
+  private JButton _btnResetCapture;
+  private JButton _btnResetStop;
+  private JButton _btnHotkeyResetAll;
   private JLabel _lblHotkeyError;
   private JLabel _lblHotkeyHint;
 
@@ -136,7 +138,9 @@ public class PreferencesWin extends JFrame {
     _lblStopHotkey = new JLabel();
     _txtStopHotkey = new JTextField();
     _chkStopHotkeyEnabled = new JCheckBox();
-    _btnHotkeyReset = new JButton();
+    _btnResetCapture = new JButton();
+    _btnResetStop = new JButton();
+    _btnHotkeyResetAll = new JButton();
     _lblHotkeyError = new JLabel();
     _lblHotkeyHint = new JLabel();
     _paneTextEditing = new JPanel();
@@ -257,7 +261,9 @@ public class PreferencesWin extends JFrame {
         _lblStopHotkey.setLabelFor(_txtStopHotkey);
 
         _chkStopHotkeyEnabled.addActionListener(e -> stopHotkeyEnabledChanged());
-        _btnHotkeyReset.addActionListener(e -> resetHotkeysToDefaults());
+        _btnResetCapture.addActionListener(e -> resetCaptureHotkeyToDefault());
+        _btnResetStop.addActionListener(e -> resetStopHotkeyToDefault());
+        _btnHotkeyResetAll.addActionListener(e -> resetAllHotkeysToDefaults());
 
         _lblHotkeyError.setForeground(Color.RED);
 
@@ -278,12 +284,18 @@ public class PreferencesWin extends JFrame {
                     // a handful of characters ("⌘+⇧ C"), so the fields stay modest and
                     // the messages wrap instead of stretching the layout.
                     .add(paneHotkeysLayout.createParallelGroup()
-                        .add(_txtHotkey, 90, 150, 180)
-                        .add(_txtStopHotkey, 90, 150, 180)
+                        .add(paneHotkeysLayout.createSequentialGroup()
+                            .add(_txtHotkey, 90, 150, 180)
+                            .addPreferredGap(LayoutStyle.RELATED)
+                            .add(_btnResetCapture))
+                        .add(paneHotkeysLayout.createSequentialGroup()
+                            .add(_txtStopHotkey, 90, 150, 180)
+                            .addPreferredGap(LayoutStyle.RELATED)
+                            .add(_btnResetStop))
                         .add(_chkStopHotkeyEnabled)
                         .add(_lblHotkeyError, 90, 300, 300)
                         .add(_lblHotkeyHint, 90, 300, 300)
-                        .add(_btnHotkeyReset))
+                        .add(_btnHotkeyResetAll))
                     .add(26, 26, 26)));
         paneHotkeysLayout.setVerticalGroup(
             paneHotkeysLayout.createParallelGroup()
@@ -291,11 +303,13 @@ public class PreferencesWin extends JFrame {
                     .add(34, 34, 34)
                     .add(paneHotkeysLayout.createParallelGroup(GroupLayout.BASELINE)
                         .add(_lblHotkey, GroupLayout.PREFERRED_SIZE, 22, GroupLayout.PREFERRED_SIZE)
-                        .add(_txtHotkey, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE))
+                        .add(_txtHotkey, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                        .add(_btnResetCapture))
                     .addPreferredGap(LayoutStyle.RELATED)
                     .add(paneHotkeysLayout.createParallelGroup(GroupLayout.BASELINE)
                         .add(_lblStopHotkey, GroupLayout.PREFERRED_SIZE, 22, GroupLayout.PREFERRED_SIZE)
-                        .add(_txtStopHotkey, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE))
+                        .add(_txtStopHotkey, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                        .add(_btnResetStop))
                     .addPreferredGap(LayoutStyle.RELATED)
                     .add(_chkStopHotkeyEnabled, GroupLayout.PREFERRED_SIZE, 22, GroupLayout.PREFERRED_SIZE)
                     .addPreferredGap(LayoutStyle.RELATED)
@@ -305,7 +319,7 @@ public class PreferencesWin extends JFrame {
                     .addPreferredGap(LayoutStyle.RELATED)
                     .add(_lblHotkeyHint, GroupLayout.PREFERRED_SIZE, 36, GroupLayout.PREFERRED_SIZE)
                     .addPreferredGap(LayoutStyle.UNRELATED)
-                    .add(_btnHotkeyReset)
+                    .add(_btnHotkeyResetAll)
                     .add(40, 40, 40)));
       }
       _tabPane.addTab(SikuliIDEI18N._I("prefTabHotkeys"), paneHotkeys);
@@ -532,7 +546,9 @@ public class PreferencesWin extends JFrame {
     _tabPane.setTitleAt(1, SikuliIDEI18N._I("prefTabHotkeys"));
     _lblStopHotkey.setText(SikuliIDEI18N._I("prefStopHotkey"));
     _chkStopHotkeyEnabled.setText(SikuliIDEI18N._I("prefStopHotkeyEnabled"));
-    _btnHotkeyReset.setText(SikuliIDEI18N._I("prefHotkeyReset"));
+    _btnResetCapture.setText(SikuliIDEI18N._I("prefHotkeyResetOne"));
+    _btnResetStop.setText(SikuliIDEI18N._I("prefHotkeyResetOne"));
+    _btnHotkeyResetAll.setText(SikuliIDEI18N._I("prefHotkeyResetAll"));
     _lblHotkeyHint.setText(wrapped(SikuliIDEI18N._I("prefHotkeyHint")));
   }
 
@@ -849,14 +865,39 @@ public class PreferencesWin extends JFrame {
     _lblStopHotkey.setEnabled(enabled);
   }
 
-  /**
-   * Restores only the two hotkeys to their platform defaults. Deliberately does not
-   * call {@code PreferencesUser.setDefaults()}, which would rewrite every preference
-   * in the store — fonts, locale, tab width and all.
-   */
-  private void resetHotkeysToDefaults() {
+  /** Restores just the capture hotkey; leaves the stop hotkey alone. */
+  private void resetCaptureHotkeyToDefault() {
     setTxtHotkey(PreferencesUser.DEFAULT_CAPTURE_HOTKEY, pref.getDefaultCaptureHotkeyModifiers());
+    clearHotkeyError();
+  }
+
+  /**
+   * Restores just the stop hotkey binding. Deliberately leaves the enabled checkbox
+   * as the user set it — that is a separate control, not part of the binding.
+   */
+  private void resetStopHotkeyToDefault() {
     setTxtStopHotkey(PreferencesUser.DEFAULT_STOP_HOTKEY, pref.getDefaultStopHotkeyModifiers());
+    clearHotkeyError();
+  }
+
+  /**
+   * Restores both hotkeys, and re-enables the stop hotkey. Asks first, because this
+   * discards any customisation the user has made to either binding.
+   *
+   * <p>Deliberately does not call {@code PreferencesUser.setDefaults()}, which would
+   * rewrite every preference in the store — fonts, locale, tab width and all.
+   */
+  private void resetAllHotkeysToDefaults() {
+    int answer = JOptionPane.showConfirmDialog(this,
+        SikuliIDEI18N._I("prefHotkeyResetAllConfirm"),
+        SikuliIDEI18N._I("prefHotkeyResetAllConfirmTitle"),
+        JOptionPane.YES_NO_OPTION,
+        JOptionPane.QUESTION_MESSAGE);
+    if (answer != JOptionPane.YES_OPTION) {
+      return;
+    }
+    resetCaptureHotkeyToDefault();
+    resetStopHotkeyToDefault();
     _chkStopHotkeyEnabled.setSelected(true);
     stopHotkeyEnabledChanged();
     clearHotkeyError();
