@@ -2373,7 +2373,15 @@ public class SikulixIDE extends JFrame {
   }
 
   String getLineTextAtCaret() {
-    return getActiveContext().getPane().getLineTextAtCaret();
+    // getActiveContext() is null whenever no script tab is selected — the Welcome
+    // tab, or all tabs closed. Callers ask this to guess a name from the current
+    // line, so "no line" is a perfectly good answer; throwing here previously left
+    // the capture path dead with the IDE hidden.
+    PaneContext context = getActiveContext();
+    if (context == null) {
+      return "";
+    }
+    return context.getPane().getLineTextAtCaret();
   }
 
   void zzzzzzz() {

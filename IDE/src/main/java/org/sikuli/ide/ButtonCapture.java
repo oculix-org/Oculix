@@ -73,6 +73,21 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
   ScreenImage sImgNonLocal = null;
 
   public void capture(int delay) {
+    // No active script context — the Welcome tab is showing, or every script tab is
+    // closed. There is then nowhere to save the image and no line to name it from.
+    // Bail out *before* hiding the IDE: otherwise the window vanishes, capture dies
+    // on an NPE deep in getLineTextAtCaret(), and the IDE is left hidden with nothing
+    // on screen to explain it. Reachable from the toolbar button and, more easily,
+    // from the capture hotkey.
+    if (SikulixIDE.get().getActiveContext() == null) {
+      Debug.error("ButtonCapture: no script open — nothing to capture into");
+      JOptionPane.showMessageDialog(SikulixIDE.get(),
+          SikuliIDEI18N._I("msgCaptureNoScript"),
+          SikuliIDEI18N._I("dlgCaptureNoScript"),
+          JOptionPane.INFORMATION_MESSAGE);
+      return;
+    }
+
     if (SikulixIDE.notHidden()) {
       delay = Math.max(delay, 500);
       SikulixIDE.doHide();
