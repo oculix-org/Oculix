@@ -4385,7 +4385,12 @@ public class SikulixIDE extends JFrame {
           PreferencesUser.get().getCaptureHotkey(),
           PreferencesUser.get().getCaptureHotkeyModifiers());
     }
-    btnCapture.refreshTooltip();
+    // Null at first registration: this runs from startGUI() before the toolbar is
+    // built, and ButtonCapture reads the binding in its own constructor anyway.
+    // Only a later rebind from Preferences needs the refresh.
+    if (btnCapture != null) {
+      btnCapture.refreshTooltip();
+    }
     return registered;
   }
 
