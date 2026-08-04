@@ -4372,18 +4372,23 @@ public class SikulixIDE extends JFrame {
    * @return true if the OS accepted the registration
    */
   boolean installCaptureHotkey() {
-    boolean registered = HotkeyManager.getInstance().addHotkey("Capture", new HotkeyListener() {
-      @Override
-      public void hotkeyPressed(HotkeyEvent e) {
-        if (sikulixIDE.isVisible()) {
-          btnCapture.capture(0);
+    PreferencesUser pref = PreferencesUser.get();
+    boolean registered = true;
+    if (pref.getCaptureHotkeyEnabled()) {
+      registered = HotkeyManager.getInstance().addHotkey("Capture", new HotkeyListener() {
+        @Override
+        public void hotkeyPressed(HotkeyEvent e) {
+          if (sikulixIDE.isVisible()) {
+            btnCapture.capture(0);
+          }
         }
+      });
+      if (!registered) {
+        warnHotkeyNotRegistered("prefCaptureHotkey",
+            pref.getCaptureHotkey(), pref.getCaptureHotkeyModifiers());
       }
-    });
-    if (!registered) {
-      warnHotkeyNotRegistered("prefCaptureHotkey",
-          PreferencesUser.get().getCaptureHotkey(),
-          PreferencesUser.get().getCaptureHotkeyModifiers());
+    } else {
+      Debug.log(3, "IDE: capture hotkey is disabled by preference — not registering");
     }
     // Null at first registration: this runs from startGUI() before the toolbar is
     // built, and ButtonCapture reads the binding in its own constructor anyway.

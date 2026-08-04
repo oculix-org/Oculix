@@ -201,6 +201,18 @@ public class PreferencesUser {
     return defaultStopHotkeyModifiers();
   }
 
+  public void setCaptureHotkeyEnabled(boolean flag) {
+    pref.putBoolean("CAPTURE_HOTKEY_ENABLED", flag);
+  }
+
+  /**
+   * Whether the global quick-capture hotkey should be registered at all.
+   * See {@link #getStopHotkeyEnabled()} — same rationale.
+   */
+  public boolean getCaptureHotkeyEnabled() {
+    return pref.getBoolean("CAPTURE_HOTKEY_ENABLED", true);
+  }
+
   public void setStopHotkeyEnabled(boolean flag) {
     pref.putBoolean("STOP_HOTKEY_ENABLED", flag);
   }
@@ -517,6 +529,7 @@ public class PreferencesUser {
 // ***** capture hot key
     setCaptureHotkey(DEFAULT_CAPTURE_HOTKEY);
     setCaptureHotkeyModifiers(defaultCaptureHotkeyModifiers());
+    setCaptureHotkeyEnabled(true);
     setCaptureDelay(1.0);
 
 // ***** abort key
