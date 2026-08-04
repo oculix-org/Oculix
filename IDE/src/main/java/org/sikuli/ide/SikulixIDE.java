@@ -4440,9 +4440,24 @@ public class SikulixIDE extends JFrame {
   }
 
   /**
-   * Tells the user that a hotkey could not be claimed. Without this the failure is
-   * completely silent: the hotkey simply never fires and there is nothing to
-   * suggest why. This is the "conflict case" #335 is about.
+   * Tells the user that a hotkey could not be claimed, instead of leaving a dead
+   * hotkey with nothing to explain it.
+   *
+   * <p>How much this can actually detect depends on the platform, because the
+   * failure has to survive the stack underneath:
+   * <ul>
+   * <li><b>Linux</b> — {@code LinuxHotkeyManager} catches jxgrabkey's
+   *     {@code HotkeyConflictException} and returns false, so a genuine
+   *     grab conflict reaches here.</li>
+   * <li><b>macOS / Windows</b> — keymaster's {@code Provider.register()} returns
+   *     void and discards the OS result, so a combination already owned by
+   *     another application registers "successfully" and simply never fires.
+   *     Only an unresolvable-modifier refusal (see
+   *     {@code HotkeyController.addHotkey}) reaches here.</li>
+   * </ul>
+   *
+   * <p>Reporting real conflicts on macOS/Windows would mean patching or replacing
+   * the bundled keymaster library — deliberately out of scope.
    */
   private void warnHotkeyNotRegistered(String labelKey, int key, int mod) {
     String combination = Key.convertKeyToText(key, mod);
