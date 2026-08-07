@@ -59,8 +59,12 @@ class RecorderActions {
         JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
     javax.swing.JDialog sourceDialog = optionPane.createDialog(assistant, actionType);
-    sourceDialog.setVisible(true); // modal: blocks until the user picks
-    sourceDialog.dispose();        // tear the popup window down NOW
+    sourceDialog.setVisible(true);  // modal: blocks until the user picks
+    sourceDialog.setVisible(false); // #387: hide the popup — DWM repaints the covered
+                                    // region synchronously. No dispose(): the parent
+                                    // (assistant) stays alive, so destroying a child
+                                    // resource alone is semantically incoherent — the
+                                    // GC cleans up when the parent goes.
     Object value = optionPane.getValue();
     if (!(value instanceof String)) {
       workflow.reset();
@@ -225,8 +229,9 @@ class RecorderActions {
         JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION,
         null, options.toArray(), options.get(0));
     javax.swing.JDialog sourceDialog = optionPane.createDialog(assistant, purpose);
-    sourceDialog.setVisible(true); // modal: blocks until the user picks
-    sourceDialog.dispose();        // tear the popup window down NOW
+    sourceDialog.setVisible(true);  // modal: blocks until the user picks
+    sourceDialog.setVisible(false); // #387: hide the popup — same fix as handleImageCapture.
+                                    // No dispose(): parent (assistant) stays alive.
     Object value = optionPane.getValue();
     if (!(value instanceof String)) { callback.accept(null); return; }
     String selected = (String) value;
