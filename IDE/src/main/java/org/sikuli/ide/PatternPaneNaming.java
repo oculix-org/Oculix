@@ -130,11 +130,20 @@ public class PatternPaneNaming extends JPanel {
 
 	public static String getFilenameFromImage(BufferedImage img) {
 		String text = new org.sikuli.script.Image(img).text();
-		text = text.replaceAll("\\W", "");
-		if (text.length() > MAX_OCR_TEXT_LENGTH) {
-			return text.substring(0, MAX_OCR_TEXT_LENGTH);
+		if (text == null || text.isBlank()) return "";
+		String[] words = text.trim().split("\\s+");
+		if (words.length != 1) return "";      // 0 or 2+ words → caller falls back to timestamp
+		// Strip accents (NFD decomposition + drop combining marks), then keep only word chars
+		String single = java.text.Normalizer.normalize(words[0], java.text.Normalizer.Form.NFD)
+				.replaceAll("\\p{M}+", "")
+				.replaceAll("\\W", "");
+		if (single.isEmpty()) return "";
+		// Lowercase (filename convention) — Locale.ROOT for consistent cross-locale behavior
+		single = single.toLowerCase(java.util.Locale.ROOT);
+		if (single.length() > MAX_OCR_TEXT_LENGTH) {
+			return single.substring(0, MAX_OCR_TEXT_LENGTH);
 		}
-		return text;
+		return single;
 	}
 
 	public String getAbsolutePath() {
