@@ -234,6 +234,15 @@ public class OverlayCapturePrompt extends JFrame implements EventSubject {
   }
 
   void setPromptImage() {
+    // #387: give DWM (or the equivalent compositor on X11) enough time to actually
+    // repaint the region uncovered by the just-hidden caller windows (recorder popup,
+    // recorder assistant, IDE...). setVisible(false) posts WM_SHOWWINDOW asynchronously
+    // to dwm.exe; without this pause the framebuffer read below still contains those
+    // windows' pixels, which get baked into scr_img_original and then into every
+    // subsequent cropSelection(). 50 ms = 3 vsync frames at 60 Hz — safe under load,
+    // imperceptible to the user, and this is the exact single point where the
+    // framebuffer is sampled so every caller benefits.
+    try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     scr_img_original = screen.capture();
     if (Debug.getDebugLevel() > 2) {
       //TODO scr_img_original.getFile(Commons.getAppDataStore().getAbsolutePath(), "lastScreenShot");
