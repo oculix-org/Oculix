@@ -110,7 +110,23 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
     if (capturedImage != null) {
       if (givenName.isEmpty()) {
         final PreferencesUser prefs = PreferencesUser.get();
-        if (prefs.getAutoNamingMethod() == PreferencesUser.AUTO_NAMING_OFF) {
+        int naming = prefs.getAutoNamingMethod();
+        if (naming == PreferencesUser.AUTO_NAMING_TIMESTAMP) {
+          givenName = Settings.getTimestamp();
+        } else if (naming == PreferencesUser.AUTO_NAMING_OCR) {
+          givenName = PatternPaneNaming.getFilenameFromImage(capturedImage);
+          if (givenName == null || givenName.isEmpty()) {
+            givenName = Settings.getTimestamp();
+          }
+        } else {
+          // AUTO_NAMING_OFF: run OCR silently for a suggested name, then pop the
+          // input dialog with it pre-filled so the user can accept or edit it.
+          String nameOCR = "";
+          try {
+            nameOCR = PatternPaneNaming.getFilenameFromImage(capturedImage);
+          } catch (Exception e) {
+            // OCR failure is silent — fall back to a blank suggestion
+          }
           givenName = (String) JOptionPane.showInputDialog(
               SikulixIDE.get(),
               SikuliIDEI18N._I("msgEnterScreenshotFilename"),
@@ -118,26 +134,11 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
               JOptionPane.PLAIN_MESSAGE,
               null,
               null,
-              "noname");
+              (nameOCR == null || nameOCR.isEmpty()) ? "noname" : nameOCR);
+          if (givenName == null || givenName.isEmpty()) {
+            givenName = Settings.getTimestamp();
+          }
         }
-        if (givenName == null || givenName.isEmpty()) {
-          givenName = Settings.getTimestamp();
-        }
-//        if (prefs.getAutoNamingMethod() == PreferencesUser.AUTO_NAMING_TIMESTAMP) {
-//          ;
-//        } else if (naming == PreferencesUser.AUTO_NAMING_OCR) {
-//          filename = PatternPaneNaming.getFilenameFromImage(capturedImage.get());
-//          if (filename == null || filename.length() == 0) {
-//            filename = Settings.getTimestamp();
-//          }
-//        } else {
-//          String nameOCR = "";
-//          try {
-//            nameOCR = PatternPaneNaming.getFilenameFromImage(capturedImage.get());
-//          } catch (Exception e) {
-//          }
-//          filename = ;
-//        }
       }
       SikulixIDE.PaneContext context = SikulixIDE.get().getActiveContext();
       final File imgFile = new File(context.getImageFolder(), givenName + ".png");
