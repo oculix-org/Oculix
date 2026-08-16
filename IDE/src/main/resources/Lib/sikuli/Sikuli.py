@@ -571,7 +571,7 @@ def exit(code=0):
 # @param cmd The given string command.
 # @return Returns the output from the executed command.
 def run(cmd):
-    return JCommons.run(cmd)
+    return JCommons.runcmd(cmd)
 
 
 # Runs the script given by absolute or relative path (./ same folder as calling script)
