@@ -3,7 +3,6 @@
  */
 package org.sikuli.script;
 
-import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.datatransfer.ClipboardOwner;
 import java.awt.datatransfer.DataFlavor;
@@ -665,7 +664,20 @@ public class App {
 
   // <editor-fold defaultstate="collapsed" desc="30 window">
   public List<Region> getWindows() {
-    return osUtil.getWindows(process).stream().map((w) -> asRegion(w.getBounds(), w.getTitle())).collect(Collectors.toList());
+    // #444: route through Region.forWindow so every returned Region carries
+    // sourceWindow (previous code called asRegion which forgot to attach it,
+    // silently disabling the native spanning highlight/capture route on all
+    // non-focused windows). Preserve historical behaviour of naming the
+    // Region with the window title.
+    return osUtil.getWindows(process).stream()
+        .map((w) -> {
+          Region r = Region.forWindow(w);
+          if (r != null) {
+            r.setName(w.getTitle());
+          }
+          return r;
+        })
+        .collect(Collectors.toList());
   }
 
   /**
@@ -694,18 +706,14 @@ public class App {
    * @return the region
    */
   public Region window(int winNum) {
-    List<OsWindow> windows = osUtil.getWindows(process);
-    Region windowRegion = null;
-    OsWindow win = windows.get(winNum);
-    Rectangle windowRect = win.getBounds();
-    if (null != windowRect) {
-      windowRegion = asRegion(windowRect, win.getTitle());
-      // v5 (#444): attach the source window so Region.captureSelf() can route
-      // through the native window capture path (Windows: PrintWindow) instead
-      // of the classic Robot-based screen capture.
-      if (windowRegion != null) {
-        windowRegion.setSourceWindow(win);
-      }
+    // #444: Region.forWindow builds the whole-window Region in one step —
+    // raw bounds, sourceWindow attached, tracksSourceWindowBounds=true. The
+    // separate asRegion + setSourceWindow dance is gone. Preserve historical
+    // behaviour of naming the Region with the window title.
+    OsWindow win = osUtil.getWindows(process).get(winNum);
+    Region windowRegion = Region.forWindow(win);
+    if (windowRegion != null) {
+      windowRegion.setName(win.getTitle());
     }
     return windowRegion;
   }
@@ -727,33 +735,13 @@ public class App {
   public static Region focusedWindow() {
     OsWindow window = osUtil.getFocusedWindow();
     if (window != null) {
-      Region region = asRegion(window.getBounds());
-      // v5 (#444): attach the source window so Region.captureSelf() can route
-      // through the native window capture path (Windows: PrintWindow) instead
-      // of the classic Robot-based screen capture, which fails on mixed-DPI
-      // multi-monitor layouts and straddling windows.
-      if (region != null) {
-        region.setSourceWindow(window);
-      }
-      return region;
+      // #444: whole-window Region built in one step by Region.forWindow —
+      // raw bounds, sourceWindow attached, tracksSourceWindowBounds=true.
+      // Historical: focusedWindow does NOT name the Region with the title
+      // (only window(int)/getWindows do), so no setName here.
+      return Region.forWindow(window);
     } else {
       return new Region();
-    }
-  }
-
-  private static Region asRegion(Rectangle r) {
-    return asRegion(r, "");
-  }
-
-  private static Region asRegion(Rectangle r, String title) {
-    if (r != null) {
-      final Region reg = Region.create(r);
-      if (title != null && !title.isEmpty()) {
-        reg.setName(title);
-      }
-      return reg;
-    } else {
-      return null;
     }
   }
 
