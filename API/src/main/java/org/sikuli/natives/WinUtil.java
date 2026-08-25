@@ -121,6 +121,69 @@ public class WinUtil extends GenericOsUtil {
 				(int) Math.round(physical.height / sy));
 	}
 
+	// #444: manual inverse of voie 1 for the ROI overlay path. Same primitive
+	// (MonitorFromWindow + GetMonitorInfoEx + AWT device match), same shortcut
+	// with origin guard, same fallbacks — only the arithmetic is reversed:
+	//   x_physical = rcMonitor.left + (x_logical - logicalBounds.x) * sx
+	//   y_physical = rcMonitor.top  + (y_logical - logicalBounds.y) * sy
+	//   w_physical = w_logical * sx, h_physical = h_logical * sy
+	// Keeping the two functions symmetric under the SAME AWT/monitor resolution
+	// guarantees that logicalToPhysical(physicalToLogical(rect)) == rect within
+	// rounding tolerance, which is what the ROI overlay needs to sit exactly
+	// on the pixels the caller thinks it is highlighting.
+	//
+	// The Windows API primitives PhysicalToLogicalPointForPerMonitorDPI /
+	// LogicalToPhysicalPointForPerMonitorDPI would be candidates for a future
+	// migration, but they convert according to the HWND's DPI awareness, which
+	// is not guaranteed to match the JVM's logical space when the target
+	// window belongs to a process with a different DPI awareness. Left for a
+	// dedicated session with a comparative test matrix.
+	private static Rectangle logicalToPhysical(HWND hWnd, Rectangle logical) {
+		if (logical == null) {
+			return null;
+		}
+
+		HMONITOR hMon = user32.MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+		MONITORINFOEX mi = new MONITORINFOEX();
+		if (hMon == null || !user32.GetMonitorInfo(hMon, mi).booleanValue()) {
+			return logical;
+		}
+
+		GraphicsDevice matched = null;
+		for (GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+			Rectangle b = gd.getDefaultConfiguration().getBounds();
+			POINT.ByValue pt = new POINT.ByValue(b.x + b.width / 2, b.y + b.height / 2);
+			HMONITOR probe = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+			if (probe != null && probe.equals(hMon)) {
+				matched = gd;
+				break;
+			}
+		}
+		if (matched == null) {
+			matched = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+		}
+
+		GraphicsConfiguration gc = matched.getDefaultConfiguration();
+		Rectangle logicalBounds = gc.getBounds();
+		AffineTransform tx = gc.getDefaultTransform();
+		double sx = tx.getScaleX();
+		double sy = tx.getScaleY();
+		// Same shortcut with origin guard as physicalToLogical.
+		if (sx == 1.0 && sy == 1.0
+				&& logicalBounds.x == mi.rcMonitor.left
+				&& logicalBounds.y == mi.rcMonitor.top) {
+			return logical;
+		}
+
+		int localLogX = logical.x - logicalBounds.x;
+		int localLogY = logical.y - logicalBounds.y;
+		return new Rectangle(
+				mi.rcMonitor.left + (int) Math.round(localLogX * sx),
+				mi.rcMonitor.top + (int) Math.round(localLogY * sy),
+				(int) Math.round(logical.width * sx),
+				(int) Math.round(logical.height * sy));
+	}
+
 	// PW_RENDERFULLCONTENT (Windows 8.1+) — asks the WM to render the window's
 	// full content including DirectComposition surfaces. Regular PrintWindow
 	// returns black on Chrome/Electron without this flag.
@@ -278,22 +341,50 @@ public class WinUtil extends GenericOsUtil {
 		if (!user32.GetWindowRect(hWnd, wr)) {
 			return false;
 		}
-		int x = wr.left, y = wr.top;
 		int w = wr.right - wr.left, h = wr.bottom - wr.top;
 		if (w <= 0 || h <= 0) {
 			return false;
 		}
+		return drawOverlayRect(wr.left, wr.top, w, h, argb, secs);
+	}
 
+	/**
+	 * #444: highlight an arbitrary ROI within a window. The ROI is provided
+	 * in the caller's LOGICAL coordinate space; it is converted to physical
+	 * via {@link #logicalToPhysical(HWND, Rectangle)} (inverse of the voie 1
+	 * used by {@link #physicalToLogical}), then rendered with the same
+	 * WS_EX_LAYERED overlay mechanism as {@link #highlightWindowNative}.
+	 */
+	static boolean highlightRegionWindowNative(HWND hWnd, Rectangle roiLogical, int argb, double secs) {
+		if (hWnd == null || roiLogical == null) {
+			return false;
+		}
+		Rectangle physRoi = logicalToPhysical(hWnd, roiLogical);
+		if (physRoi == null || physRoi.width <= 0 || physRoi.height <= 0) {
+			return false;
+		}
+		return drawOverlayRect(physRoi.x, physRoi.y, physRoi.width, physRoi.height, argb, secs);
+	}
+
+	/**
+	 * Core overlay renderer — extracted from {@link #highlightWindowNative}
+	 * so the whole-window and ROI paths share the exact same rasterisation,
+	 * DIB, layered-window and blending code. All coordinates are PHYSICAL
+	 * pixels in the Windows virtual-screen space; callers translate from
+	 * their own source (GetWindowRect for whole window, logicalToPhysical
+	 * for a ROI) before invoking.
+	 */
+	private static boolean drawOverlayRect(int px, int py, int pw, int ph, int argb, double secs) {
 		// Premultiplied ARGB outline: opaque coloured border, transparent inside.
 		int thickness = 4;
-		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB_PRE);
+		BufferedImage img = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_ARGB_PRE);
 		Graphics2D g = img.createGraphics();
 		g.setComposite(AlphaComposite.Src);
 		g.setColor(new Color(0, 0, 0, 0));
-		g.fillRect(0, 0, w, h);
+		g.fillRect(0, 0, pw, ph);
 		g.setColor(new Color((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, 255));
 		for (int t = 0; t < thickness; t++) {
-			g.drawRect(t, t, w - 1 - 2 * t, h - 1 - 2 * t);
+			g.drawRect(t, t, pw - 1 - 2 * t, ph - 1 - 2 * t);
 		}
 		g.dispose();
 
@@ -302,8 +393,8 @@ public class WinUtil extends GenericOsUtil {
 
 		BITMAPINFO bmi = new BITMAPINFO();
 		bmi.bmiHeader.biSize = bmi.bmiHeader.size();
-		bmi.bmiHeader.biWidth = w;
-		bmi.bmiHeader.biHeight = -h;      // negative = top-down DIB
+		bmi.bmiHeader.biWidth = pw;
+		bmi.bmiHeader.biHeight = -ph;      // negative = top-down DIB
 		bmi.bmiHeader.biPlanes = 1;
 		bmi.bmiHeader.biBitCount = 32;
 		bmi.bmiHeader.biCompression = 0;  // BI_RGB
@@ -317,10 +408,10 @@ public class WinUtil extends GenericOsUtil {
 				return false;
 			}
 			// ARGB_PRE ints (0xAARRGGBB) -> BGRA bytes the DIB expects.
-			int[] px = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
-			byte[] buf = new byte[w * h * 4];
-			for (int i = 0; i < px.length; i++) {
-				int p = px[i];
+			int[] px2 = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
+			byte[] buf = new byte[pw * ph * 4];
+			for (int i = 0; i < px2.length; i++) {
+				int p = px2[i];
 				int j = i * 4;
 				buf[j]     = (byte) (p & 0xFF);          // B
 				buf[j + 1] = (byte) ((p >> 8) & 0xFF);   // G
@@ -333,16 +424,16 @@ public class WinUtil extends GenericOsUtil {
 
 			overlay = user32.CreateWindowEx(
 					WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
-					"Static", null, WS_POPUP, x, y, w, h, null, null, null, null);
+					"Static", null, WS_POPUP, px, py, pw, ph, null, null, null, null);
 			if (overlay == null) {
 				return false;
 			}
 
 			SIZE size = new SIZE();
-			size.cx = w;
-			size.cy = h;
+			size.cx = pw;
+			size.cy = ph;
 			POINT ptSrc = new POINT(0, 0);
-			POINT ptDst = new POINT(x, y);
+			POINT ptDst = new POINT(px, py);
 			BLENDFUNCTION blend = new BLENDFUNCTION();
 			blend.BlendOp = AC_SRC_OVER;
 			blend.BlendFlags = 0;
@@ -418,6 +509,11 @@ public class WinUtil extends GenericOsUtil {
 		@Override
 		public boolean highlightNative(int argb, double secs) {
 			return WinUtil.highlightWindowNative(hWnd, argb, secs);
+		}
+
+		@Override
+		public boolean highlightRegionNative(Rectangle roiLogical, int argb, double secs) {
+			return WinUtil.highlightRegionWindowNative(hWnd, roiLogical, argb, secs);
 		}
 
 		@Override
