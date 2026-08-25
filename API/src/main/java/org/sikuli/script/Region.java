@@ -631,11 +631,15 @@ public class Region extends Element {
       }
 
       if (wb != null && nativeImg != null) {
-        // Full-window path: caller passed (this.x, this.y, this.w, this.h)
-        // — that's what getImage() and captureSelf(this) do. Interpret as
-        // "give me the full window": refresh this Region's bounds to track
-        // the window's current position/size and return the full image.
-        if (cx == this.x && cy == this.y && cw == this.w && ch == this.h) {
+        // #444: route by tracksSourceWindowBounds, no more coordinate-based
+        // heuristics. The old "cx == this.x && ... -> full window" shortcut
+        // was true by construction for captureSelf(this)/getImage()/find()
+        // on any window-backed Region — even a genuine ROI — because those
+        // callers pass exactly (this.x, this.y, this.w, this.h). It masked
+        // every derivation as a whole-window request.
+        if (tracksSourceWindowBounds) {
+          // Whole-window path: refresh this Region's bounds to track the
+          // window's current position/size and return the full native image.
           this.x = wb.x;
           this.y = wb.y;
           this.w = wb.width;
@@ -643,11 +647,11 @@ public class Region extends Element {
           return new ScreenImage(new Rectangle(wb.x, wb.y, wb.width, wb.height),
               nativeImg);
         }
-        // Sub-region path: caller passed explicit (cx, cy, cw, ch) that
-        // differ from this Region's bounds — typically checkLastSeen()
-        // cropping to a ROI around the previous match. Return the requested
-        // slice cropped from the full-window bitmap so Match coordinates
-        // stay in the caller's coord space.
+        // ROI path: crop the requested slice from the full-window bitmap so
+        // Match coordinates stay in the caller's coord space. Used by every
+        // derived window-backed Region (statusBar built from window.getInset,
+        // rows/cells from a raster on the window, findText matches, etc.)
+        // and by checkLastSeen() cropping around the previous match.
         int localX = Math.max(0, cx - wb.x);
         int localY = Math.max(0, cy - wb.y);
         int localW = Math.min(cw, nativeImg.getWidth() - localX);
