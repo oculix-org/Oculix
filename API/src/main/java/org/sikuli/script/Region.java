@@ -2161,6 +2161,16 @@ public class Region extends Element {
    */
   public Region union(Region ur) {
     Rectangle r = getRect().union(ur.getRect());
+    // #444: two-parent guard on top of the funnel's contains check. Inherit
+    // the window-backed path ONLY if the OTHER parent is not window-bound OR
+    // is bound on the same window. Two parents bound to different HWNDs
+    // would produce a Region that silently claims one of them — dangerous.
+    boolean otherOK = ur.sourceWindow == null
+        || Objects.equals(ur.sourceWindow, this.sourceWindow);
+    if (otherOK) {
+      Region derived = deriveWithinWindow(r);
+      if (derived != null) return derived;
+    }
     return Region.create(r.x, r.y, r.width, r.height, getScreen());
   }
 
@@ -2172,6 +2182,13 @@ public class Region extends Element {
    */
   public Region intersection(Region ir) {
     Rectangle r = getRect().intersection(ir.getRect());
+    // #444: same two-parent guard as union().
+    boolean otherOK = ir.sourceWindow == null
+        || Objects.equals(ir.sourceWindow, this.sourceWindow);
+    if (otherOK) {
+      Region derived = deriveWithinWindow(r);
+      if (derived != null) return derived;
+    }
     return Region.create(r.x, r.y, r.width, r.height, getScreen());
   }
 
