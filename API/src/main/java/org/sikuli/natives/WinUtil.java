@@ -101,7 +101,14 @@ public class WinUtil extends GenericOsUtil {
 		AffineTransform tx = gc.getDefaultTransform();
 		double sx = tx.getScaleX();
 		double sy = tx.getScaleY();
-		if (sx == 1.0 && sy == 1.0) {
+		// Unscaled-monitor shortcut — ONLY valid when the monitor's AWT logical
+		// origin coincides with its physical origin. When ANOTHER monitor in the
+		// layout is scaled, AWT shifts this monitor's logical origin away from
+		// the Windows physical one, and skipping the origin remap below would
+		// silently return physical coords as if they were logical (#444).
+		if (sx == 1.0 && sy == 1.0
+				&& logicalBounds.x == mi.rcMonitor.left
+				&& logicalBounds.y == mi.rcMonitor.top) {
 			return physical;
 		}
 
