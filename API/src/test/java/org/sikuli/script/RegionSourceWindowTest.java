@@ -330,4 +330,73 @@ class RegionSourceWindowTest {
     assertEquals(new Rectangle(10, 10, 100, 50), w.lastRoi,
         "ROI overlay receives the sub-rect in logical coords");
   }
+
+  // ---------- Spanning-logical tests (no physical mixed-DPI required) ----------
+  // These tests simulate a window whose bounds logically straddle several
+  // monitors (negative x, extreme width) — a shape initScreen used to mutilate
+  // by biggest-intersection clipping. The #444 guards must preserve the bounds
+  // verbatim through forWindow, setters and the derivation funnel. Passing
+  // these tests on a mono-monitor machine is enough proof that no re-clip
+  // sneaks back in later.
+
+  @Test
+  void forWindowOnConceptuallyStraddlingBoundsPreservesRect() {
+    // Simulate a window spanning: origin at x=-500 (secondary monitor left
+    // of primary), width 3000 (crossing two or three logical screens).
+    // With sourceWindow attached, initScreen's biggest-intersection clip
+    // must be skipped and the raw window rect must survive verbatim.
+    Rectangle straddling = new Rectangle(-500, 100, 3000, 600);
+    Region r = Region.forWindow(new StubWindow(straddling));
+    assertNotNull(r);
+    assertTrue(r.tracksSourceWindowBounds);
+    assertEquals(-500, r.x, "spanning: negative x preserved (no clip)");
+    assertEquals(100, r.y);
+    assertEquals(3000, r.w, "spanning: full width preserved across virtual screens");
+    assertEquals(600, r.h);
+  }
+
+  @Test
+  void setterOnStraddlingWindowKeepsBoundsUnclipped() {
+    // Same guarantee on the setter path: initScreen(null) runs after setW,
+    // and with sourceWindow attached, the biggest-intersection clip that
+    // would normally rewrite w back to a single monitor's width must be
+    // skipped. tracks flips to false (mutation = ROI) but bounds survive.
+    Rectangle straddling = new Rectangle(-500, 100, 3000, 600);
+    StubWindow w = new StubWindow(straddling);
+    Region r = Region.forWindow(w);
+    r.setW(2500);
+    assertEquals(2500, r.w, "spanning: setter keeps the requested width, no clip");
+    assertEquals(-500, r.x, "spanning: origin untouched by setter");
+    assertEquals(100, r.y);
+    assertEquals(600, r.h);
+    assertFalse(r.tracksSourceWindowBounds, "setter flips to ROI");
+    assertSame(w, r.getSourceWindow(), "provenance preserved through the mutation");
+  }
+
+  @Test
+  void derivedWithinStraddlingWindowKeepsBoundsUnclipped() {
+    // A ROI that itself straddles multiple monitors — the exact shape of
+    // Uwe's use case: a status-bar strip that spans the whole width of a
+    // straddling window. The funnel must accept it (contained in window
+    // bounds) and preserve the sub-rect verbatim.
+    Rectangle straddling = new Rectangle(-500, 100, 3000, 600);
+    StubWindow w = new StubWindow(straddling);
+    Region root = Region.forWindow(w);
+    // Status bar spanning the whole width, 30px tall, at the bottom.
+    // The inset carrier has to be built via Region.forWindow(stub) rather
+    // than new Region(int,int,int,int) — the plain constructor runs
+    // initScreen(null) which, on a mono-monitor machine, would clip
+    // inset.w to the physical screen width before getInset even reads it.
+    // With a stub-backed inset, initScreen's biggest-intersection clip is
+    // skipped and inset.w survives at 3000.
+    Region insetSpec = Region.forWindow(new StubWindow(new Rectangle(0, 570, 3000, 30)));
+    Region statusBar = root.getInset(insetSpec);
+    assertSame(w, statusBar.getSourceWindow(),
+        "spanning ROI inside spanning window: funnel accepts, provenance inherited");
+    assertFalse(statusBar.tracksSourceWindowBounds, "derivation always tracks=false");
+    assertEquals(-500, statusBar.x, "spanning ROI: absolute x preserved");
+    assertEquals(670, statusBar.y);
+    assertEquals(3000, statusBar.w, "spanning ROI: full width preserved");
+    assertEquals(30, statusBar.h);
+  }
 }
