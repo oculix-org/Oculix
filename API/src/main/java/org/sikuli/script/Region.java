@@ -975,6 +975,13 @@ public class Region extends Element {
     h = r.h;
     scr = r.getScreen();
     otherScreen = r.isOtherScreen();
+    // #444: copy Region -> Region is the ONE mechanism that propagates both
+    // sourceWindow AND tracksSourceWindowBounds verbatim. Every OTHER path
+    // that carries provenance (the derivation funnel) forces tracks=false.
+    // A copy of the whole-window Region stays whole-window; a copy of a ROI
+    // stays a ROI — the copy is faithful, not a derivation.
+    sourceWindow = r.sourceWindow;
+    tracksSourceWindowBounds = r.tracksSourceWindowBounds;
     rows = 0;
     autoWaitTimeout = r.autoWaitTimeout;
     findFailedResponse = r.findFailedResponse;
@@ -1139,7 +1146,25 @@ public class Region extends Element {
    * @return then new region
    */
   public static Region create(Region r) {
-    Region reg = Region.create(r.x, r.y, r.w, r.h, r.getScreen());
+    Region reg;
+    if (r.sourceWindow != null) {
+      // #444: window-backed parent — go direct, without Region.create(x,y,w,h,scr)
+      // which routes through initScreen(scr) and would clip a straddling
+      // rectangle before we get a chance to copy sourceWindow. The bounds are
+      // preserved as-is; scr is inherited from the parent (no re-resolve
+      // needed for a faithful copy). Same rule as init(Region r): both
+      // sourceWindow AND tracksSourceWindowBounds are propagated verbatim.
+      reg = new Region();
+      reg.x = r.x;
+      reg.y = r.y;
+      reg.w = r.w;
+      reg.h = r.h;
+      reg.scr = r.getScreen();
+      reg.sourceWindow = r.sourceWindow;
+      reg.tracksSourceWindowBounds = r.tracksSourceWindowBounds;
+    } else {
+      reg = Region.create(r.x, r.y, r.w, r.h, r.getScreen());
+    }
     reg.autoWaitTimeout = r.autoWaitTimeout;
     reg.findFailedResponse = r.findFailedResponse;
     reg.throwException = r.throwException;
