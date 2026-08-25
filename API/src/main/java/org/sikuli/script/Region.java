@@ -1857,6 +1857,10 @@ public class Region extends Element {
    */
   public Region offset(Object whatever) {
     Offset offset = new Offset(whatever);
+    // #444: attempt window-backed derivation; fall back to the exact legacy
+    // path on refusal (rect outside the window, or no sourceWindow).
+    Region derived = deriveWithinWindow(new Rectangle(x + offset.x, y + offset.y, w, h));
+    if (derived != null) return derived;
     return Region.create(x + offset.x, y + offset.y, w, h, getScreen());
   }
 
@@ -1868,6 +1872,8 @@ public class Region extends Element {
    * @return the new region
    */
   public Region offset(int x, int y) {
+    Region derived = deriveWithinWindow(new Rectangle(this.x + x, this.y + y, w, h));
+    if (derived != null) return derived;
     return Region.create(this.x + x, this.y + y, w, h, getScreen());
   }
 
@@ -1923,6 +1929,8 @@ public class Region extends Element {
   public Region grow(int w, int h) {
     Rectangle r = getRect();
     r.grow(w, h);
+    Region derived = deriveWithinWindow(r);
+    if (derived != null) return derived;
     return Region.create(r.x, r.y, r.width, r.height, getScreen());
   }
 
@@ -1937,6 +1945,8 @@ public class Region extends Element {
    * @return the new region
    */
   public Region grow(int l, int r, int t, int b) {
+    Region derived = deriveWithinWindow(new Rectangle(x - l, y - t, w + l + r, h + t + b));
+    if (derived != null) return derived;
     return Region.create(x - l, y - t, w + l + r, h + t + b, getScreen());
   }
 
@@ -1985,6 +1995,11 @@ public class Region extends Element {
     } else {
       _x = x + w;
     }
+    // #444: negative width keeps the new region INSIDE the parent — funnel
+    // may accept. Positive width extends OUTSIDE — funnel refuses, legacy
+    // takes over. Either way, the fallback is unchanged.
+    Region derived = deriveWithinWindow(new Rectangle(_x, y, Math.abs(width), h));
+    if (derived != null) return derived;
     return Region.create(_x, y, Math.abs(width), h, getScreen());
   }
 
@@ -2030,6 +2045,13 @@ public class Region extends Element {
     } else {
       _x = x - width;
     }
+    // #444: try the funnel on the RAW rect (pre-intersection) — if the parent
+    // is window-backed and the sub-rect stays inside the window, we get a
+    // window-backed derivation without the screen-intersection dance. On
+    // refusal, keep the exact legacy behaviour (intersect with the screen
+    // bounds first, then Region.create with getScreen).
+    Region derived = deriveWithinWindow(new Rectangle(_x, y, Math.abs(width), h));
+    if (derived != null) return derived;
     return Region.create(getScreen().getBounds().intersection(new Rectangle(_x, y, Math.abs(width), h)), getScreen());
   }
 
@@ -2075,6 +2097,10 @@ public class Region extends Element {
     } else {
       _y = y - height;
     }
+    // #444: same rule as left() — funnel on the raw rect; fall back to the
+    // exact legacy screen-intersection path.
+    Region derived = deriveWithinWindow(new Rectangle(x, _y, w, Math.abs(height)));
+    if (derived != null) return derived;
     return Region.create(getScreen().getBounds().intersection(new Rectangle(x, _y, w, Math.abs(height))), getScreen());
   }
 
@@ -2120,6 +2146,10 @@ public class Region extends Element {
     } else {
       _y = y + h;
     }
+    // #444: negative height stays inside — funnel may accept; positive height
+    // extends outside — funnel refuses, legacy takes over.
+    Region derived = deriveWithinWindow(new Rectangle(x, _y, w, Math.abs(height)));
+    if (derived != null) return derived;
     return Region.create(x, _y, w, Math.abs(height), getScreen());
   }
 
@@ -2146,6 +2176,11 @@ public class Region extends Element {
   }
 
   public Region getInset(Region inset) {
+    // #444: funnel takes the derived rect; on refusal, keep the exact legacy
+    // path — new Region(int,int,int,int) without an explicit Screen — which
+    // resolves via initScreen(null) inside the ctor.
+    Region derived = deriveWithinWindow(new Rectangle(x + inset.x, y + inset.y, inset.w, inset.h));
+    if (derived != null) return derived;
     return new Region(x + inset.x, y + inset.y, inset.w, inset.h);
   }
 
@@ -2239,7 +2274,10 @@ public class Region extends Element {
   private int colWd = 0;
 
   public Region get(int part) {
-    return Region.create(getRectangle(getRect(), part));
+    Rectangle rect = getRectangle(getRect(), part);
+    Region derived = deriveWithinWindow(rect);
+    if (derived != null) return derived;
+    return Region.create(rect);
   }
 
   protected static Rectangle getRectangle(Rectangle rect, int part) {
@@ -2398,6 +2436,8 @@ public class Region extends Element {
     }
     r = Math.max(0, r);
     r = Math.min(r, rows - 1);
+    Region derived = deriveWithinWindow(new Rectangle(x, y + r * rowH, w, rowH));
+    if (derived != null) return derived;
     return Region.create(x, y + r * rowH, w, rowH);
   }
 
@@ -2424,6 +2464,8 @@ public class Region extends Element {
     }
     c = Math.max(0, c);
     c = Math.min(c, cols - 1);
+    Region derived = deriveWithinWindow(new Rectangle(x + c * colW, y, colW, h));
+    if (derived != null) return derived;
     return Region.create(x + c * colW, y, colW, h);
   }
 
@@ -2468,6 +2510,8 @@ public class Region extends Element {
     r = Math.min(r, rows - 1);
     c = Math.max(0, c);
     c = Math.min(c, cols - 1);
+    Region derived = deriveWithinWindow(new Rectangle(x + c * colW, y + r * rowH, colW, rowH));
+    if (derived != null) return derived;
     return Region.create(x + c * colW, y + r * rowH, colW, rowH);
   }
 //</editor-fold>
