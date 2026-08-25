@@ -665,13 +665,19 @@ public class Region extends Element {
     IScreen screen, screenOn;
     if (iscr != null) {
       if (iscr.isOtherScreen()) {
-        if (x < 0) {
-          w = w + x;
-          x = 0;
-        }
-        if (y < 0) {
-          h = h + y;
-          y = 0;
+        // #444: window-backed Regions never let initScreen touch their bounds.
+        // A window straddling mixed-DPI monitors is a legitimate rectangle
+        // that the classic negative-origin trim would mutilate. Keep the
+        // screen assignment for legacy paths, skip the mutation.
+        if (sourceWindow == null) {
+          if (x < 0) {
+            w = w + x;
+            x = 0;
+          }
+          if (y < 0) {
+            h = h + y;
+            y = 0;
+          }
         }
         this.scr = iscr;
         this.otherScreen = true;
@@ -680,10 +686,15 @@ public class Region extends Element {
       if (iscr.getID() > -1) {
         rect = regionOnScreen(iscr);
         if (rect != null) {
-          x = rect.x;
-          y = rect.y;
-          w = rect.width;
-          h = rect.height;
+          // #444: same rule — bounds preserved on window-backed Regions;
+          // regionOnScreen clips to a single monitor and would mutilate a
+          // straddling window rectangle. Only the screen assignment stays.
+          if (sourceWindow == null) {
+            x = rect.x;
+            y = rect.y;
+            w = rect.width;
+            h = rect.height;
+          }
           this.scr = iscr;
           return;
         }
@@ -719,16 +730,40 @@ public class Region extends Element {
     }
 
     if (screenOn != null) {
-      x = screenRect.x;
-      y = screenRect.y;
-      w = screenRect.width;
-      h = screenRect.height;
+      // #444: same rule — a window-backed Region keeps its true bounds;
+      // only screen detection stays. This is what makes setX/Y/W/H (which
+      // all re-run initScreen(null)) safe on Regions attached to a
+      // straddling window.
+      if (sourceWindow == null) {
+        x = screenRect.x;
+        y = screenRect.y;
+        w = screenRect.width;
+        h = screenRect.height;
+      }
       this.scr = screenOn;
     } else {
       // no screen found
       this.scr = null;
       Debug.error("Region(%d,%d,%d,%d) outside any screen - subsequent actions might not work as expected", x, y, w, h);
     }
+  }
+
+  /**
+   * Resolves {@link #scr} from the current bounds WITHOUT clipping x/y/w/h.
+   * Meant for window-backed Regions built by the derivation funnel: the
+   * caller has already set {@link #sourceWindow}, so {@link #initScreen}
+   * will skip every bounds mutation branch (see #444 guards above) and
+   * only assign {@code scr}. Named entry point so callers document intent
+   * rather than calling {@code initScreen(null)} with a comment.
+   */
+  void resolveScreenNoClip() {
+    if (sourceWindow == null) {
+      throw new IllegalStateException(
+          "resolveScreenNoClip called without sourceWindow attached — "
+              + "initScreen(null) would clip the bounds. Use initScreen(null) "
+              + "directly when the caller genuinely wants classic clip semantics.");
+    }
+    initScreen(null);
   }
 
   public void resetScreen() {
