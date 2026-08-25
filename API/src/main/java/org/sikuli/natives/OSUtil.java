@@ -80,6 +80,36 @@ public interface OSUtil {
 		default boolean highlightNative(int argb, double secs) {
 			return false;
 		}
+
+		/**
+		 * Native ROI highlight: draws a coloured frame around a sub-rectangle
+		 * of this window in the OS physical coordinate space. Same mechanism
+		 * as {@link #highlightNative(int, double)} but on an arbitrary ROI
+		 * within the window instead of the whole HWND — used by
+		 * {@code Region.highlight} on window-backed sub-Regions built by the
+		 * derivation funnel (a ROI within a straddling mixed-DPI window that
+		 * the Swing {@code Highlight} cannot frame correctly, #444).
+		 *
+		 * <p>The ROI is expressed in the caller's LOGICAL coordinate space
+		 * (the AWT/OculiX space that {@code Region.x/y/w/h} live in). The
+		 * Windows implementation converts to physical via the same primitive
+		 * used by {@code captureNative}, then positions the
+		 * {@code WS_EX_LAYERED} overlay accordingly.
+		 *
+		 * <p>Default implementation is a no-op returning {@code false};
+		 * callers ({@code Region.highlight}) fall back to the classic Swing
+		 * {@code Highlight} when this returns false. macOS/Linux/Wayland
+		 * inherit the fallback until a per-OS native overlay is provided
+		 * (epic #442).
+		 *
+		 * @param roiLogical the ROI in logical coordinates (must not be null)
+		 * @param argb       frame colour as {@code 0xRRGGBB} (alpha ignored, forced opaque)
+		 * @param secs       seconds to keep the frame on screen (blocks the caller)
+		 * @return {@code true} if the native overlay was drawn, {@code false} to fall back
+		 */
+		default boolean highlightRegionNative(Rectangle roiLogical, int argb, double secs) {
+			return false;
+		}
 	}
 
 	/**
