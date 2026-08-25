@@ -839,6 +839,32 @@ public class Region extends Element {
     return r;
   }
 
+  /**
+   * #444: attach {@link #sourceWindow} to an EXISTING Region (typically a
+   * {@link Match} built by a Finder) when the target's current bounds fit
+   * inside the window. Companion to {@link #deriveWithinWindow(Rectangle)}
+   * — same contains-check contract, but mutates in place instead of
+   * building a new Region. {@code tracks} is always set to {@code false}
+   * on the target (a Match is a ROI, never the window itself).
+   *
+   * <p>No-op when: this Region has no sourceWindow, the target already
+   * has a sourceWindow (never silently overwrite), the window's bounds
+   * are unavailable, or the target's rect escapes the window.
+   *
+   * @param target the Region to enrich (must not be null)
+   */
+  private void attachSourceWindowIfContained(Region target) {
+    if (this.sourceWindow == null || target.sourceWindow != null) {
+      return;
+    }
+    Rectangle wb = this.sourceWindow.getBounds();
+    if (wb == null || !wb.contains(target.getRect())) {
+      return;
+    }
+    target.sourceWindow = this.sourceWindow;
+    target.tracksSourceWindowBounds = false;
+  }
+
   public void resetScreen() {
     Screen scr = (Screen) getScreen();
     scr.reset();
@@ -1373,6 +1399,12 @@ public class Region extends Element {
   protected Match toGlobalCoord(Match m) {
     m.x += x;
     m.y += y;
+    // #444: a Match found inside a window-backed Region lives in the same
+    // window's coordinate space — hand down the sourceWindow so highlight()
+    // and captureSelf on the Match take the native route. tracks stays false
+    // (a Match is a ROI). No-op when this Region has no sourceWindow, or
+    // when the match rect somehow escapes the window (defensive: refuse).
+    attachSourceWindowIfContained(m);
     return m;
   }
   //</editor-fold>
@@ -3333,6 +3365,9 @@ public class Region extends Element {
       match.x += this.x;
       match.y += this.y;
       match.setScreen(this.getScreen());
+      // #444: see toGlobalCoord — hand down sourceWindow to matches from
+      // text finds and observers, contained check applied per-match.
+      attachSourceWindowIfContained(match);
     }
     return matches;
   }
@@ -3341,6 +3376,8 @@ public class Region extends Element {
     match.x += this.x;
     match.y += this.y;
     match.setScreen(this.getScreen());
+    // #444: see toGlobalCoord.
+    attachSourceWindowIfContained(match);
     return match;
   }
   //</editor-fold>
