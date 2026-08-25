@@ -1172,6 +1172,42 @@ public class Region extends Element {
   }
 
   /**
+   * #444: build a window-backed Region from an {@link OsWindow}. Bounds are
+   * the raw {@code window.getBounds()} — no clipping, no biggest-intersection
+   * rewrite. This is the ONLY path that asserts the "I am the whole window"
+   * identity by setting {@link #tracksSourceWindowBounds} to true.
+   *
+   * <p>Deliberately does NOT set the Region's name from the window title:
+   * historical callers have inconsistent behaviour ({@code App.window(int)}
+   * and {@code App.getWindows()} name the Region with the title,
+   * {@code App.focusedWindow()} does not). Preserving that requires the
+   * caller to opt in with {@code r.setName(window.getTitle())}.
+   *
+   * <p>Returns {@code null} if the window is null or reports null bounds.
+   *
+   * @param window the OS-level window; must not be null
+   * @return a Region tied to {@code window}, tracks=true, or null on error
+   */
+  public static Region forWindow(OsWindow window) {
+    if (window == null) {
+      return null;
+    }
+    Rectangle wb = window.getBounds();
+    if (wb == null) {
+      return null;
+    }
+    Region r = new Region();
+    r.x = wb.x;
+    r.y = wb.y;
+    r.w = wb.width;
+    r.h = wb.height;
+    r.sourceWindow = window;
+    r.tracksSourceWindowBounds = true;
+    r.resolveScreenNoClip();
+    return r;
+  }
+
+  /**
    * create a region with the given point as center and the given size
    *
    * @param loc the center point
