@@ -78,6 +78,7 @@ public class Region extends Element {
    */
   public Region setX(int X) {
     x = X;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -88,6 +89,7 @@ public class Region extends Element {
    */
   public Region setY(int Y) {
     y = Y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -98,6 +100,7 @@ public class Region extends Element {
    */
   public Region setW(int W) {
     w = W > 1 ? W : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -108,8 +111,29 @@ public class Region extends Element {
    */
   public Region setH(int H) {
     h = H > 1 ? H : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
+  }
+
+  /**
+   * #444: a direct mutation of x/y/w/h on a whole-window Region turns it
+   * into a ROI within that window. Provenance ({@link #sourceWindow}) is
+   * preserved so the native capture/highlight route can still be used, but
+   * {@link #tracksSourceWindowBounds} flips to false: this Region is no
+   * longer "the window", it is "a sub-rect of the window".
+   *
+   * <p>No-op when no window is attached (the field stays false, which is
+   * the initial state on non-window Regions).
+   *
+   * <p>Called by every setter that writes x/y/w/h directly. Callers of the
+   * derivation funnel do not need this — the funnel builds fresh Regions
+   * that start at tracks=false.
+   */
+  private void markAsDerivedWindowRegion() {
+    if (sourceWindow != null) {
+      tracksSourceWindowBounds = false;
+    }
   }
   //</editor-fold>
 
