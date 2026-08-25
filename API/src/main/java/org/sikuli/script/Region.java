@@ -514,14 +514,28 @@ public class Region extends Element {
    * on the Region ({@link #getImage()}, {@link #find}, {@link #wait},
    * {@link #exists}, {@link #text}, etc.) route through the window's native
    * capture path if the platform supports one. See {@link #captureSelf}.
+   *
+   * <p>Any change of the attached {@code OsWindow} — including detach ({@code
+   * setSourceWindow(null)}) and replacement by a different HWND — invalidates
+   * the short-lived native capture cache: the previous bitmap belongs to the
+   * previous window and would produce misaligned matches on subsequent calls.
    */
   public Region setSourceWindow(OsWindow window) {
+    if (!Objects.equals(this.sourceWindow, window)) {
+      invalidateNativeCache();
+    }
     this.sourceWindow = window;
     return this;
   }
 
   public OsWindow getSourceWindow() {
     return sourceWindow;
+  }
+
+  private void invalidateNativeCache() {
+    cachedNativeImage = null;
+    cachedNativeBounds = null;
+    cachedNativeAt = 0L;
   }
 
   /**
