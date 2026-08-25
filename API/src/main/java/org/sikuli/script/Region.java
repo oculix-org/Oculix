@@ -548,9 +548,12 @@ public class Region extends Element {
   // found at a shifted offset in the second — a real bug on straddling
   // mixed-DPI windows that would otherwise leak into user code.
   private static final long NATIVE_CAPTURE_CACHE_TTL_MS = 3000;
-  private transient BufferedImage cachedNativeImage = null;
-  private transient Rectangle cachedNativeBounds = null;
-  private transient long cachedNativeAt = 0L;
+  // Package-private (rather than private) so the #444 test suite can observe
+  // cache lifecycle invariants without a public accessor. Same doctrine as
+  // tracksSourceWindowBounds: internal state, tested in-package, never exposed.
+  transient BufferedImage cachedNativeImage = null;
+  transient Rectangle cachedNativeBounds = null;
+  transient long cachedNativeAt = 0L;
 
   /**
    * Attach an OS-level source window to this Region. When set, capture calls
