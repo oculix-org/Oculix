@@ -790,6 +790,55 @@ public class Region extends Element {
     initScreen(null);
   }
 
+  /**
+   * #444: attempt to build a window-backed sub-Region for a rectangle
+   * geometrically derived from THIS Region. Answers exactly one question:
+   * <em>"Can I represent this rectangle with the pixels of my sourceWindow?"</em>
+   *
+   * <ul>
+   *   <li>{@code sourceWindow == null} → returns {@code null}. This Region
+   *       has no window to hand down.</li>
+   *   <li>{@code sourceWindow.getBounds() == null} → returns {@code null}.
+   *       Cannot decide containment.</li>
+   *   <li>the window's bounds do NOT contain {@code desiredRect} → returns
+   *       {@code null}. The rectangle escapes the window, so its pixels
+   *       cannot come from the native window bitmap. Above/below/left/right
+   *       on a whole-window Region typically fall here.</li>
+   *   <li>otherwise → returns a fresh Region with {@code desiredRect}'s
+   *       bounds preserved as-is (no clip, no biggest-intersection rewrite),
+   *       {@link #sourceWindow} attached, {@link #tracksSourceWindowBounds}
+   *       explicitly {@code false} (a ROI is never the whole window), and
+   *       {@code scr} resolved via {@link #resolveScreenNoClip}.</li>
+   * </ul>
+   *
+   * <p>Callers use the null return to decide their fallback: on {@code null},
+   * they run their historical construction path unchanged (typically
+   * {@code Region.create(..., getScreen())}). This funnel deliberately does
+   * NOT own the fallback — every derivation method keeps its exact legacy
+   * behaviour when the window-backed path is refused.
+   *
+   * @param desiredRect the rectangle the caller wants to represent
+   * @return a window-backed Region, or {@code null} if the funnel refuses
+   */
+  private Region deriveWithinWindow(Rectangle desiredRect) {
+    if (sourceWindow == null) {
+      return null;
+    }
+    Rectangle wb = sourceWindow.getBounds();
+    if (wb == null || !wb.contains(desiredRect)) {
+      return null;
+    }
+    Region r = new Region();
+    r.x = desiredRect.x;
+    r.y = desiredRect.y;
+    r.w = desiredRect.width;
+    r.h = desiredRect.height;
+    r.sourceWindow = sourceWindow;
+    r.tracksSourceWindowBounds = false;
+    r.resolveScreenNoClip();
+    return r;
+  }
+
   public void resetScreen() {
     Screen scr = (Screen) getScreen();
     scr.reset();
