@@ -496,6 +496,25 @@ public class Region extends Element {
    */
   private OsWindow sourceWindow = null;
 
+  /**
+   * True when this Region's bounds are meant to represent the whole
+   * {@link #sourceWindow} — i.e. capture returns the full window bitmap and
+   * highlight frames the whole HWND. False when this Region is a ROI within
+   * the window (any sub-rect derived from a window-backed Region, or any
+   * mutation via setX/Y/W/H): capture returns the ROI cropped from the full
+   * native bitmap, highlight frames the ROI (physical-space overlay).
+   *
+   * <p>Set to true ONLY by {@link #forWindow(OsWindow)} — the sole path that
+   * asserts the "I am the window" identity. Neither {@link #setSourceWindow}
+   * nor any inheritance funnel establishes it: derivations always carry
+   * {@code tracks=false}. Only the {@link #init(Region)} copy path propagates
+   * the parent's value verbatim.
+   *
+   * <p>Package-private on purpose so tests in {@code org.sikuli.script} can
+   * observe transitions without exposing a public setter.
+   */
+  boolean tracksSourceWindowBounds = false;
+
   // Short-lived cache of the native window capture. Kept for a small TTL so
   // that rapid successive calls (getImage(), then find(), then wait() on the
   // same Region within a few frames) reuse the same bitmap and therefore
