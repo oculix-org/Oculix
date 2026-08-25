@@ -2733,14 +2733,26 @@ public class Region extends Element {
       highlightClose();
     }
     // #444: when this Region is attached to an OS window, draw a single
-    // continuous frame in the physical coordinate space, so a window straddling
-    // several monitors at different DPI scales is framed by ONE unbroken
-    // rectangle instead of the Swing overlay's biggest-part-only approximation.
-    // The user-facing call is unchanged — always highlight(); the routing is
-    // internal. Falls through to the Swing Highlight below when there is no
-    // source window, or the native overlay declines (non-Windows / not drawable).
-    if (sourceWindow != null && sourceWindow.highlightNative(highlightColorToArgb(color), secs)) {
-      return this;
+    // continuous frame in the physical coordinate space. Route by
+    // tracksSourceWindowBounds:
+    //   tracks == true  -> frame the whole HWND via highlightNative — the
+    //                      original spanning highlight for the whole window
+    //   tracks == false -> frame the ROI via highlightRegionNative — same
+    //                      WS_EX_LAYERED mechanism but positioned on the
+    //                      sub-rect (logical->physical conversion done in
+    //                      the Windows backend, symmetric with captureNative)
+    // Either way, the user-facing call is unchanged (always highlight());
+    // the routing is internal. Falls through to the Swing Highlight below
+    // when there is no source window, or the native overlay declines
+    // (non-Windows / not drawable).
+    if (sourceWindow != null) {
+      int argb = highlightColorToArgb(color);
+      boolean drawn = tracksSourceWindowBounds
+          ? sourceWindow.highlightNative(argb, secs)
+          : sourceWindow.highlightRegionNative(new Rectangle(x, y, w, h), argb, secs);
+      if (drawn) {
+        return this;
+      }
     }
     // Classic Swing overlay — kept live: it serves every non-window Region
     // (raw find() matches, coordinate regions) and is the fallback above.
