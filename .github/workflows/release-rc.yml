@@ -18,6 +18,16 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    # #444 workaround: bash with `-o pipefail` so a Maven `BUILD FAILURE`
+    # piped into egrep no longer masks its non-zero exit code and the CI
+    # stays honest. Before this, IDE and MCP build failures on the
+    # ${revision} / flatten-maven-plugin path (introduced in v4.0.0) were
+    # silently absorbed by the egrep pipe, the job kept marching, and the
+    # release job uploaded only the API artifacts as if everything were fine.
+    shell: bash --noprofile --norc -eo pipefail {0}
+
 jobs:
   build-windows:
     runs-on: ubuntu-latest
@@ -28,6 +38,16 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Install parent POM (flattened) to local repo
+      # #444: since v4.0.0 the root pom uses CI-friendly ${revision} +
+      # flatten-maven-plugin. `mvn -pl API install` no longer installs the
+      # flattened parent pom in ~/.m2, so IDE and MCP subsequently fail to
+      # resolve io.github.oculix-org:oculix:pom:${revision} and Maven caches
+      # a Central-lookup failure. Install the parent explicitly with -N
+      # (non-recursive) so the flatten plugin runs on it and its
+      # .flattened-pom.xml lands in the local repo before any -pl module build.
+      # v3.0.4-rc1 didn't need this because its version was hardcoded (not ${revision}).
+      run: mvn -B install -N -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Install API to local repo
       run: mvn -B -pl API install -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build API fat JAR (Windows)
@@ -54,6 +74,16 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Install parent POM (flattened) to local repo
+      # #444: since v4.0.0 the root pom uses CI-friendly ${revision} +
+      # flatten-maven-plugin. `mvn -pl API install` no longer installs the
+      # flattened parent pom in ~/.m2, so IDE and MCP subsequently fail to
+      # resolve io.github.oculix-org:oculix:pom:${revision} and Maven caches
+      # a Central-lookup failure. Install the parent explicitly with -N
+      # (non-recursive) so the flatten plugin runs on it and its
+      # .flattened-pom.xml lands in the local repo before any -pl module build.
+      # v3.0.4-rc1 didn't need this because its version was hardcoded (not ${revision}).
+      run: mvn -B install -N -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Install API to local repo
       run: mvn -B -pl API install -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build API fat JAR (macOS)
@@ -80,6 +110,16 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Install parent POM (flattened) to local repo
+      # #444: since v4.0.0 the root pom uses CI-friendly ${revision} +
+      # flatten-maven-plugin. `mvn -pl API install` no longer installs the
+      # flattened parent pom in ~/.m2, so IDE and MCP subsequently fail to
+      # resolve io.github.oculix-org:oculix:pom:${revision} and Maven caches
+      # a Central-lookup failure. Install the parent explicitly with -N
+      # (non-recursive) so the flatten plugin runs on it and its
+      # .flattened-pom.xml lands in the local repo before any -pl module build.
+      # v3.0.4-rc1 didn't need this because its version was hardcoded (not ${revision}).
+      run: mvn -B install -N -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Install API to local repo
       run: mvn -B -pl API install -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build API fat JAR (Linux)
