@@ -128,8 +128,7 @@ public class Region extends Element {
    *       provenance is a lie: capture/highlight would either crop from
    *       stale pixels or overlay on a HWND the ROI is not in. Detach
    *       {@link #sourceWindow} via {@link #setSourceWindow(OsWindow)} so
-   *       the classic Screen-device path takes over cleanly (the setter
-   *       invalidates the native cache in the same call).</li>
+   *       the classic Screen-device path takes over cleanly.</li>
    * </ol>
    *
    * <p>This aligns setter semantics with the {@link #deriveWithinWindow}
@@ -2751,9 +2750,18 @@ public class Region extends Element {
     // the routing is internal. Falls through to the Swing Highlight below
     // when there is no source window, or the native overlay declines
     // (non-Windows / not drawable).
-    if (sourceWindow != null) {
-      // #444: revalidate ROI containment at native use. The window is a live
-      // OS object; between construction/mutation and this highlight call, the
+    // #444: native routing is TIMED only. Persistent highlight (secs <= 0,
+    // used by highlight()/highlightOn()) needs a long-lived overlay window
+    // outliving this method call; the current WS_EX_LAYERED implementation
+    // destroys the overlay in its finally block right after the timed
+    // Thread.sleep, so a persistent call would flash and vanish. The Swing
+    // Highlight below already handles persistent mode via Highlight.doShow(-1)
+    // — keep that path for the toggle API (highlight/highlightOff). Timed
+    // highlight (secs > 0, the #444/Uwe case) keeps the native mixed-DPI
+    // spanning route.
+    if (sourceWindow != null && secs > 0) {
+      // Revalidate ROI containment at native use. The window is a live OS
+      // object; between construction/mutation and this highlight call, the
       // user may have moved the actual window. If the ROI now escapes the
       // window bounds, highlightRegionNative would draw an overlay at the
       // wrong physical position (logicalToPhysical uses MonitorFromWindow

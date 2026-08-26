@@ -357,6 +357,42 @@ class RegionSourceWindowTest {
         "ROI overlay receives the sub-rect in logical coords");
   }
 
+  @Test
+  void persistentWholeWindowHighlightUsesSwing_notNative() {
+    // highlight() / highlightOn() call doHighlight(-1, color) — persistent
+    // toggle mode. The current native overlay (WS_EX_LAYERED) destroys the
+    // window in its finally block right after Thread.sleep — so a secs <= 0
+    // call would flash and vanish. The Swing Highlight below handles
+    // persistent mode via doShow(-1); native must NOT be routed on secs <= 0.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
+    Region r = Region.forWindow(w);
+    try {
+      r.doHighlight(-1, null);   // persistent
+    } catch (Throwable ignored) {
+      // Swing fallback may fail in headless-ish setups; the invariant we
+      // test lives upstream (native highlight refused on secs <= 0).
+    }
+    assertEquals(0, w.highlightNativeCalls,
+        "persistent whole-window highlight must NOT route to highlightNative (would flash and vanish)");
+    assertEquals(0, w.highlightRegionCalls);
+  }
+
+  @Test
+  void persistentRoiHighlightUsesSwing_notNative() {
+    // Same rule for ROI: persistent highlight on a window-backed ROI keeps
+    // the Swing path so the toggle API stays functional.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
+    Region r = Region.forWindow(w);
+    Region roi = r.getInset(new Region(10, 10, 100, 50));
+    try {
+      roi.doHighlight(-1, null);
+    } catch (Throwable ignored) {
+    }
+    assertEquals(0, w.highlightRegionCalls,
+        "persistent ROI highlight must NOT route to highlightRegionNative (would flash and vanish)");
+    assertEquals(0, w.highlightNativeCalls);
+  }
+
   // ---------- Spanning-logical tests (no physical mixed-DPI required) ----------
   // These tests simulate a window whose bounds logically straddle several
   // monitors (negative x, extreme width) — a shape initScreen used to mutilate
