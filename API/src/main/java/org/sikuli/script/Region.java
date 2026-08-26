@@ -588,6 +588,11 @@ public class Region extends Element {
   public Region setSourceWindow(OsWindow window) {
     if (!Objects.equals(this.sourceWindow, window)) {
       invalidateNativeCache();
+      // #444: a HWND change cannot silently keep the "I am this whole window"
+      // identity — the previous whole-window claim was about the PREVIOUS
+      // window, not this one. Only Region.forWindow may assert tracks=true;
+      // it does so by writing the field directly, not through this setter.
+      tracksSourceWindowBounds = false;
     }
     this.sourceWindow = window;
     return this;
