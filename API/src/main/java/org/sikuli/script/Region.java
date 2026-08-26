@@ -117,22 +117,41 @@ public class Region extends Element {
   }
 
   /**
-   * #444: a direct mutation of x/y/w/h on a whole-window Region turns it
-   * into a ROI within that window. Provenance ({@link #sourceWindow}) is
-   * preserved so the native capture/highlight route can still be used, but
-   * {@link #tracksSourceWindowBounds} flips to false: this Region is no
-   * longer "the window", it is "a sub-rect of the window".
+   * #444: a direct mutation of x/y/w/h on a window-backed Region turns it
+   * into a ROI within that window. Two invariants must hold after the
+   * mutation:
+   *
+   * <ol>
+   *   <li>{@link #tracksSourceWindowBounds} flips to false — this Region
+   *       is no longer "the window", it is "a sub-rect of the window".</li>
+   *   <li>If the new bounds are no longer contained in the window, the
+   *       provenance is a lie: capture/highlight would either crop from
+   *       stale pixels or overlay on a HWND the ROI is not in. Detach
+   *       {@link #sourceWindow} via {@link #setSourceWindow(OsWindow)} so
+   *       the classic Screen-device path takes over cleanly (the setter
+   *       invalidates the native cache in the same call).</li>
+   * </ol>
+   *
+   * <p>This aligns setter semantics with the {@link #deriveWithinWindow}
+   * funnel: both refuse a window-backed identity when the rect is not
+   * contained. There is no path left where {@code sourceWindow != null}
+   * yet the rect escapes the window.
    *
    * <p>No-op when no window is attached (the field stays false, which is
    * the initial state on non-window Regions).
    *
    * <p>Called by every setter that writes x/y/w/h directly. Callers of the
    * derivation funnel do not need this — the funnel builds fresh Regions
-   * that start at tracks=false.
+   * that already respect the invariant.
    */
   private void markAsDerivedWindowRegion() {
-    if (sourceWindow != null) {
-      tracksSourceWindowBounds = false;
+    if (sourceWindow == null) {
+      return;
+    }
+    tracksSourceWindowBounds = false;
+    Rectangle wb = sourceWindow.getBounds();
+    if (wb == null || !wb.contains(getRect())) {
+      setSourceWindow(null);
     }
   }
   //</editor-fold>
@@ -1498,6 +1517,7 @@ public class Region extends Element {
     Location c = getCenter();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1536,6 +1556,7 @@ public class Region extends Element {
     Location c = getTopRight();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1557,6 +1578,7 @@ public class Region extends Element {
     Location c = getBottomLeft();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1578,6 +1600,7 @@ public class Region extends Element {
     Location c = getBottomRight();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1593,6 +1616,7 @@ public class Region extends Element {
   public Region setSize(int W, int H) {
     w = W > 1 ? W : 1;
     h = H > 1 ? H : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1628,6 +1652,7 @@ public class Region extends Element {
     y = Y;
     w = W > 1 ? W : 1;
     h = H > 1 ? H : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1740,6 +1765,7 @@ public class Region extends Element {
   public Region setLocation(Location loc) {
     x = loc.x;
     y = loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1776,6 +1802,7 @@ public class Region extends Element {
     if (h < 1) {
       h = 1;
     }
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }

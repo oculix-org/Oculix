@@ -183,7 +183,12 @@ class RegionSourceWindowTest {
     assertTrue(r.tracksSourceWindowBounds);
     r.setX(50);
     assertFalse(r.tracksSourceWindowBounds, "direct mutation of x turns whole-window Region into ROI");
-    assertSame(w, r.getSourceWindow(), "provenance preserved on mutation");
+    // setX(50) with initial w=400 pushes right edge to 450, past wb.width=400.
+    // The rect is no longer contained in the window, so markAsDerivedWindowRegion
+    // detaches sourceWindow to preserve the "sourceWindow != null ⇒ contained"
+    // invariant (mirrors deriveWithinWindow's refusal on out-of-window rects).
+    assertNull(r.getSourceWindow(),
+        "mutation leaving the window bounds detaches sourceWindow (invariant guard)");
   }
 
   @Test
