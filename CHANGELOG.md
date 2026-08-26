@@ -11,6 +11,155 @@ Versions follow [SemVer](https://semver.org/) with `-rcN` / `-betaN` / `-alphaN`
 
 ---
 
+## [v4.1.0-rc1] - 2026-08-26
+
+![status](https://img.shields.io/badge/release-pre--release-8250df)
+![channel](https://img.shields.io/badge/channel-GitHub--only-1f883d)
+![maven](https://img.shields.io/badge/maven_central-not_published-lightgrey)
+![scope](https://img.shields.io/badge/scope-%23444_window--backed_Region-6f42c1)
+![minor](https://img.shields.io/badge/minor--version-4.1.0-rc1-0969da)
+
+> **Pre-release for #444** — a full architectural pass on `Region` provenance for window-backed regions. Whole-window highlight and capture across mixed-DPI monitors already worked since v4.0.0; this release makes the same guarantees hold for **every derived region** (offset, grow, `getInset`, `getRow/Col/Cell`, `union/intersection`, `Match`, sub-rects built via `copy + setRect`) and closes the "provenance is irreducible" gap that came out of @uwekoenig's 22/07 status-bar report. Ships as a GitHub Release marked pre-release; the `latest` pointer stays on v4.0.0 stable. No Maven Central publication.
+
+### 🙏 Why this release exists — @uwekoenig
+
+`@uwekoenig` reported #444 back in July, validated the initial spanning highlight fix on his 4K mixed-DPI setup within 24 h, then patiently pointed out on 22/07 that a `Region` derived from a straddling window via `new Region(x, y, w, h)` still lost provenance and fell back to the Swing biggest-part overlay. His 21/08 nudge is what triggered this full architectural pass. **Every step from root-cause diagnosis to live re-testing was on his setup, on his bug report.** Thank you Uwe — this one is properly yours.
+
+### 🔍 Root cause
+
+`App.focusedWindow()` returns a `Region` that carries native provenance (`sourceWindow`) so `highlight`/`capture`/`text` can route to Windows `PrintWindow` + `WS_EX_LAYERED` overlay in physical coordinate space — which is why the whole-window case has worked correctly on mixed-DPI straddling windows since v4.0.0. But any Region **derived** from the focused window lost that provenance:
+
+- `new Region(int, int, int, int)` (the natural pattern for `statusBar = new Region(window.getX(), window.getY() + ..., window.getW(), 30)`) is an **orphan**: the 4-int constructor has no way to recover which window the coordinates came from, so the derived Region falls back to the Swing biggest-part overlay and single-monitor `Robot` capture.
+- `getInset`, `offset`, `grow`, `right/left/above/below`, `getRow/Col/Cell`, `union`, `intersection`, and Match funnels (`toGlobalCoord`, `relocate`) all built new Regions without carrying the parent's `sourceWindow` — so a `Match` found inside a straddling window silently lost the native route too.
+- Direct mutators (`setX/Y/W/H`, `setRect`, `setSize`, `setLocation`, `setCenter`, `setTopLeft/Right/BottomLeft/Right`, `add`) wrote `x/y/w/h` and then re-ran `initScreen(null)`, which cropped a window-backed rect to a single monitor — the very shape #444 exists to preserve.
+- A short-lived native capture cache (3 s TTL) in `Region` silently froze `waitForStable`, `wait`, `exists` and repeated finds on stale pixels: `imageDistance(A, A) == 0` produced false stability reports even while the target window was genuinely changing.
+- Persistent highlight (`highlight()` / `highlightOn()` — `secs <= 0`) routed to the native `WS_EX_LAYERED` backend which destroys the overlay in its `finally` block right after the timed `Thread.sleep`; on `secs = -1` the overlay flashed and vanished, breaking the toggle API entirely.
+
+### 🎯 What ships — before / after
+
+| Case | Before v4.1.0-rc1 | After |
+|---|---|---|
+| `window.highlight(3)` on a straddling window | Native spanning frame across screens (already OK since v4.0.0) | Unchanged |
+| `window.getImage()` on a straddling window | `PrintWindow` full capture including off-screen parts (already OK since v4.0.0) | Unchanged |
+| `new Region(window)` copy | Native provenance dropped | **Provenance propagated; `tracks` propagated verbatim** |
+| `new Region(window).setRect(...)` sub-rect inside window | Orphan Region, Swing biggest-part highlight, single-monitor capture | **Native ROI overlay across screens, `PrintWindow` + physical crop** |
+| `window.getInset(inset)`, `offset`, `grow`, `getRow/Col/Cell`, `get(part)` | Orphan derived Region | **Contains-guarded inheritance: native route if the derived rect fits in the window, legacy path otherwise** |
+| `union(other)` / `intersection(other)` | Orphan derived Region | **Two-parent guard: inherits only if the other parent is not window-bound or is bound to the same window** |
+| `Match` returned by `find`, `findAll`, `findText`, observers | Orphan Match | **`toGlobalCoord` and `relocate` hand down provenance when the match rect fits in the window** |
+| `setX/Y/W/H` on a whole-window Region | `tracks` stayed `true`, bounds re-cropped by `initScreen` | **`tracks` flips to `false`; if the new rect leaves the window, `sourceWindow` detaches; `initScreen` no longer clips window-backed bounds** |
+| `setCenter`, `setTopRight`, `setBottomLeft`, `setBottomRight`, `setSize`, `setRect(int,int,int,int)`, `setLocation`, `add(int,int,int,int)` | Left `tracks=true` on a mutated region — incoherent state | **Same invariant guard as `setX/Y/W/H` via `markAsDerivedWindowRegion()`** |
+| `setSourceWindow(otherWindow)` on a `tracks=true` Region | Silently kept `tracks=true` — implicitly promoted to "I am the whole other window" | **`tracks` flips to `false`; only `Region.forWindow` may claim whole-window identity** |
+| `captureSelf` on a window-backed Region | Reused a 3 s TTL bitmap cache — `waitForStable` / `wait` / `exists` could false-positive on stale pixels | **Cache removed; every call photographs now via `PrintWindow`** |
+| `captureSelf` on a ROI after the window moved externally | Silent stale crop or truncated bitmap | **Live containment revalidation before native use; detaches and falls back on legacy if the ROI escaped** |
+| `highlight()` / `highlightOn()` (persistent, `secs <= 0`) on a window-backed Region | Native overlay flashed and was destroyed immediately | **Persistent mode routes to Swing `Highlight` (toggle API preserved); native reserved for `secs > 0`** |
+
+### 🆕 New public API
+
+**`Region.forWindow(OsWindow window)`** — the single canonical path that asserts the "I am this whole window" identity by setting `tracksSourceWindowBounds = true`. Returns a `Region` with:
+
+- raw `window.getBounds()` — no `initScreen` clipping
+- `sourceWindow = window`
+- `tracksSourceWindowBounds = true`
+- screen resolved via `resolveScreenNoClip()` (bounds untouched, `scr` still assigned for legacy paths)
+
+Returns `null` on a null window or null-bounds window. `App.focusedWindow`, `App.window(int)`, and `App.getWindows()` all now route through this factory (previously `App.getWindows()` forgot to attach `sourceWindow`, silently disabling the native route on every non-focused window).
+
+**`OsWindow.highlightRegionNative(Rectangle roiLogical, int argb, double secs)`** — SPI counterpart of `highlightNative` for a sub-rectangle of the window. Same `WS_EX_LAYERED` + `UpdateLayeredWindow` mechanism, positioned on the ROI's physical coordinates via `WinUtil.logicalToPhysical` (manual inverse of the existing voie-1 `physicalToLogical`, symmetric under the same AWT/monitor resolution so `logicalToPhysical(physicalToLogical(r)) == r` within rounding). Default no-op on non-Windows; callers fall back to Swing `Highlight`.
+
+### 🏛️ Architectural doctrine — the real palier
+
+The interesting piece is not the individual bug fix but the abstraction it establishes: **a visual `Region` that transports its window native provenance across geometric operations and Matches, distinguishes whole-window identity from sub-region identity, and refuses to route native primitives when the geometric contract would be violated.**
+
+Concretely:
+
+- **`tracksSourceWindowBounds`** (package-private, testable in-package without a public accessor) — the boolean that says "this Region *is* the window" (true) vs "this Region is a ROI within the window" (false). Set to `true` **only** by `Region.forWindow`. Propagated verbatim only by the two copy paths (`new Region(r)` via `init(r)`, `Region.create(Region r)`). Every other path — inheritance funnel, Match funnels, direct setters — forces it to `false`.
+- **`deriveWithinWindow(Rectangle desiredRect)`** — the private funnel every geometric derivation goes through. Contains-guarded: if the derived rect fits in the window, returns a fresh Region with the provenance attached and `tracks=false`; otherwise returns `null` and the caller keeps its exact historical construction path. **The funnel does one thing** (attempt a window-backed derivation); each caller owns its own fallback so no legacy `Screen`-attachment behaviour is silently altered.
+- **`markAsDerivedWindowRegion()`** — the invariant guard called by every direct bounds mutator. Flips `tracks` to `false`, and if the resulting rect escapes the window it detaches `sourceWindow` outright. Same rule as the funnel: provenance never survives a rect that isn't contained.
+- **Live revalidation at the point of native use** — `captureSelf` and `doHighlight` re-check `sourceWindow.getBounds().contains(requestedRect)` immediately before calling `captureNative` / `highlightRegionNative`. Handles the case where the user drags the actual OS window between the Region's construction and its consumption, without any OculiX write firing.
+- **`captureSelf` is live** — no timed cache. If a specific operation needs two treatments to share the same snapshot, the snapshot is scoped to that operation (via the existing `ScreenImage base` parameter threaded through Finder paths), not to a Region-scoped TTL.
+- **Persistent highlight stays on Swing** — the native `WS_EX_LAYERED` overlay is timed-only (`secs > 0`); `secs <= 0` falls through to the classic `Highlight` so `highlight()` / `highlightOn()` / `highlightOff()` keep their toggle semantics unchanged.
+
+### ⚠️ Behaviour changes for existing users
+
+None break existing scripts. Listed here for completeness:
+
+- **`WinUtil.physicalToLogical` unscaled-monitor shortcut** now requires the AWT logical origin to match the monitor's physical origin. Previously it returned the physical rectangle as-is on any 100 %-scaled monitor. On multi-monitor topologies where AWT shifts an unscaled monitor's logical origin because *another* monitor is scaled, the shortcut used to silently return physical coordinates as logical. Now falls through to the full remap in that case.
+- **Native capture cache removed.** Rapid successive calls to `captureSelf` / `getImage` / `find` on a window-backed Region no longer reuse a shared bitmap for 3 s. Latencies are back to per-call `PrintWindow` cost (typically 30–60 ms on Notepad-class targets; validated at avg 43 ms over 10 iterations on a straddling mixed-DPI window). Content variance across successive calls is zero on idle windows — the cache's original justification ("physicalToLogical drifts between calls") does not reproduce in practice.
+- **`captureSelf` on a window-backed ROI now returns a real crop** (`getSubimage` from the full window bitmap) instead of silently returning the full window and mutating the ROI's bounds. Match coordinates stay in the caller's coordinate space.
+- **A mutator that pushes a Region out of its `sourceWindow` detaches provenance** and falls back to the classic `Screen`-device path on next use. Previously the provenance stayed attached and the crop/highlight would read stale or misaligned pixels.
+
+### 🧑‍💻 Uwe's pattern
+
+**Uwe's original code** (from the #444 report of 22/07/2026) — architecturally cannot be made to work verbatim, because the 4-int constructor cannot recover provenance:
+
+```java
+Region window = App.focusedWindow();
+Region statusBar = new Region(
+    window.getX(),
+    window.getY() + window.getH() - statusBarHeightPx,
+    window.getW(),
+    statusBarHeightPx);
+statusBar.highlight(5);   // → Swing biggest-part overlay, single monitor only
+```
+
+**Recommended replacement pattern**, enabled by this release:
+
+```java
+Region window = App.focusedWindow();
+Region statusBar = new Region(window);      // copy → sourceWindow inherited
+statusBar.setRect(                          // setRect in ONE call (no intermediate rect)
+    window.getX(),
+    window.getY() + window.getH() - statusBarHeightPx,
+    window.getW(),
+    statusBarHeightPx);
+statusBar.highlight(5);   // → native WS_EX_LAYERED ROI overlay across screens
+statusBar.text();          // → PrintWindow full capture + physical ROI crop
+```
+
+**Doctrine note in the test suite**: prefer `setRect(x, y, w, h)` over sequential `setX / setY / setW / setH` when replacing multiple fields at once. Sequential setters run `markAsDerivedWindowRegion` at each step; an intermediate rect (with only some fields updated) can transiently escape the window and detach `sourceWindow` mid-sequence. `setRect` writes all four fields, then runs the guard once on the final rect. See `RegionSourceWindowTest.uweStatusBarPattern_originalConstructorIsOrphan_copyThenMutateInheritsProvenance` — the two patterns are frozen side-by-side as an executable contract.
+
+### 🔬 Live validation
+
+Six-scenario matrix on a real 3-screen mixed-DPI Windows 10 setup with a Notepad instance straddling the primary and the right-adjacent screen:
+
+| # | Scenario | Result |
+|---|---|---|
+| 1 | `App.focusedWindow()` grabs Notepad | Bounds (1385, 332, 1049×455), `sourceWindow` attached |
+| 2 | `window.highlight(3)` | One continuous red frame across both screens (visually confirmed) |
+| 3 | `window.getImage()` — `PrintWindow` whole-window | Exact 1049×455 bitmap, no black off-screen pixels |
+| 4 | `new Region(window) + setRect(...)` status-bar ROI, `highlight(3)` | Continuous 30-px frame spanning both screens (visually confirmed) |
+| 5 | Ten repeated `getImage()` on the ROI | Latencies min=30, max=64, avg=43 ms; **1 distinct content hash out of 10 captures** — zero variance to hide, cache removal has no downside |
+| 6 | `window.highlight()` (persistent) then `highlightOff()` | Frame stays visible until off (Swing path, native flash-and-die avoided) |
+
+Unit test suite: **44 tests / 44 pass** in `RegionSourceWindowTest` — covers forWindow, copy path propagation, cache lifecycle absence, contains-guarded funnel, extended setters family, HWND change flip, Match funnels, ROI crop with pixel sentinels (motif décodable `pixel(x,y) = 0xFF000000 | (x<<8) | y`, asserts crop origin comes from the right offset), persistent-vs-timed highlight routing, spanning-logical shapes (rect `-500, 100, 3000, 600`), and Uwe's pattern frozen side-by-side.
+
+Also validated informally: `App.focusedWindow().text()` reads 153 chars including French accents from Notepad, and 2410 chars from a Windows Terminal instance (which happened to accidentally grab focus during setup) — proving `PrintWindow + Tesseract` handles complex multi-column UIs correctly across mixed-DPI screens.
+
+### 🚧 Known limitations (documented, not fixed here)
+
+- **`new Region(int, int, int, int)` remains orphan.** The 4-int constructor cannot recover which window the numbers came from — provenance is irreducible without a parent object. Use the copy + mutate pattern above instead.
+- **ROI crossing two monitors with *different* physical DPI.** `logicalToPhysical` uses one `MonitorFromWindow` result with a single `(sx, sy)` pair, symmetric with `physicalToLogical` and correct for Uwe's use case (window straddling monitors of the same DPI, or ROI mostly on one physical monitor). A ROI that physically straddles two monitors of different DPI would need per-monitor decomposition — deferred to a dedicated session with a comparative test matrix.
+- **`PhysicalToLogicalPointForPerMonitorDPI` / `LogicalToPhysicalPointForPerMonitorDPI` (Win 8.1+ APIs) not adopted here.** They convert according to the HWND's DPI awareness rather than to AWT's logical space, which is not guaranteed to match when the target window belongs to a process with a different DPI awareness than the JVM. Explored, benched conceptually, and left for a session that can compare them against the current voie-1 on multiple DPI-awareness cases.
+
+### 👥 Reviewers & contributors
+
+- **@uwekoenig** — reporter, driver, live tester on his personal 4K mixed-DPI Windows setup (both the July validation of the whole-window fix and the 22/07 status-bar report that triggered this pass)
+- **GPT-Sol** — architectural audit (two full passes on the branch head, surfaced six architectural findings pre-merge: setter family gap, `setSourceWindow` tracks retention, cache staleness on `waitForStable`, ROI containment revalidation, persistent-highlight regression, comparative-framework claim over-reach)
+
+### 📦 Assets
+
+Uploaded automatically by `release-rc.yml` from the branch build:
+
+- `oculixapi-4.1.0-rc1-windows.jar` / `-macos.jar` / `-linux.jar`
+- `oculixide-4.1.0-rc1-windows.jar` / `-macos.jar` / `-linux.jar`
+- `oculix-mcp-server-4.1.0-rc1.jar` (cross-platform)
+
+### 📡 Distribution
+
+**GitHub-only pre-release.** Not published to Maven Central. `/releases/latest` continues to point to v4.0.0 stable — `gh release view --json isLatest` on this tag reports `false`. Users who want to try the fix on their own mixed-DPI setup download the `oculixide` fat jar for their OS from this release page.
+
+---
+
 ## [v4.0.0] - 2026-07-01
 
 ![status](https://img.shields.io/badge/release-stable-brightgreen)
