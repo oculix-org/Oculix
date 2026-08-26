@@ -378,6 +378,177 @@ class RegionSourceWindowTest {
     assertSame(w, r.getSourceWindow(), "provenance preserved through the mutation");
   }
 
+  // ---------- Sol's audit follow-up: extended-setter coverage + HWND-change + pixel sentinels ----------
+  //
+  // Every direct bounds-mutating setter must apply the same invariant guard
+  // (markAsDerivedWindowRegion): tracks flips to false, and if the resulting
+  // rect leaves the window bounds sourceWindow is detached. The tests below
+  // prove the "inside → provenance preserved" case for each setter — the
+  // "outside → provenance dropped" case is covered globally by
+  // setterLeavingWindowDropsProvenance.
+
+  /** Helper: shrink a window-backed Region to a ROI comfortably inside wb,
+   * so the individual setter tests can mutate freely without leaving bounds. */
+  private static Region roiInside(StubWindow w, int x, int y, int width, int height) {
+    Region r = Region.forWindow(w);
+    r.setSize(width, height);   // shrink w/h first
+    r.setLocation(new Location(x, y));  // then place
+    assertSame(w, r.getSourceWindow(), "setup precondition: ROI still inside window");
+    return r;
+  }
+
+  @Test
+  void setCenterInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);  // (0, 0, 100, 80)
+    r.setCenter(new Location(200, 200));  // → (150, 160, 100, 80), inside
+    assertSame(w, r.getSourceWindow(), "setCenter inside window preserves sourceWindow");
+    assertFalse(r.tracksSourceWindowBounds, "setCenter always flips tracks=false");
+  }
+
+  @Test
+  void setTopRightInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);
+    r.setTopRight(new Location(300, 100));  // → (201, 100, 100, 80), inside
+    assertSame(w, r.getSourceWindow());
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void setBottomLeftInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);
+    r.setBottomLeft(new Location(50, 300));  // → (50, 221, 100, 80), inside
+    assertSame(w, r.getSourceWindow());
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void setBottomRightInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);
+    r.setBottomRight(new Location(400, 300));  // → (301, 221, 100, 80), inside
+    assertSame(w, r.getSourceWindow());
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void setSizeInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);
+    r.setSize(200, 150);  // → (0, 0, 200, 150), inside
+    assertSame(w, r.getSourceWindow());
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void setRectInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);
+    r.setRect(50, 50, 200, 150);  // → (50, 50, 200, 150), inside
+    assertSame(w, r.getSourceWindow());
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void setLocationInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);
+    r.setLocation(new Location(200, 200));  // → (200, 200, 100, 80), inside
+    assertSame(w, r.getSourceWindow());
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void addInsideWindowKeepsProvenance() {
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    // add() is grow-like, so start with margin on all sides.
+    Region r = roiInside(w, 100, 100, 100, 80);  // (100, 100, 100, 80)
+    r.add(10, 10, 10, 10);  // → (90, 90, 120, 100), inside
+    assertSame(w, r.getSourceWindow());
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void setterLeavingWindowDropsProvenance() {
+    // Any direct mutator moving the rect outside the window bounds must
+    // detach sourceWindow. setLocation is a convenient probe — one setter
+    // is enough to prove the invariant since they all funnel through
+    // markAsDerivedWindowRegion which owns the check.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = Region.forWindow(w);
+    r.setLocation(new Location(5000, 5000));  // way outside wb
+    assertNull(r.getSourceWindow(),
+        "setLocation past the window bounds detaches sourceWindow (invariant guard)");
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void delegatingSetterAlsoAppliesInvariant() {
+    // setTopLeft(loc) delegates to setLocation(loc). The invariant must still
+    // fire — proves the transitive inheritance through delegation.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 500, 400));
+    Region r = roiInside(w, 0, 0, 100, 80);
+    r.setTopLeft(new Location(200, 200));  // → (200, 200, 100, 80), inside
+    assertSame(w, r.getSourceWindow(), "delegating setter reaches markAsDerivedWindowRegion");
+    assertFalse(r.tracksSourceWindowBounds);
+  }
+
+  @Test
+  void setSourceWindowChangeToDifferentHwndFlipsTracks() {
+    // The invariant Sol pointed out: a HWND change cannot silently keep
+    // tracks=true — that would make the Region claim to be the WHOLE new
+    // window, which is a lie unless forWindow was used explicitly.
+    StubWindow w1 = new StubWindow(new Rectangle(0, 0, 400, 300));
+    StubWindow w2 = new StubWindow(new Rectangle(0, 0, 800, 600));
+    Region r = Region.forWindow(w1);
+    assertTrue(r.tracksSourceWindowBounds);
+    r.setSourceWindow(w2);
+    assertFalse(r.tracksSourceWindowBounds,
+        "HWND change must flip tracks=false; only forWindow may claim whole-window identity");
+    assertSame(w2, r.getSourceWindow());
+  }
+
+  @Test
+  void captureSelfOnRoiCropsCorrectPixels() {
+    // Pixel sentinels: paint the native capture with a decodable pattern
+    // so we can assert the crop comes from the RIGHT window coordinates,
+    // not just that it has the right size. Without this, a bug in localX =
+    // cx - wb.x (e.g. wrong sign, off-by-one, missed offset) would produce
+    // a 100x50 crop from the wrong region and the previous test would still
+    // pass silently.
+    //
+    // Encoding: pixel(x, y) = 0xFF000000 | (x << 8) | y  — one byte per
+    // coord, fits screens up to 255x255 which is enough for a 400x300 stub.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
+    BufferedImage bmp = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
+    for (int y = 0; y < 300; y++) {
+      for (int x = 0; x < 400; x++) {
+        bmp.setRGB(x, y, 0xFF000000 | (x << 8) | y);
+      }
+    }
+    w.nextCapture = bmp;
+
+    Region root = Region.forWindow(w);
+    Region roi = root.getInset(new Region(10, 10, 100, 50));  // absolute (10, 10, 100, 50)
+    ScreenImage si = roi.captureSelf(roi);
+    assertNotNull(si);
+    BufferedImage crop = si.getImage();
+    assertEquals(100, crop.getWidth());
+    assertEquals(50, crop.getHeight());
+
+    // crop pixel (0, 0) MUST come from bmp pixel (10, 10)
+    assertEquals(0xFF000000 | (10 << 8) | 10, crop.getRGB(0, 0),
+        "crop origin comes from the ROI's top-left in the native bitmap");
+    // crop pixel (50, 25) MUST come from bmp pixel (60, 35)
+    assertEquals(0xFF000000 | (60 << 8) | 35, crop.getRGB(50, 25),
+        "crop interior comes from the shifted native coordinates");
+    // crop pixel (99, 49) MUST come from bmp pixel (109, 59)
+    assertEquals(0xFF000000 | (109 << 8) | 59, crop.getRGB(99, 49),
+        "crop bottom-right comes from the ROI's bottom-right in the native bitmap");
+  }
+
   @Test
   void derivedWithinStraddlingWindowKeepsBoundsUnclipped() {
     // A ROI that itself straddles multiple monitors — the exact shape of
