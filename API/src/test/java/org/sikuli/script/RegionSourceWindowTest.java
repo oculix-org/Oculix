@@ -570,6 +570,68 @@ class RegionSourceWindowTest {
         "crop bottom-right comes from the ROI's bottom-right in the native bitmap");
   }
 
+  // ---------- Sol's re-review: ROI containment revalidated at native use ----------
+
+  @Test
+  void roiAfterWindowMoveFallsBackFromNativeCapture() {
+    // markAsDerivedWindowRegion checks containment at ROI construction time.
+    // OsWindow is a live object though — the user can move the actual OS
+    // window without any OculiX write, and the invariant becomes silently
+    // false. captureSelf now revalidates just before the native call: if the
+    // ROI escapes the LIVE window bounds, sourceWindow is detached and the
+    // classic Screen path takes over. captureNative is NOT invoked.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
+    w.nextCapture = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
+    Region root = Region.forWindow(w);
+    Region roi = root.getInset(new Region(10, 10, 100, 50));  // (10, 10, 100, 50) inside
+    assertSame(w, roi.getSourceWindow());
+
+    // Simulate the user dragging the OS window elsewhere. The Region's own
+    // x/y/w/h stay (10, 10, 100, 50) — no OculiX setter fired — but the
+    // window's live bounds jumped to (5000, 5000, 400, 300), which no longer
+    // contains the ROI.
+    w.bounds = new Rectangle(5000, 5000, 400, 300);
+
+    int callsBefore = w.captureNativeCalls;
+    try {
+      roi.captureSelf(roi);
+    } catch (Throwable ignored) {
+      // getScreen().capture(...) may throw in tests without a real display for
+      // certain coords; the invariant we test lives upstream of that call.
+    }
+    assertNull(roi.getSourceWindow(),
+        "ROI escaped the live window bounds → sourceWindow detached at capture time");
+    assertEquals(callsBefore, w.captureNativeCalls,
+        "detach happens BEFORE captureNative — no native call on a stale ROI");
+  }
+
+  @Test
+  void roiAfterWindowMoveDoesNotUseNativeHighlight() {
+    // Same revalidation on the highlight path: if the ROI escaped the live
+    // window bounds since it was built, highlightRegionNative must not fire
+    // (it would draw the overlay at the wrong physical position because
+    // logicalToPhysical anchors on MonitorFromWindow(hWnd), not on the ROI).
+    // Detach the provenance and fall through to Swing.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
+    Region root = Region.forWindow(w);
+    Region roi = root.getInset(new Region(10, 10, 100, 50));
+    assertSame(w, roi.getSourceWindow());
+
+    // External window move — ROI now outside the live bounds.
+    w.bounds = new Rectangle(5000, 5000, 400, 300);
+
+    try {
+      roi.doHighlight(0.1, null);
+    } catch (Throwable ignored) {
+      // Swing fallback may fail in headless-ish test setups; the invariant
+      // we test is upstream (native highlight refused).
+    }
+    assertEquals(0, w.highlightRegionCalls,
+        "ROI escaped live window bounds → highlightRegionNative NOT called");
+    assertNull(roi.getSourceWindow(),
+        "detach happens at highlight time on stale ROI");
+  }
+
   @Test
   void uweStatusBarPattern_originalConstructorIsOrphan_copyThenMutateInheritsProvenance() {
     // #444 verbatim from uwekoenig's report on the issue tracker (22/07/2026):

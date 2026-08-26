@@ -614,11 +614,21 @@ public class Region extends Element {
   ScreenImage captureSelf(int cx, int cy, int cw, int ch) {
     if (sourceWindow != null) {
       Rectangle wb = sourceWindow.getBounds();
-      BufferedImage nativeImg = (wb == null)
-          ? null
-          : sourceWindow.captureNative(new Rectangle(0, 0, wb.width, wb.height));
+      // #444: revalidate ROI containment at native use. The window is a live
+      // OS object — the user can move it between the ROI's construction (when
+      // markAsDerivedWindowRegion checked containment) and this call. If the
+      // ROI now escapes the window, the crop below would either read stale
+      // pixels or truncate silently. Detach the provenance and fall through
+      // to the classic Screen-device path. Whole-window (tracks=true) is
+      // exempt: it captures the whole HWND regardless of on-screen position.
+      if (wb == null
+          || (!tracksSourceWindowBounds && !wb.contains(new Rectangle(cx, cy, cw, ch)))) {
+        setSourceWindow(null);
+        return getScreen().capture(cx, cy, cw, ch);
+      }
+      BufferedImage nativeImg = sourceWindow.captureNative(new Rectangle(0, 0, wb.width, wb.height));
 
-      if (wb != null && nativeImg != null) {
+      if (nativeImg != null) {
         // #444: route by tracksSourceWindowBounds, no more coordinate-based
         // heuristics. The old "cx == this.x && ... -> full window" shortcut
         // was true by construction for captureSelf(this)/getImage()/find()
@@ -2742,12 +2752,28 @@ public class Region extends Element {
     // when there is no source window, or the native overlay declines
     // (non-Windows / not drawable).
     if (sourceWindow != null) {
-      int argb = highlightColorToArgb(color);
-      boolean drawn = tracksSourceWindowBounds
-          ? sourceWindow.highlightNative(argb, secs)
-          : sourceWindow.highlightRegionNative(new Rectangle(x, y, w, h), argb, secs);
-      if (drawn) {
-        return this;
+      // #444: revalidate ROI containment at native use. The window is a live
+      // OS object; between construction/mutation and this highlight call, the
+      // user may have moved the actual window. If the ROI now escapes the
+      // window bounds, highlightRegionNative would draw an overlay at the
+      // wrong physical position (logicalToPhysical uses MonitorFromWindow
+      // for the HWND, not for the ROI). Detach and fall through to Swing.
+      // Whole-window (tracks=true) is exempt: highlightNative frames the
+      // whole HWND regardless of the Region's stored bounds.
+      Rectangle wb = sourceWindow.getBounds();
+      boolean canUseNative = tracksSourceWindowBounds
+          ? wb != null
+          : wb != null && wb.contains(new Rectangle(x, y, w, h));
+      if (!canUseNative) {
+        setSourceWindow(null);
+      } else {
+        int argb = highlightColorToArgb(color);
+        boolean drawn = tracksSourceWindowBounds
+            ? sourceWindow.highlightNative(argb, secs)
+            : sourceWindow.highlightRegionNative(new Rectangle(x, y, w, h), argb, secs);
+        if (drawn) {
+          return this;
+        }
       }
     }
     // Classic Swing overlay — kept live: it serves every non-window Region
