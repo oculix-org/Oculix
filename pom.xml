@@ -65,7 +65,7 @@
          flatten-maven-plugin below rewrites this to the concrete value in each module's
          .flattened-pom.xml before publication so Maven Central users never see the
          unresolved property. Pattern: CI-friendly versions, Maven 3.5+. -->
-    <revision>4.0.0</revision>
+    <revision>4.1.0-rc1</revision>
 
     <!-- Kill the "Input file encoding has not been set, using platform encoding UTF-8"
          warning at the reactor root. Each child module already sets this locally, but
