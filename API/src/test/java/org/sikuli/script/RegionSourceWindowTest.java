@@ -550,6 +550,71 @@ class RegionSourceWindowTest {
   }
 
   @Test
+  void uweStatusBarPattern_originalConstructorIsOrphan_copyThenMutateInheritsProvenance() {
+    // #444 verbatim from uwekoenig's report on the issue tracker (22/07/2026):
+    //
+    //   Region window = App.focusedWindow();
+    //   Region statusBar = new Region(window.getX(),
+    //                                 window.getY() + window.getH() - statusBarHeightPx,
+    //                                 window.getW(),
+    //                                 statusBarHeightPx);
+    //   statusBar.highlight(5);
+    //
+    // This test freezes the two possible outcomes side by side so any future
+    // change of behaviour on either side breaks the build.
+
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 800, 600));
+    Region window = Region.forWindow(w);
+    int statusBarHeightPx = 30;
+
+    // ── Original Uwe pattern: new Region(int, int, int, int) → orphan.
+    // Architectural limit already documented by julienmerconsulting in the
+    // 27/07 issue comment: "provenance is irreducible" — the 4-int
+    // constructor cannot recover which window the numbers came from.
+    Region statusBarOrphan = new Region(
+        window.getX(),
+        window.getY() + window.getH() - statusBarHeightPx,
+        window.getW(),
+        statusBarHeightPx);
+    assertNull(statusBarOrphan.getSourceWindow(),
+        "the 4-int constructor cannot recover provenance — architectural limit, not a bug");
+
+    // ── Replacement pattern (what this branch enables): copy the
+    // window-backed Region, then setRect() in ONE call. The copy propagates
+    // sourceWindow (commit bc8044f2), setRect preserves it because the
+    // target rect stays inside the window (commit d37752d6), and highlight()
+    // routes to the native ROI overlay (commit bfa657b1).
+    //
+    // Doctrine note: prefer setRect(x,y,w,h) over sequential setX/Y/W/H
+    // when replacing multiple fields at once. Sequential setters go through
+    // markAsDerivedWindowRegion at every step; if the intermediate rect
+    // (with only some fields updated) escapes the window, sourceWindow is
+    // detached mid-sequence. setRect writes all four fields, then runs the
+    // guard exactly once on the final rect.
+    Region statusBarWindowBacked = new Region(window);
+    statusBarWindowBacked.setRect(
+        window.getX(),
+        window.getY() + window.getH() - statusBarHeightPx,
+        window.getW(),
+        statusBarHeightPx);
+    assertSame(w, statusBarWindowBacked.getSourceWindow(),
+        "copy + setRect on a rect inside the window preserve provenance");
+    assertFalse(statusBarWindowBacked.tracksSourceWindowBounds,
+        "any direct setter flips tracks=false (this Region is a ROI, not the window)");
+    assertEquals(window.getX(), statusBarWindowBacked.x);
+    assertEquals(window.getY() + window.getH() - statusBarHeightPx, statusBarWindowBacked.y);
+    assertEquals(window.getW(), statusBarWindowBacked.w);
+    assertEquals(statusBarHeightPx, statusBarWindowBacked.h);
+
+    // highlight() routes to the native ROI overlay, NOT to the Swing fallback.
+    statusBarWindowBacked.doHighlight(0.1, null);
+    assertEquals(1, w.highlightRegionCalls,
+        "window-backed ROI highlight uses highlightRegionNative (physical-space overlay)");
+    assertEquals(0, w.highlightNativeCalls,
+        "highlightNative (whole HWND) is NOT called on a ROI");
+  }
+
+  @Test
   void derivedWithinStraddlingWindowKeepsBoundsUnclipped() {
     // A ROI that itself straddles multiple monitors — the exact shape of
     // Uwe's use case: a status-bar strip that spans the whole width of a
