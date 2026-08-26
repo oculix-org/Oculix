@@ -558,40 +558,21 @@ public class Region extends Element {
    */
   boolean tracksSourceWindowBounds = false;
 
-  // Short-lived cache of the native window capture. Kept for a small TTL so
-  // that rapid successive calls (getImage(), then find(), then wait() on the
-  // same Region within a few frames) reuse the same bitmap and therefore
-  // report consistent Match coordinates. Without this, physicalToLogical's
-  // intermittent variance across calls produces slightly different bounds on
-  // each captureSelf(), and the pattern extracted from the first image gets
-  // found at a shifted offset in the second — a real bug on straddling
-  // mixed-DPI windows that would otherwise leak into user code.
-  private static final long NATIVE_CAPTURE_CACHE_TTL_MS = 3000;
-  // Package-private (rather than private) so the #444 test suite can observe
-  // cache lifecycle invariants without a public accessor. Same doctrine as
-  // tracksSourceWindowBounds: internal state, tested in-package, never exposed.
-  transient BufferedImage cachedNativeImage = null;
-  transient Rectangle cachedNativeBounds = null;
-  transient long cachedNativeAt = 0L;
-
   /**
    * Attach an OS-level source window to this Region. When set, capture calls
    * on the Region ({@link #getImage()}, {@link #find}, {@link #wait},
    * {@link #exists}, {@link #text}, etc.) route through the window's native
    * capture path if the platform supports one. See {@link #captureSelf}.
    *
-   * <p>Any change of the attached {@code OsWindow} — including detach ({@code
-   * setSourceWindow(null)}) and replacement by a different HWND — invalidates
-   * the short-lived native capture cache: the previous bitmap belongs to the
-   * previous window and would produce misaligned matches on subsequent calls.
+   * <p>A change of the attached {@code OsWindow} — including detach ({@code
+   * setSourceWindow(null)}) and replacement by a different HWND — cannot
+   * silently keep the "I am this whole window" identity; only
+   * {@link #forWindow(OsWindow)} may claim {@link #tracksSourceWindowBounds
+   * tracks=true}, and it does so by writing the field directly rather than
+   * going through this setter.
    */
   public Region setSourceWindow(OsWindow window) {
     if (!Objects.equals(this.sourceWindow, window)) {
-      invalidateNativeCache();
-      // #444: a HWND change cannot silently keep the "I am this whole window"
-      // identity — the previous whole-window claim was about the PREVIOUS
-      // window, not this one. Only Region.forWindow may assert tracks=true;
-      // it does so by writing the field directly, not through this setter.
       tracksSourceWindowBounds = false;
     }
     this.sourceWindow = window;
@@ -600,12 +581,6 @@ public class Region extends Element {
 
   public OsWindow getSourceWindow() {
     return sourceWindow;
-  }
-
-  private void invalidateNativeCache() {
-    cachedNativeImage = null;
-    cachedNativeBounds = null;
-    cachedNativeAt = 0L;
   }
 
   /**
@@ -630,32 +605,18 @@ public class Region extends Element {
   // window-aware path (Finder used to call where.getScreen().capture(where)
   // directly, which bypassed the sourceWindow / PrintWindow route and produced
   // Match coordinates that were shifted vs the getImage() reference #444).
+  //
+  // captureSelf() is a LIVE primitive: every call photographs the window now.
+  // No timed cache. Callers that need a shared snapshot between two treatments
+  // must carry it explicitly (see the `ScreenImage base` parameter threaded
+  // through Finder paths) — a Region-level TTL cache would silently freeze
+  // waitForStable/wait/exists on stale pixels.
   ScreenImage captureSelf(int cx, int cy, int cw, int ch) {
     if (sourceWindow != null) {
-      long now = System.currentTimeMillis();
-      Rectangle wb;
-      BufferedImage nativeImg;
-
-      // Reuse the cached native image if the previous capture is fresh enough.
-      // This is what makes find(), wait() and exists() report consistent Match
-      // coordinates even when physicalToLogical drifts between successive
-      // calls on straddling mixed-DPI windows.
-      if (cachedNativeImage != null
-          && cachedNativeBounds != null
-          && (now - cachedNativeAt) < NATIVE_CAPTURE_CACHE_TTL_MS) {
-        wb = cachedNativeBounds;
-        nativeImg = cachedNativeImage;
-      } else {
-        wb = sourceWindow.getBounds();
-        nativeImg = (wb == null)
-            ? null
-            : sourceWindow.captureNative(new Rectangle(0, 0, wb.width, wb.height));
-        if (wb != null && nativeImg != null) {
-          cachedNativeBounds = wb;
-          cachedNativeImage = nativeImg;
-          cachedNativeAt = now;
-        }
-      }
+      Rectangle wb = sourceWindow.getBounds();
+      BufferedImage nativeImg = (wb == null)
+          ? null
+          : sourceWindow.captureNative(new Rectangle(0, 0, wb.width, wb.height));
 
       if (wb != null && nativeImg != null) {
         // #444: route by tracksSourceWindowBounds, no more coordinate-based

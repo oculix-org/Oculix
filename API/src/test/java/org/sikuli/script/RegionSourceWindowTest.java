@@ -39,9 +39,13 @@ class RegionSourceWindowTest {
   static class StubWindow implements OsWindow {
     Rectangle bounds;
     BufferedImage nextCapture;
+    int captureNativeCalls = 0;
     int highlightNativeCalls = 0;
     int highlightRegionCalls = 0;
     Rectangle lastRoi = null;
+    /** When set, overrides {@link #nextCapture} and is invoked per call — so a
+     *  test can prove captureSelf() photographs freshly rather than caching. */
+    java.util.function.Supplier<BufferedImage> captureSupplier;
 
     StubWindow(Rectangle b) { this.bounds = b; }
 
@@ -52,7 +56,10 @@ class RegionSourceWindowTest {
     @Override public boolean minimize() { return false; }
     @Override public boolean maximize() { return false; }
     @Override public boolean restore() { return false; }
-    @Override public BufferedImage captureNative(Rectangle b) { return nextCapture; }
+    @Override public BufferedImage captureNative(Rectangle b) {
+      captureNativeCalls++;
+      return captureSupplier != null ? captureSupplier.get() : nextCapture;
+    }
     @Override public boolean highlightNative(int argb, double secs) {
       highlightNativeCalls++;
       return true;
@@ -128,42 +135,7 @@ class RegionSourceWindowTest {
     assertFalse(roiCopy.tracksSourceWindowBounds, "copy preserves tracks verbatim — a ROI copy stays a ROI");
   }
 
-  // ---------- setSourceWindow: cache invalidation + does NOT touch tracks ----------
-
-  @Test
-  void setSourceWindowChangeInvalidatesCache() {
-    StubWindow w1 = new StubWindow(new Rectangle(0, 0, 400, 300));
-    w1.nextCapture = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
-    Region r = Region.forWindow(w1);
-    r.getImage();  // populates cache via captureSelf
-    assertNotNull(r.cachedNativeImage, "cache populated by first getImage");
-    StubWindow w2 = new StubWindow(new Rectangle(0, 0, 500, 400));
-    r.setSourceWindow(w2);
-    assertNull(r.cachedNativeImage, "cache cleared on window change");
-    assertNull(r.cachedNativeBounds);
-  }
-
-  @Test
-  void setSourceWindowDetachInvalidatesCache() {
-    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
-    w.nextCapture = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
-    Region r = Region.forWindow(w);
-    r.getImage();
-    assertNotNull(r.cachedNativeImage);
-    r.setSourceWindow(null);
-    assertNull(r.cachedNativeImage);
-  }
-
-  @Test
-  void setSourceWindowSameInstanceKeepsCache() {
-    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
-    w.nextCapture = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
-    Region r = Region.forWindow(w);
-    r.getImage();
-    BufferedImage cached = r.cachedNativeImage;
-    r.setSourceWindow(w);  // same instance
-    assertSame(cached, r.cachedNativeImage, "no-op re-attach keeps cache warm");
-  }
+  // ---------- setSourceWindow: no cache anymore (removed in commit removing NATIVE_CAPTURE_CACHE_TTL_MS) ----------
 
   @Test
   void setSourceWindowDoesNotChangeTracks() {
@@ -285,6 +257,55 @@ class RegionSourceWindowTest {
     Region b = Region.forWindow(w2).getInset(new Region(10, 10, 50, 50));
     Region u = a.union(b);
     assertNull(u.getSourceWindow(), "different-window parents → refuse to inherit");
+  }
+
+  // ---------- captureSelf is LIVE — no timed cache after Sol's re-review ----------
+
+  @Test
+  void captureSelfCallsNativeCaptureFreshEveryCall() {
+    // Before the cache removal, captureSelf reused cachedNativeImage for
+    // 3 seconds. That silently froze waitForStable / wait / exists on stale
+    // pixels. The primitive is now live: every call must reach
+    // sourceWindow.captureNative(). This test locks the contract.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
+    w.nextCapture = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
+    Region r = Region.forWindow(w);
+    r.captureSelf(r);
+    r.captureSelf(r);
+    r.captureSelf(r);
+    assertEquals(3, w.captureNativeCalls,
+        "three captureSelf calls must produce three captureNative calls — no cache");
+  }
+
+  @Test
+  void waitForStableSemanticsAreLive_captureSelfReflectsChangingPixels() {
+    // Simulates what waitForStable/wait/exists need: consecutive captureSelf
+    // calls must reflect a CHANGING window, not a snapshot. StubWindow's
+    // captureSupplier yields a distinct BufferedImage per call with a
+    // different sentinel colour, so any caching layer would show up as a
+    // repeated image and fail the sameness check.
+    StubWindow w = new StubWindow(new Rectangle(0, 0, 400, 300));
+    java.util.concurrent.atomic.AtomicInteger frameCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+    w.captureSupplier = () -> {
+      int frame = frameCounter.incrementAndGet();
+      BufferedImage img = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
+      // Fill with a per-frame sentinel colour so identity check is trivial.
+      int rgb = 0xFF000000 | frame;
+      for (int y = 0; y < 300; y++) {
+        for (int x = 0; x < 400; x++) {
+          img.setRGB(x, y, rgb);
+        }
+      }
+      return img;
+    };
+    Region r = Region.forWindow(w);
+    ScreenImage first = r.captureSelf(r);
+    ScreenImage second = r.captureSelf(r);
+    assertNotSame(first.getImage(), second.getImage(),
+        "captureSelf must return distinct images across calls when the source is changing");
+    // Sentinel check: first frame = 1, second frame = 2, encoded in pixel(0,0).
+    assertEquals(0xFF000001, first.getImage().getRGB(0, 0));
+    assertEquals(0xFF000002, second.getImage().getRGB(0, 0));
   }
 
   // ---------- captureSelf routing: full window vs ROI crop ----------
