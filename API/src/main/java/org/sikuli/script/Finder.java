@@ -1321,7 +1321,13 @@ public class Finder implements Iterator<Match> {
 
     public BufferedImage getImage() {
       if (where != null) {
-        return where.getScreen().capture(where).getImage();
+        // v5 (#444): route through Region.captureSelf() so the Finder uses the
+        // same window-aware capture path as Region.getImage() when the source
+        // Region is attached to an OS window (PrintWindow on Windows). Without
+        // this the Finder's Robot-based capture would produce Match coords
+        // shifted vs getImage()'s reference by the Region's bounds drift.
+        // Old line: return where.getScreen().capture(where).getImage();
+        return where.captureSelf(where).getImage();
       } else if (source != null) {
         return Commons.getBufferedImage(source);
       } else if (image != null) {

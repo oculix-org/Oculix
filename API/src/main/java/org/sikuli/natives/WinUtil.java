@@ -3,7 +3,17 @@
  */
 package org.sikuli.natives;
 
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,20 +22,449 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.GDI32;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Shell32;
 import com.sun.jna.platform.win32.ShellAPI.SHELLEXECUTEINFO;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.DWORD;
+import com.sun.jna.platform.win32.WinDef.HBITMAP;
+import com.sun.jna.platform.win32.WinDef.HDC;
 import com.sun.jna.platform.win32.WinDef.HWND;
+import com.sun.jna.platform.win32.WinDef.POINT;
 import com.sun.jna.platform.win32.WinDef.RECT;
+import com.sun.jna.platform.win32.WinGDI.BITMAPINFO;
+import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.platform.win32.WinUser;
+import com.sun.jna.platform.win32.WinUser.BLENDFUNCTION;
+import com.sun.jna.platform.win32.WinUser.HMONITOR;
+import com.sun.jna.platform.win32.WinUser.MONITORINFOEX;
+import com.sun.jna.platform.win32.WinUser.SIZE;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
 
 public class WinUtil extends GenericOsUtil {
 
 	static final SXUser32 user32 = SXUser32.INSTANCE;
+
+	private static final int MONITOR_DEFAULTTONEAREST = 2;
+
+	// GetWindowRect returns physical pixels; AWT (Robot, Region) works in
+	// logical pixels since JEP 263 (JDK 9 Per-Monitor DPI Aware). To convert
+	// correctly on mixed-DPI multi-monitor layouts we need the true physical
+	// origin of the monitor containing the window, which AWT bounds alone
+	// cannot give us -- gc.getBounds() * scale reconstructs a fictitious
+	// physical space that only matches reality when every monitor shares
+	// the primary's scale (#444).
+	//
+	// Voie 1: interrogate Windows canonically.
+	//   1. MonitorFromWindow(hWnd) -> HMONITOR of the window
+	//   2. GetMonitorInfoEx -> the monitor's real rcMonitor in the Windows
+	//      virtual space
+	//   3. Match to an AWT GraphicsDevice by probing MonitorFromPoint at each
+	//      device's logical centre -- Windows numbering (\\.\DISPLAYn) is not
+	//      contiguous with the JVM's index (\Displayn), name matching would
+	//      break silently.
+	//   4. Convert with the real origins:
+	//        x_logical = logicalBounds.x + (x_physical - rcMonitor.left) / sx
+	//        y_logical = logicalBounds.y + (y_physical - rcMonitor.top ) / sy
+	//        w_logical = w_physical / sx, h_logical = h_physical / sy
+	private static Rectangle physicalToLogical(HWND hWnd, Rectangle physical) {
+		if (physical == null) {
+			return null;
+		}
+
+		HMONITOR hMon = user32.MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+		MONITORINFOEX mi = new MONITORINFOEX();
+		if (hMon == null || !user32.GetMonitorInfo(hMon, mi).booleanValue()) {
+			return physical;
+		}
+
+		GraphicsDevice matched = null;
+		for (GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+			Rectangle b = gd.getDefaultConfiguration().getBounds();
+			POINT.ByValue pt = new POINT.ByValue(b.x + b.width / 2, b.y + b.height / 2);
+			HMONITOR probe = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+			if (probe != null && probe.equals(hMon)) {
+				matched = gd;
+				break;
+			}
+		}
+		if (matched == null) {
+			matched = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+		}
+
+		GraphicsConfiguration gc = matched.getDefaultConfiguration();
+		Rectangle logicalBounds = gc.getBounds();
+		AffineTransform tx = gc.getDefaultTransform();
+		double sx = tx.getScaleX();
+		double sy = tx.getScaleY();
+		// Unscaled-monitor shortcut — ONLY valid when the monitor's AWT logical
+		// origin coincides with its physical origin. When ANOTHER monitor in the
+		// layout is scaled, AWT shifts this monitor's logical origin away from
+		// the Windows physical one, and skipping the origin remap below would
+		// silently return physical coords as if they were logical (#444).
+		if (sx == 1.0 && sy == 1.0
+				&& logicalBounds.x == mi.rcMonitor.left
+				&& logicalBounds.y == mi.rcMonitor.top) {
+			return physical;
+		}
+
+		int localPhysX = physical.x - mi.rcMonitor.left;
+		int localPhysY = physical.y - mi.rcMonitor.top;
+		return new Rectangle(
+				logicalBounds.x + (int) Math.round(localPhysX / sx),
+				logicalBounds.y + (int) Math.round(localPhysY / sy),
+				(int) Math.round(physical.width / sx),
+				(int) Math.round(physical.height / sy));
+	}
+
+	// #444: manual inverse of voie 1 for the ROI overlay path. Same primitive
+	// (MonitorFromWindow + GetMonitorInfoEx + AWT device match), same shortcut
+	// with origin guard, same fallbacks — only the arithmetic is reversed:
+	//   x_physical = rcMonitor.left + (x_logical - logicalBounds.x) * sx
+	//   y_physical = rcMonitor.top  + (y_logical - logicalBounds.y) * sy
+	//   w_physical = w_logical * sx, h_physical = h_logical * sy
+	// Keeping the two functions symmetric under the SAME AWT/monitor resolution
+	// guarantees that logicalToPhysical(physicalToLogical(rect)) == rect within
+	// rounding tolerance, which is what the ROI overlay needs to sit exactly
+	// on the pixels the caller thinks it is highlighting.
+	//
+	// The Windows API primitives PhysicalToLogicalPointForPerMonitorDPI /
+	// LogicalToPhysicalPointForPerMonitorDPI would be candidates for a future
+	// migration, but they convert according to the HWND's DPI awareness, which
+	// is not guaranteed to match the JVM's logical space when the target
+	// window belongs to a process with a different DPI awareness. Left for a
+	// dedicated session with a comparative test matrix.
+	private static Rectangle logicalToPhysical(HWND hWnd, Rectangle logical) {
+		if (logical == null) {
+			return null;
+		}
+
+		HMONITOR hMon = user32.MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+		MONITORINFOEX mi = new MONITORINFOEX();
+		if (hMon == null || !user32.GetMonitorInfo(hMon, mi).booleanValue()) {
+			return logical;
+		}
+
+		GraphicsDevice matched = null;
+		for (GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+			Rectangle b = gd.getDefaultConfiguration().getBounds();
+			POINT.ByValue pt = new POINT.ByValue(b.x + b.width / 2, b.y + b.height / 2);
+			HMONITOR probe = user32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+			if (probe != null && probe.equals(hMon)) {
+				matched = gd;
+				break;
+			}
+		}
+		if (matched == null) {
+			matched = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+		}
+
+		GraphicsConfiguration gc = matched.getDefaultConfiguration();
+		Rectangle logicalBounds = gc.getBounds();
+		AffineTransform tx = gc.getDefaultTransform();
+		double sx = tx.getScaleX();
+		double sy = tx.getScaleY();
+		// Same shortcut with origin guard as physicalToLogical.
+		if (sx == 1.0 && sy == 1.0
+				&& logicalBounds.x == mi.rcMonitor.left
+				&& logicalBounds.y == mi.rcMonitor.top) {
+			return logical;
+		}
+
+		int localLogX = logical.x - logicalBounds.x;
+		int localLogY = logical.y - logicalBounds.y;
+		return new Rectangle(
+				mi.rcMonitor.left + (int) Math.round(localLogX * sx),
+				mi.rcMonitor.top + (int) Math.round(localLogY * sy),
+				(int) Math.round(logical.width * sx),
+				(int) Math.round(logical.height * sy));
+	}
+
+	// PW_RENDERFULLCONTENT (Windows 8.1+) — asks the WM to render the window's
+	// full content including DirectComposition surfaces. Regular PrintWindow
+	// returns black on Chrome/Electron without this flag.
+	private static final int PW_RENDERFULLCONTENT = 2;
+
+	/**
+	 * Native window capture via {@code PrintWindow(PW_RENDERFULLCONTENT)}: asks
+	 * Windows' DWM to re-render the window into an off-screen HDC, bypassing
+	 * {@code Robot.createScreenCapture} and its System-DPI / framebuffer clip
+	 * limitations. Handles mixed-DPI multi-monitor layouts, windows straddling
+	 * monitors at different scales, and windows partially off-screen — none of
+	 * which the Robot path resolves correctly (#444).
+	 *
+	 * <p>The returned image is resized (bicubic) from physical pixels to
+	 * {@code logicalBounds} so the caller receives an image whose dimensions
+	 * match the Region's declared width and height. This preserves the classic
+	 * SikuliX contract: coords from {@code find(pattern)} on the returned image
+	 * translate directly to logical screen coords for {@code Robot.mouseMove}.
+	 *
+	 * <p>Returns {@code null} on any failure (null HWND, zero-size window,
+	 * PrintWindow refusal, GDI allocation failure). Callers must fall back to
+	 * the classic {@code Screen.capture()} path when null is returned.
+	 *
+	 * @param hWnd           the target window handle (must not be null)
+	 * @param logicalBounds  target logical size (may be null → returns physical)
+	 * @return the captured window content, or {@code null} on failure
+	 */
+	public static BufferedImage captureWindowNative(HWND hWnd, Rectangle logicalBounds) {
+		if (hWnd == null) {
+			return null;
+		}
+
+		RECT rect = new RECT();
+		if (!user32.GetWindowRect(hWnd, rect)) {
+			return null;
+		}
+		int physW = rect.right - rect.left;
+		int physH = rect.bottom - rect.top;
+		if (physW <= 0 || physH <= 0) {
+			return null;
+		}
+
+		HDC hdcScreen = user32.GetDC(null);
+		HDC hdcMem = GDI32.INSTANCE.CreateCompatibleDC(hdcScreen);
+		HBITMAP hBitmap = GDI32.INSTANCE.CreateCompatibleBitmap(hdcScreen, physW, physH);
+		HANDLE hOld = GDI32.INSTANCE.SelectObject(hdcMem, hBitmap);
+
+		try {
+			boolean printed = user32.PrintWindow(hWnd, hdcMem, PW_RENDERFULLCONTENT);
+
+			// Restore the DC's original bitmap before GetDIBits: MSDN requires
+			// the bitmap NOT be selected into any device context during the
+			// call, otherwise the result is undefined on some drivers. hBitmap
+			// keeps its content (PrintWindow already rendered into it); it is
+			// deleted in the finally block. GetDIBits below reads it through the
+			// unrelated hdcScreen, which only serves as a format reference.
+			GDI32.INSTANCE.SelectObject(hdcMem, hOld);
+
+			if (!printed) {
+				return null;
+			}
+
+			BITMAPINFO bmi = new BITMAPINFO();
+			bmi.bmiHeader.biSize = bmi.bmiHeader.size();
+			bmi.bmiHeader.biWidth = physW;
+			bmi.bmiHeader.biHeight = -physH;  // negative = top-down DIB
+			bmi.bmiHeader.biPlanes = 1;
+			bmi.bmiHeader.biBitCount = 32;
+			bmi.bmiHeader.biCompression = 0;  // BI_RGB
+
+			Memory pixels = new Memory((long) physW * physH * 4);
+			int scanLines = GDI32.INSTANCE.GetDIBits(hdcScreen, hBitmap, 0, physH, pixels, bmi, 0);
+			if (scanLines == 0) {
+				return null;
+			}
+
+			// Convert BGRA (Windows DIB layout) → RGB Java. Read the whole pixel
+			// buffer in ONE JNA call (getByteArray) instead of 4 getByte() per
+			// pixel: on a 1920x1080 window that collapses ~8M JNA crossings into
+			// a single bulk copy (~100x faster). The per-byte unpacking then runs
+			// on the local byte[], not across the native boundary.
+			BufferedImage physImg = new BufferedImage(physW, physH, BufferedImage.TYPE_INT_RGB);
+			int total = physW * physH;
+			byte[] buf = pixels.getByteArray(0, total * 4);
+			int[] argb = new int[total];
+			for (int i = 0; i < total; i++) {
+				int off = i * 4;
+				int b = buf[off] & 0xFF;
+				int g = buf[off + 1] & 0xFF;
+				int r = buf[off + 2] & 0xFF;
+				argb[i] = (r << 16) | (g << 8) | b;
+			}
+			physImg.setRGB(0, 0, physW, physH, argb, 0, physW);
+
+			// Resize physical → logical bounds. Bicubic gives visually crisp
+			// text and edges at the cost of ~5-15 ms. Skipped when caller
+			// passes null bounds or when physical already matches logical.
+			if (logicalBounds == null
+					|| (logicalBounds.width == physW && logicalBounds.height == physH)) {
+				return physImg;
+			}
+			BufferedImage logImg = new BufferedImage(
+					logicalBounds.width, logicalBounds.height, BufferedImage.TYPE_INT_RGB);
+			Graphics2D g2 = logImg.createGraphics();
+			g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+					RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			g2.drawImage(physImg, 0, 0, logicalBounds.width, logicalBounds.height, null);
+			g2.dispose();
+			return logImg;
+		} finally {
+			// hOld was already restored into hdcMem right after PrintWindow (see
+			// above), so the DC no longer holds hBitmap and we can delete it
+			// safely. Only resource disposal remains here.
+			GDI32.INSTANCE.DeleteObject(hBitmap);
+			GDI32.INSTANCE.DeleteDC(hdcMem);
+			user32.ReleaseDC(null, hdcScreen);
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// #444 SpanningHighlight — one continuous frame across mixed-DPI monitors
+	// ═══════════════════════════════════════════════════════════════════════
+	private static final int WS_EX_LAYERED     = 0x00080000;
+	private static final int WS_EX_TRANSPARENT = 0x00000020;
+	private static final int WS_EX_TOPMOST     = 0x00000008;
+	private static final int WS_EX_NOACTIVATE  = 0x08000000;
+	private static final int WS_EX_TOOLWINDOW  = 0x00000080;
+	private static final int WS_POPUP          = 0x80000000;
+	private static final int SW_SHOWNOACTIVATE = 4;
+	private static final byte AC_SRC_OVER      = 0;
+	private static final byte AC_SRC_ALPHA     = 1;
+	private static final int ULW_ALPHA         = 0x00000002;
+	private static final int DIB_RGB_COLORS    = 0;
+
+	/**
+	 * Draws a single continuous coloured frame around the window in physical
+	 * pixels, spanning monitors seamlessly if the window straddles them.
+	 *
+	 * <p>The trick: a straddling window is NOT a single rectangle in AWT logical
+	 * space (each monitor has its own scale), but it IS one continuous rectangle
+	 * in the OS physical virtual-screen space. So we take the raw
+	 * {@code GetWindowRect} (physical), render the outline into a premultiplied
+	 * ARGB bitmap, and blit it through a {@code WS_EX_LAYERED} overlay via
+	 * {@code UpdateLayeredWindow} — one window, one rect, no per-monitor seam.
+	 * The overlay is click-through ({@code WS_EX_TRANSPARENT}) and never steals
+	 * focus ({@code WS_EX_NOACTIVATE}).</p>
+	 *
+	 * @param hWnd the window to frame
+	 * @param argb frame colour {@code 0xRRGGBB} (forced opaque)
+	 * @param secs seconds to keep it on screen (blocks the caller, like Swing Highlight)
+	 * @return {@code true} if the overlay was drawn, {@code false} to fall back to Swing
+	 */
+	static boolean highlightWindowNative(HWND hWnd, int argb, double secs) {
+		RECT wr = new RECT();
+		if (!user32.GetWindowRect(hWnd, wr)) {
+			return false;
+		}
+		int w = wr.right - wr.left, h = wr.bottom - wr.top;
+		if (w <= 0 || h <= 0) {
+			return false;
+		}
+		return drawOverlayRect(wr.left, wr.top, w, h, argb, secs);
+	}
+
+	/**
+	 * #444: highlight an arbitrary ROI within a window. The ROI is provided
+	 * in the caller's LOGICAL coordinate space; it is converted to physical
+	 * via {@link #logicalToPhysical(HWND, Rectangle)} (inverse of the voie 1
+	 * used by {@link #physicalToLogical}), then rendered with the same
+	 * WS_EX_LAYERED overlay mechanism as {@link #highlightWindowNative}.
+	 */
+	static boolean highlightRegionWindowNative(HWND hWnd, Rectangle roiLogical, int argb, double secs) {
+		if (hWnd == null || roiLogical == null) {
+			return false;
+		}
+		Rectangle physRoi = logicalToPhysical(hWnd, roiLogical);
+		if (physRoi == null || physRoi.width <= 0 || physRoi.height <= 0) {
+			return false;
+		}
+		return drawOverlayRect(physRoi.x, physRoi.y, physRoi.width, physRoi.height, argb, secs);
+	}
+
+	/**
+	 * Core overlay renderer — extracted from {@link #highlightWindowNative}
+	 * so the whole-window and ROI paths share the exact same rasterisation,
+	 * DIB, layered-window and blending code. All coordinates are PHYSICAL
+	 * pixels in the Windows virtual-screen space; callers translate from
+	 * their own source (GetWindowRect for whole window, logicalToPhysical
+	 * for a ROI) before invoking.
+	 */
+	private static boolean drawOverlayRect(int px, int py, int pw, int ph, int argb, double secs) {
+		// Premultiplied ARGB outline: opaque coloured border, transparent inside.
+		int thickness = 4;
+		BufferedImage img = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_ARGB_PRE);
+		Graphics2D g = img.createGraphics();
+		g.setComposite(AlphaComposite.Src);
+		g.setColor(new Color(0, 0, 0, 0));
+		g.fillRect(0, 0, pw, ph);
+		g.setColor(new Color((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, 255));
+		for (int t = 0; t < thickness; t++) {
+			g.drawRect(t, t, pw - 1 - 2 * t, ph - 1 - 2 * t);
+		}
+		g.dispose();
+
+		HDC screenDC = user32.GetDC(null);
+		HDC memDC = GDI32.INSTANCE.CreateCompatibleDC(screenDC);
+
+		BITMAPINFO bmi = new BITMAPINFO();
+		bmi.bmiHeader.biSize = bmi.bmiHeader.size();
+		bmi.bmiHeader.biWidth = pw;
+		bmi.bmiHeader.biHeight = -ph;      // negative = top-down DIB
+		bmi.bmiHeader.biPlanes = 1;
+		bmi.bmiHeader.biBitCount = 32;
+		bmi.bmiHeader.biCompression = 0;  // BI_RGB
+
+		PointerByReference ppvBits = new PointerByReference();
+		HBITMAP dib = GDI32.INSTANCE.CreateDIBSection(memDC, bmi, DIB_RGB_COLORS, ppvBits, null, 0);
+		HWND overlay = null;
+		HANDLE oldBmp = null;
+		try {
+			if (dib == null) {
+				return false;
+			}
+			// ARGB_PRE ints (0xAARRGGBB) -> BGRA bytes the DIB expects.
+			int[] px2 = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
+			byte[] buf = new byte[pw * ph * 4];
+			for (int i = 0; i < px2.length; i++) {
+				int p = px2[i];
+				int j = i * 4;
+				buf[j]     = (byte) (p & 0xFF);          // B
+				buf[j + 1] = (byte) ((p >> 8) & 0xFF);   // G
+				buf[j + 2] = (byte) ((p >> 16) & 0xFF);  // R
+				buf[j + 3] = (byte) ((p >>> 24) & 0xFF); // A (premultiplied)
+			}
+			ppvBits.getValue().write(0, buf, 0, buf.length);
+
+			oldBmp = GDI32.INSTANCE.SelectObject(memDC, dib);
+
+			overlay = user32.CreateWindowEx(
+					WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+					"Static", null, WS_POPUP, px, py, pw, ph, null, null, null, null);
+			if (overlay == null) {
+				return false;
+			}
+
+			SIZE size = new SIZE();
+			size.cx = pw;
+			size.cy = ph;
+			POINT ptSrc = new POINT(0, 0);
+			POINT ptDst = new POINT(px, py);
+			BLENDFUNCTION blend = new BLENDFUNCTION();
+			blend.BlendOp = AC_SRC_OVER;
+			blend.BlendFlags = 0;
+			blend.SourceConstantAlpha = (byte) 255;
+			blend.AlphaFormat = AC_SRC_ALPHA;
+
+			user32.UpdateLayeredWindow(overlay, screenDC, ptDst, size, memDC, ptSrc, 0, blend, ULW_ALPHA);
+			user32.ShowWindow(overlay, SW_SHOWNOACTIVATE);
+
+			if (secs > 0) {
+				try {
+					Thread.sleep((long) (secs * 1000));
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			}
+			return true;
+		} finally {
+			if (overlay != null) {
+				user32.DestroyWindow(overlay);
+			}
+			if (oldBmp != null) {
+				GDI32.INSTANCE.SelectObject(memDC, oldBmp);
+			}
+			if (dib != null) {
+				GDI32.INSTANCE.DeleteObject(dib);
+			}
+			GDI32.INSTANCE.DeleteDC(memDC);
+			user32.ReleaseDC(null, screenDC);
+		}
+	}
 
 	private static final class WinWindow implements OsWindow {
 		private HWND hWnd;
@@ -59,7 +498,22 @@ public class WinUtil extends GenericOsUtil {
 		public Rectangle getBounds() {
 			RECT rect = new User32.RECT();
 			boolean success = user32.GetWindowRect(hWnd, rect);
-			return success ? rect.toRectangle() : null;
+			return success ? physicalToLogical(hWnd, rect.toRectangle()) : null;
+		}
+
+		@Override
+		public BufferedImage captureNative(Rectangle logicalBounds) {
+			return WinUtil.captureWindowNative(hWnd, logicalBounds);
+		}
+
+		@Override
+		public boolean highlightNative(int argb, double secs) {
+			return WinUtil.highlightWindowNative(hWnd, argb, secs);
+		}
+
+		@Override
+		public boolean highlightRegionNative(Rectangle roiLogical, int argb, double secs) {
+			return WinUtil.highlightRegionWindowNative(hWnd, roiLogical, argb, secs);
 		}
 
 		@Override
