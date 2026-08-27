@@ -86,6 +86,15 @@ public class HotkeyController {
     String sKey = Keys.getKeyName(key);
     oldFashionedKeys.put(sKey, key);
     String sMod = KeyModifier.getModifierNames(modifier);
+    if (modifier != 0 && sMod.isEmpty()) {
+      // A non-zero modifier value was given but none of it could be resolved
+      // to a known modifier name. Registering anyway would silently drop the
+      // modifiers and grab the bare key (e.g. plain 'C') as a global hotkey,
+      // which is unexpected and hard to notice. Refuse instead of degrading.
+      Debug.error("HotkeyController: addHotkey: unrecognized modifier value %d for key %s (%d); refusing to register an unmodified global hotkey",
+          modifier, sKey, key);
+      return "";
+    }
     oldFashionedKeys.put(sMod, modifier);
     return installHotkey(callback, sKey + " " + sMod );
   }
