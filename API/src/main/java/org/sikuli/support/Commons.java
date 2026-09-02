@@ -22,6 +22,7 @@ import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
+import java.awt.image.WritableRaster;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -2576,7 +2577,39 @@ public class Commons {
     return makeMat(bImg, true);
   }
 
+  /**
+   * #444: a view produced by {@link BufferedImage#getSubimage} shares its
+   * parent's DataBuffer and only differs by a raster offset. The raw
+   * {@code getDataBuffer().getData()} reads below ignore that offset and
+   * consume the PARENT from index 0 — so a bottom-of-window ROI quietly
+   * turns into the top-of-window band of the same width. That is how a
+   * status bar came back reading as a title bar. Compact rasters (the
+   * everyday case) are left strictly on the fast path.
+   */
+  private static boolean hasCompactRaster(BufferedImage bImg) {
+    WritableRaster r = bImg.getRaster();
+    return r.getSampleModelTranslateX() == 0
+        && r.getSampleModelTranslateY() == 0
+        && r.getMinX() == 0
+        && r.getMinY() == 0
+        && r.getDataBuffer().getSize()
+           == r.getWidth() * r.getHeight() * r.getNumDataElements();
+  }
+
+  private static BufferedImage compactCopy(BufferedImage bImg) {
+    BufferedImage copy = new BufferedImage(bImg.getWidth(), bImg.getHeight(), bImg.getType());
+    Graphics2D g = copy.createGraphics();
+    g.drawImage(bImg, 0, 0, null);
+    g.dispose();
+    return copy;
+  }
+
   public static Mat makeMat(BufferedImage bImg, boolean asBGR) {
+    // Only the typed branches below read the DataBuffer raw; TYPE_CUSTOM goes
+    // through getMatList and is left untouched here (out of this fix's scope).
+    if (bImg.getType() != BufferedImage.TYPE_CUSTOM && !hasCompactRaster(bImg)) {
+      bImg = compactCopy(bImg);
+    }
     if (bImg.getType() == BufferedImage.TYPE_INT_RGB) {
       int[] data = ((DataBufferInt) bImg.getRaster().getDataBuffer()).getData();
       ByteBuffer byteBuffer = ByteBuffer.allocate(data.length * 4);
