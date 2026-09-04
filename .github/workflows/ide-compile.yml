@@ -6,6 +6,7 @@ on:
     branches:
       - master
       - release/oculix-rc
+      - chore/global-bug-fixes
     paths:
       - 'API/**'
       - 'IDE/**'
