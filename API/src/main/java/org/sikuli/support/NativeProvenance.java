@@ -129,13 +129,16 @@ public class NativeProvenance {
       return;
     }
     boolean allInside = true;
+    boolean anyObserved = false;
     for (String name : CONSUMER_NAMES) {
-      String resolved = resolveQuietly(name);
+      String resolved = resolveIfAlreadyBound(name);
       if (resolved == null) {
-        // Not bound in this JVM — on Windows tess4j uses fully versioned names and never asks
-        // for these at all. Absence is not a failure.
+        // Nothing bound this name in this JVM — on Windows tess4j uses fully versioned names and
+        // never asks for these at all. Absence is not a failure, and it is not verification
+        // either: see the flag below.
         continue;
       }
+      anyObserved = true;
       if (isInside(dir, resolved)) {
         Commons.startLog(3, "[OculiX] OCR native '%s' -> %s (bundled)", name, resolved);
       } else if (matchesSomethingIn(dir, resolved)) {
@@ -146,13 +149,16 @@ public class NativeProvenance {
             + "byte-identical to it — a consumer's own copy of our payload)", name, resolved);
       } else {
         allInside = false;
-        Commons.startLog(3, "[OculiX] WARNING: OCR native '%s' resolved OUTSIDE the bundled "
-            + "directory and does not match it: %s (expected under %s). OCR is being serviced by "
-            + "a library OculiX did not ship; reported version strings will not describe it.",
-            name, resolved, dir);
+        Commons.startLog(3, "[OculiX] WARNING: the short name '%s' is bound to %s, which is "
+            + "outside the bundled directory (%s) and not a copy of anything in it. Any consumer "
+            + "resolving that name gets a library OculiX did not ship, and reported version "
+            + "strings will not describe it.", name, resolved, dir);
       }
     }
-    bindingVerified = allInside;
+    // Zero observations is NOT a pass. Every short name going unbound is the normal Windows case,
+    // and treating it as verified would make this flag say "fine" on precisely the platform where
+    // it has checked nothing at all.
+    bindingVerified = anyObserved && allInside;
   }
 
   /**
@@ -187,8 +193,8 @@ public class NativeProvenance {
           .append(String.join(", ", present)).append("\n");
       if (!hasUnversioned) {
         sb.append(" Note: JNA resolves the short name 'tesseract' to the exact filename '")
-            .append(unversioned).append("', which is not among them — the bundled files carry\n")
-            .append(" version suffixes only. Reinstalling will not change that.\n");
+            .append(unversioned).append("', which is not among the files listed above.\n")
+            .append(" Reinstalling will not change that.\n");
       }
       return sb.toString();
     } catch (Throwable e) {
@@ -217,14 +223,40 @@ public class NativeProvenance {
   }
 
   /**
-   * Returns the absolute path JNA bound for a short name, or null if it is not bound here.
-   * Never propagates: an unbound name throws {@link UnsatisfiedLinkError}, which is information
-   * rather than an error condition.
+   * Returns the absolute path JNA has <em>already</em> bound for a short name, or null if nothing
+   * has bound it in this JVM.
+   *
+   * <p>Deliberately does not call {@code NativeLibrary.getInstance(name)}. That loads the library
+   * when the name is not cached — which would perform the very short-name resolution this check
+   * exists to observe, and could then report a library the consumer never touched as the one
+   * servicing OCR. On Linux it is worse than misleading: speculatively mapping a system tesseract
+   * alongside our bundled leptonica is exactly how the crash we reported upstream begins. A
+   * diagnostic must not be able to cause the fault it looks for.
+   *
+   * <p>So this reads JNA's own cache and reports only what is genuinely there. Matching on
+   * {@code getName()} rather than on the map key avoids depending on how JNA composes that key.
+   * If the cache cannot be read, we report nothing rather than force a load.
    */
-  private static String resolveQuietly(String name) {
+  private static String resolveIfAlreadyBound(String name) {
     try {
-      File f = NativeLibrary.getInstance(name).getFile();
-      return f == null ? null : f.getCanonicalPath();
+      java.lang.reflect.Field f = NativeLibrary.class.getDeclaredField("libraries");
+      f.setAccessible(true);
+      Object raw = f.get(null);
+      if (!(raw instanceof java.util.Map)) {
+        return null;
+      }
+      for (Object v : ((java.util.Map<?, ?>) raw).values()) {
+        Object lib = (v instanceof java.lang.ref.Reference) ? ((java.lang.ref.Reference<?>) v).get() : v;
+        if (!(lib instanceof NativeLibrary)) {
+          continue;
+        }
+        NativeLibrary nl = (NativeLibrary) lib;
+        if (name.equals(nl.getName())) {
+          File file = nl.getFile();
+          return file == null ? null : file.getCanonicalPath();
+        }
+      }
+      return null;
     } catch (Throwable e) {
       return null;
     }
