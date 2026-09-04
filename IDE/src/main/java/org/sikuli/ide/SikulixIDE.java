@@ -469,8 +469,11 @@ public class SikulixIDE extends JFrame {
    */
   private static void offerOcrAliasRepair() {
     try {
+      // Captured once: a user sits between the check and the repair, which is the longest window
+      // this pattern can have, and the field it would otherwise re-read is mutable static state.
+      java.nio.file.Path tierDir = NativeProvenance.getExtractionDir();
       if (PreferencesUser.get().getOcrAliasPolicy() != PreferencesUser.OCR_ALIAS_ASK
-          || NativeProvenance.missingAliases().isEmpty()) {
+          || NativeProvenance.missingAliases(tierDir).isEmpty()) {
         return;
       }
       JCheckBox remember = new JCheckBox(SikuliIDEI18N._I("msgOcrAliasRemember"), true);
@@ -488,14 +491,14 @@ public class SikulixIDE extends JFrame {
         if (remember.isSelected()) {
           PreferencesUser.get().setOcrAliasPolicy(PreferencesUser.OCR_ALIAS_AUTO);
         }
-        int made = NativeProvenance.createAliases();
+        int made = NativeProvenance.createAliases(tierDir);
         if (made > 0) {
           Commons.startLog(3, "[OculiX] %s", SikuliIDEI18N._I("msgOcrAliasDone"));
         }
       } else if (choice == 2) {
         PreferencesUser.get().setOcrAliasPolicy(PreferencesUser.OCR_ALIAS_NEVER);
         Commons.startLog(3, "[OculiX] %s\n%s", SikuliIDEI18N._I("msgOcrAliasDeclined"),
-            NativeProvenance.manualCommand());
+            NativeProvenance.manualCommand(tierDir));
       }
       // "Not now" and a closed dialog both leave the preference alone, so the offer returns next
       // start. Declining once should not be treated as declining forever.

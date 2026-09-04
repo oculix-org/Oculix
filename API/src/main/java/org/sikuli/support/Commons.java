@@ -1600,15 +1600,20 @@ public class Commons {
    * dialog they cannot answer.
    */
   private static void applyOcrAliasPolicy() {
-    if (NativeProvenance.missingAliases().isEmpty()) {
+    // Capture the directory once and pass it to every call below. Checking and repairing are two
+    // calls, and the field between them is a mutable static that lazy init can re-point — so the
+    // list would be computed for one directory and the links written into another.
+    java.nio.file.Path dir = NativeProvenance.getExtractionDir();
+    if (NativeProvenance.missingAliases(dir).isEmpty()) {
       return;
     }
     int policy = PreferencesUser.get().getOcrAliasPolicy();
     if (policy == PreferencesUser.OCR_ALIAS_AUTO) {
-      NativeProvenance.createAliases();
+      NativeProvenance.createAliases(dir);
     } else if (policy == PreferencesUser.OCR_ALIAS_NEVER) {
       startLog(3, "[OculiX] bundled OCR natives lack the unversioned name JNA looks for; "
-          + "repair is disabled by preference. To do it by hand:\n" + NativeProvenance.manualCommand());
+          + "repair is disabled by preference. To do it by hand:\n"
+          + NativeProvenance.manualCommand(dir));
     }
   }
 

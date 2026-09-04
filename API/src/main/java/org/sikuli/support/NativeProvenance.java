@@ -256,7 +256,7 @@ public class NativeProvenance {
    * names computed for one, the symlinks written into another. With a filesystem write as the
    * consequence, that is not a race worth leaving open.
    */
-  static List<String> missingAliases(Path dir) {
+  public static List<String> missingAliases(Path dir) {
     List<String> missing = new ArrayList<>();
     if (dir == null || !Files.isDirectory(dir) || Commons.runningWindows()) {
       return missing;
@@ -293,7 +293,11 @@ public class NativeProvenance {
 
   /** The command a user who declines can run themselves. Never leave them worse off for saying no. */
   public static String manualCommand() {
-    Path dir = extractionDir;
+    return manualCommand(extractionDir);
+  }
+
+  /** As {@link #manualCommand()}, for a directory the caller has already captured. */
+  public static String manualCommand(Path dir) {
     List<String> missing = missingAliases(dir);
     if (dir == null || missing.isEmpty()) {
       return "";
