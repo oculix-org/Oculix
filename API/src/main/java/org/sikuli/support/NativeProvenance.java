@@ -142,11 +142,16 @@ public class NativeProvenance {
       if (isInside(dir, resolved)) {
         Commons.startLog(3, "[OculiX] OCR native '%s' -> %s (bundled)", name, resolved);
       } else if (matchesSomethingIn(dir, resolved)) {
-        // tess4j and lept4j re-extract the natives they find on the classpath into their own
-        // temp directories and bind from there. Byte-identical content means it is our payload
-        // by another path — not a different library, so not something to cry wolf about.
-        Commons.startLog(3, "[OculiX] OCR native '%s' -> %s (outside the bundled directory, but "
-            + "byte-identical to it — a consumer's own copy of our payload)", name, resolved);
+        // Byte-identical content lowers the severity but must NOT clear the flag. The question
+        // this check answers is one of PATH, not content: our directory still lost, and something
+        // else is servicing OCR. Content equality cannot tell "our payload reached by another
+        // route" from "a different build that happens to match" — and under a shaded jar the
+        // directory's own contents may not be ours either. Treating it as a pass would return
+        // success in precisely the case the check exists to detect.
+        allInside = false;
+        Commons.startLog(3, "[OculiX] OCR native '%s' -> %s : outside the bundled directory (%s), "
+            + "though byte-identical to a file in it — most likely a consumer's own copy of our "
+            + "payload rather than a different library.", name, resolved, dir);
       } else {
         allInside = false;
         Commons.startLog(3, "[OculiX] WARNING: the short name '%s' is bound to %s, which is "
