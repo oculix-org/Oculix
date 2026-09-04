@@ -11,6 +11,7 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.HotkeyManager;
+import org.sikuli.basics.PreferencesUser;
 import org.sikuli.basics.Settings;
 import org.sikuli.script.*;
 import org.sikuli.support.devices.HelpDevice;
@@ -1524,6 +1525,7 @@ public class Commons {
         if (tierDir instanceof java.nio.file.Path) {
           NativeProvenance.recordExtraction((java.nio.file.Path) tierDir);
           NativeProvenance.auditExtraction(legerix);
+          applyOcrAliasPolicy();
         }
         nativesLoaded = true;
       } catch (Throwable e) {
@@ -1584,6 +1586,29 @@ public class Commons {
           + "Legerix-bundled tessdata (" + libTesseractDataPath + ")");
     } else {
       startLog(3, "[OculiX] No Tesseract available — OCR will require a system install.");
+    }
+  }
+
+  /**
+   * Acts on the user's stored choice about repairing missing OCR native aliases.
+   *
+   * <p>Re-checked on every startup rather than once at install: the cache is keyed by version, so
+   * an upgrade extracts a fresh directory and any alias made previously is gone. The same reason a
+   * package manager re-points its "latest" link after each build rather than assuming it holds.
+   *
+   * <p>ASK does nothing here — the IDE prompts, and headless callers get the diagnosis without a
+   * dialog they cannot answer.
+   */
+  private static void applyOcrAliasPolicy() {
+    if (NativeProvenance.missingAliases().isEmpty()) {
+      return;
+    }
+    int policy = PreferencesUser.get().getOcrAliasPolicy();
+    if (policy == PreferencesUser.OCR_ALIAS_AUTO) {
+      NativeProvenance.createAliases();
+    } else if (policy == PreferencesUser.OCR_ALIAS_NEVER) {
+      startLog(3, "[OculiX] bundled OCR natives lack the unversioned name JNA looks for; "
+          + "repair is disabled by preference. To do it by hand:\n" + NativeProvenance.manualCommand());
     }
   }
 

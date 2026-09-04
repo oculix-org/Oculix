@@ -7,10 +7,12 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Covers the diagnosis text, which is the part a user actually reads when OCR fails.
@@ -19,6 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * by running the app rather than here.
  */
 public class NativeProvenanceTest {
+
+  /** The repair does not apply on Windows: tess4j binds versioned names it ships itself. */
+  private static void assumeNotWindows() {
+    assumeFalse(System.getProperty("os.name", "").toLowerCase().startsWith("windows"));
+  }
 
   private static Path tierDirWith(String... fileNames) throws Exception {
     Path dir = Files.createTempDirectory("oculix-provenance");
@@ -68,6 +75,57 @@ public class NativeProvenanceTest {
     tierDirWith();
     String advice = NativeProvenance.explainLinkFailure();
     assertTrue(advice.contains("contains no tesseract/leptonica library"));
+  }
+
+  @Test
+  public void versionedOnlyPayloadIsMissingTheUnversionedAliases() throws Exception {
+    assumeNotWindows();
+    tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
+        "libtesseract.so.5", "libleptonica.so.6");
+    List<String> missing = NativeProvenance.missingAliases();
+    assertTrue(missing.contains(System.mapLibraryName("tesseract")));
+    assertTrue(missing.contains(System.mapLibraryName("leptonica")));
+    assertTrue(missing.contains(System.mapLibraryName("lept")));
+    // Never propose a versioned alias for the JNA lookup: it would enter the version-pooling
+    // fallback and compete with whatever the system ships, which is the bug being repaired.
+    assertFalse(missing.contains("libtesseract.so.5"));
+    assertFalse(missing.contains("libleptonica.6.dylib"));
+  }
+
+  @Test
+  public void nothingMissingOnceTheAliasesExist() throws Exception {
+    assumeNotWindows();
+    Path dir = tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
+        "libtesseract.so.5", "libleptonica.so.6");
+    NativeProvenance.createAliases();
+    NativeProvenance.recordExtraction(dir);
+    assertTrue(NativeProvenance.missingAliases().isEmpty());
+  }
+
+  @Test
+  public void aliasesTargetTheRealLibraryNeverAnotherAlias() throws Exception {
+    assumeNotWindows();
+    Path dir = tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
+        "libtesseract.so.5", "libleptonica.so.6");
+    NativeProvenance.createAliases();
+    for (String name : new String[]{"tesseract", "leptonica", "lept"}) {
+      Path alias = dir.resolve(System.mapLibraryName(name));
+      if (Files.isSymbolicLink(alias)) {
+        Path target = dir.resolve(Files.readSymbolicLink(alias));
+        assertFalse(Files.isSymbolicLink(target),
+            "alias " + alias.getFileName() + " chains to another alias");
+      }
+    }
+  }
+
+  @Test
+  public void decliningStillYieldsARunnableCommand() throws Exception {
+    assumeNotWindows();
+    Path dir = tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
+        "libtesseract.so.5", "libleptonica.so.6");
+    String cmd = NativeProvenance.manualCommand();
+    assertTrue(cmd.contains("cd " + dir));
+    assertTrue(cmd.contains("ln -s"));
   }
 
   @Test

@@ -207,6 +207,127 @@ public class NativeProvenance {
     }
   }
 
+  /**
+   * The aliases missing from the extraction directory, or empty if nothing is needed.
+   *
+   * <p>Which names are required was measured across macOS, both Linux x86-64 tiers and native
+   * Windows during the Legerix #20 investigation, and the rules are not symmetric:
+   *
+   * <ul>
+   * <li><b>Unversioned only</b> for the JNA short-name lookup. A versioned alias would satisfy
+   *     {@code isVersionedName} and enter JNA's version-pooling fallback, where it competes with
+   *     whatever the distro ships — reintroducing the very bug this fixes.</li>
+   * <li><b>Linux additionally needs versioned {@code liblept.so.5}</b>, because the bundled
+   *     tesseract's ELF {@code NEEDED} is that literal string and no file of that name exists.
+   *     It is safe only <em>alongside</em> the unversioned link, which wins the exact-name pass
+   *     first so the pool is never consulted.</li>
+   * <li><b>Windows needs nothing.</b> tess4j binds fully versioned names it ships itself, so the
+   *     lookup this repairs never happens there.</li>
+   * </ul>
+   */
+  public static List<String> missingAliases() {
+    List<String> missing = new ArrayList<>();
+    Path dir = extractionDir;
+    if (dir == null || !Files.isDirectory(dir) || Commons.runningWindows()) {
+      return missing;
+    }
+    try {
+      for (String name : CONSUMER_NAMES) {
+        String alias = System.mapLibraryName(name);
+        if (!Files.exists(dir.resolve(alias)) && targetFor(dir, name) != null) {
+          missing.add(alias);
+        }
+      }
+      if (Commons.runningLinux() && !missing.isEmpty() && targetFor(dir, "lept") != null
+          && !Files.exists(dir.resolve(LINUX_LEPT_SONAME))) {
+        missing.add(LINUX_LEPT_SONAME);
+      }
+    } catch (Throwable ignore) {
+    }
+    return missing;
+  }
+
+  /** The command a user who declines can run themselves. Never leave them worse off for saying no. */
+  public static String manualCommand() {
+    Path dir = extractionDir;
+    List<String> missing = missingAliases();
+    if (dir == null || missing.isEmpty()) {
+      return "";
+    }
+    StringBuilder sb = new StringBuilder("cd ").append(dir).append(" && \\\n");
+    for (int i = 0; i < missing.size(); i++) {
+      String alias = missing.get(i);
+      Path target = targetFor(dir, familyOf(alias));
+      sb.append("  ln -s ").append(target == null ? "<library>" : target.getFileName())
+          .append(' ').append(alias).append(i < missing.size() - 1 ? " && \\\n" : "\n");
+    }
+    return sb.toString();
+  }
+
+  /**
+   * Creates the missing aliases and returns how many were made. Symlinks; falls back to a copy
+   * where links are unavailable. Idempotent — if Legerix ever ships these itself, this does
+   * nothing.
+   */
+  public static int createAliases() {
+    Path dir = extractionDir;
+    if (dir == null) {
+      return 0;
+    }
+    int made = 0;
+    for (String alias : missingAliases()) {
+      Path target = targetFor(dir, familyOf(alias));
+      if (target == null) {
+        continue;
+      }
+      Path link = dir.resolve(alias);
+      try {
+        try {
+          Files.createSymbolicLink(link, target.getFileName());
+        } catch (UnsupportedOperationException | java.io.IOException linkFailed) {
+          Files.copy(target, link);
+        }
+        made++;
+        Commons.startLog(3, "[OculiX] created OCR native alias %s -> %s", alias,
+            target.getFileName());
+      } catch (Throwable e) {
+        Commons.startLog(3, "[OculiX] could not create OCR native alias %s: %s", alias,
+            e.getMessage());
+      }
+    }
+    if (made > 0) {
+      // The aliases only matter at resolution time, so a later OCR call still needs checking.
+      bindingChecked = false;
+    }
+    return made;
+  }
+
+  private static final String LINUX_LEPT_SONAME = "liblept.so.5";
+
+  private static String familyOf(String alias) {
+    return alias.contains("leptonica") ? "leptonica" : alias.contains("lept") ? "lept" : "tesseract";
+  }
+
+  /** The real library an alias should point at: the versioned file already in the directory. */
+  private static Path targetFor(Path dir, String name) {
+    String want = name.equals("tesseract") ? "tesseract" : "lept";
+    try (Stream<Path> entries = Files.list(dir)) {
+      return entries
+          // NOFOLLOW matters: an alias we made earlier in this same pass is itself a regular file
+          // once resolved, and pointing a later alias at it would build a chain that breaks if the
+          // middle link is removed. Aliases must always target the real versioned library.
+          .filter(p -> Files.isRegularFile(p, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+          .filter(p -> {
+            String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
+            return n.contains(want) && !n.equals(System.mapLibraryName(name))
+                && !n.equals(LINUX_LEPT_SONAME);
+          })
+          .findFirst().orElse(null);
+    } catch (Throwable e) {
+      return null;
+    }
+  }
+
   /** Legerix and OculiX in one archive means its extraction read our resource directory. */
   private static boolean isShadedWithUs(Class<?> legerixClass) {
     URL ours = codeSource(NativeProvenance.class);
