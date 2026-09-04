@@ -248,13 +248,23 @@ public class NativeProvenance {
           missing.add(alias);
         }
       }
-      // Evaluated independently of what the loop above found. Gating this on the unversioned
-      // set being incomplete would skip exactly the users who already followed our earlier
-      // three-symlink advice: their unversioned aliases exist, so nothing is "missing", and the
-      // one file that satisfies tesseract's ELF NEEDED never gets created.
-      if (Commons.runningLinux() && targetFor(dir, "lept") != null
-          && !Files.exists(dir.resolve(LINUX_LEPT_SONAME))) {
-        missing.add(LINUX_LEPT_SONAME);
+      // Derived, not assumed. The dynamic linker's requirement is recorded inside the shipped
+      // tesseract and is invisible in a directory listing — no file of that name exists, which is
+      // precisely the defect. Reading DT_NEEDED answers it for whatever tier is actually present,
+      // including the one where the name already matches and no alias is wanted at all.
+      //
+      // Evaluated independently of what the loop above found: gating it on the unversioned set
+      // being incomplete would skip exactly the users who already followed our earlier
+      // three-symlink advice, whose aliases exist so nothing looks "missing".
+      Path tesseract = targetFor(dir, "tesseract");
+      if (tesseract != null) {
+        for (String need : readElfNeeded(tesseract)) {
+          // Only dependencies this directory could satisfy. The rest of tesseract's NEEDED list is
+          // libc, libstdc++ and friends, which are the system's business and not ours to alias.
+          if (need.toLowerCase(Locale.ROOT).contains("lept") && !Files.exists(dir.resolve(need))) {
+            missing.add(need);
+          }
+        }
       }
     } catch (Throwable ignore) {
     }
@@ -271,7 +281,9 @@ public class NativeProvenance {
     StringBuilder sb = new StringBuilder("cd ").append(dir).append(" && \\\n");
     for (int i = 0; i < missing.size(); i++) {
       String alias = missing.get(i);
-      Path target = targetFor(dir, familyOf(alias));
+      // A DT_NEEDED-derived alias always names a leptonica; the unversioned ones map by family.
+      Path target = targetFor(dir, alias.toLowerCase(Locale.ROOT).contains("lept")
+          && !isAliasName(alias.toLowerCase(Locale.ROOT)) ? "lept" : familyOf(alias));
       sb.append("  ln -s ").append(target == null ? "<library>" : target.getFileName())
           .append(' ').append(alias).append(i < missing.size() - 1 ? " && \\\n" : "\n");
     }
@@ -290,7 +302,9 @@ public class NativeProvenance {
     }
     int made = 0;
     for (String alias : missingAliases()) {
-      Path target = targetFor(dir, familyOf(alias));
+      // A DT_NEEDED-derived alias always names a leptonica; the unversioned ones map by family.
+      Path target = targetFor(dir, alias.toLowerCase(Locale.ROOT).contains("lept")
+          && !isAliasName(alias.toLowerCase(Locale.ROOT)) ? "lept" : familyOf(alias));
       if (target == null) {
         continue;
       }
@@ -317,33 +331,136 @@ public class NativeProvenance {
   }
 
   /**
-   * The versioned name tesseract's ELF {@code NEEDED} asks for. Verified on three of the four
-   * Linux tiers; {@code linux-x86-64-legacy} declares {@code libleptonica.so.6} instead, where
-   * this link is simply unused rather than harmful. Assuming a SONAME rather than reading it is
-   * what cost an earlier report a retraction, so it is stated here rather than left implicit.
+   * Reads the {@code DT_NEEDED} entries out of an ELF shared object.
+   *
+   * <p>This exists because a directory listing cannot answer the question. Two independent things
+   * decide which aliases a tier needs: the short names a JNA consumer looks up, which are visible
+   * as filenames; and the dynamic dependency recorded inside the shipped tesseract, which is
+   * <em>not</em> — no file of that name exists, and that absence is the defect. Hardcoding it
+   * happened to be right on three of the four Linux tiers and wrong on the fourth, and assuming a
+   * SONAME rather than reading it is what cost an earlier report a retraction.
+   *
+   * <p>Returns an empty list for anything that is not a 64-bit little-endian ELF, which covers
+   * every tier shipped today and means Mach-O simply yields nothing.
    */
-  private static final String LINUX_LEPT_SONAME = "liblept.so.5";
+  static List<String> readElfNeeded(Path file) {
+    List<String> needed = new ArrayList<>();
+    try {
+      byte[] b = Files.readAllBytes(file);
+      if (b.length < 64 || b[0] != 0x7F || b[1] != 'E' || b[2] != 'L' || b[3] != 'F'
+          || b[4] != 2 || b[5] != 1) {
+        return needed;                       // not 64-bit little-endian ELF
+      }
+      java.nio.ByteBuffer buf = java.nio.ByteBuffer.wrap(b).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+      long phoff = buf.getLong(0x20);
+      int phentsize = buf.getShort(0x36) & 0xFFFF;
+      int phnum = buf.getShort(0x38) & 0xFFFF;
 
-  /** True for any of the unversioned names this class creates, on any platform. */
+      long dynOff = -1;
+      // PT_LOAD segments are what translate a virtual address into a file offset; DT_STRTAB is
+      // recorded as a vaddr, so the mapping has to be built before the string table can be read.
+      List<long[]> loads = new ArrayList<>();
+      for (int i = 0; i < phnum; i++) {
+        long ph = phoff + (long) i * phentsize;
+        int type = buf.getInt((int) ph);
+        long off = buf.getLong((int) ph + 0x08);
+        long vaddr = buf.getLong((int) ph + 0x10);
+        long filesz = buf.getLong((int) ph + 0x20);
+        if (type == 2) {                     // PT_DYNAMIC
+          dynOff = off;
+        } else if (type == 1) {              // PT_LOAD
+          loads.add(new long[]{vaddr, off, filesz});
+        }
+      }
+      if (dynOff < 0) {
+        return needed;
+      }
+      long strtabVaddr = -1;
+      List<Long> neededOffsets = new ArrayList<>();
+      for (long d = dynOff; d + 16 <= b.length; d += 16) {
+        long tag = buf.getLong((int) d);
+        long val = buf.getLong((int) d + 8);
+        if (tag == 0) {                      // DT_NULL
+          break;
+        } else if (tag == 1) {               // DT_NEEDED — val is an index into DT_STRTAB
+          neededOffsets.add(val);
+        } else if (tag == 5) {               // DT_STRTAB
+          strtabVaddr = val;
+        }
+      }
+      if (strtabVaddr < 0) {
+        return needed;
+      }
+      long strtabOff = -1;
+      for (long[] l : loads) {
+        if (strtabVaddr >= l[0] && strtabVaddr < l[0] + l[2]) {
+          strtabOff = l[1] + (strtabVaddr - l[0]);
+          break;
+        }
+      }
+      if (strtabOff < 0) {
+        return needed;
+      }
+      for (long idx : neededOffsets) {
+        int start = (int) (strtabOff + idx);
+        int end = start;
+        while (end < b.length && b[end] != 0) {
+          end++;
+        }
+        if (end > start) {
+          needed.add(new String(b, start, end - start, java.nio.charset.StandardCharsets.UTF_8));
+        }
+      }
+    } catch (Throwable e) {
+      return new ArrayList<>();
+    }
+    return needed;
+  }
+
+  /**
+   * True for any of the unversioned names this class creates. A versioned alias created from
+   * {@code DT_NEEDED} needs no entry here: it is written as a symlink, and the directory scan
+   * already excludes symlinks via {@code NOFOLLOW_LINKS}.
+   */
   private static boolean isAliasName(String lowerName) {
     for (String n : CONSUMER_NAMES) {
       if (lowerName.equals(System.mapLibraryName(n).toLowerCase(Locale.ROOT))) {
         return true;
       }
     }
-    return lowerName.equals(LINUX_LEPT_SONAME);
+    return false;
   }
 
   /**
-   * Restricts alias targets to this platform's object format. A tier never ships both, but a test
-   * fixture or a hand-assembled directory can, and pointing a {@code .so} alias at a Mach-O binary
-   * would produce a link that fails only at load time.
+   * True if the file is a loadable object of this platform's own format.
+   *
+   * <p>Reads the magic bytes rather than matching the extension. Matching {@code .so} looked
+   * equivalent and is not: Linux tiers ship {@code libtesseract.so.5} and {@code libleptonica.so.6},
+   * neither of which <em>ends</em> with {@code .so}, so an extension test excluded every real
+   * candidate and quietly made the whole repair inert on Linux while remaining correct on macOS.
+   * Sniffing the format does what the restriction is actually for, and survives any future naming.
    */
-  private static String platformSuffix() {
-    if (Commons.runningWindows()) {
-      return ".dll";
+  private static boolean isPlatformObject(Path file) {
+    try (java.io.InputStream in = Files.newInputStream(file)) {
+      byte[] m = new byte[4];
+      if (in.read(m) < 4) {
+        return false;
+      }
+      int b0 = m[0] & 0xFF, b1 = m[1] & 0xFF, b2 = m[2] & 0xFF, b3 = m[3] & 0xFF;
+      if (Commons.runningWindows()) {
+        return b0 == 'M' && b1 == 'Z';
+      }
+      if (Commons.runningMac()) {
+        // Mach-O thin (either endianness, 32 or 64 bit) or a fat/universal archive.
+        return (b0 == 0xCF || b0 == 0xCE) && b1 == 0xFA && b2 == 0xED && b3 == 0xFE
+            || b0 == 0xFE && b1 == 0xED && b2 == 0xFA && (b3 == 0xCF || b3 == 0xCE)
+            || b0 == 0xCA && b1 == 0xFE && b2 == 0xBA && b3 == 0xBE
+            || b0 == 0xBE && b1 == 0xBA && b2 == 0xFE && b3 == 0xCA;
+      }
+      return b0 == 0x7F && b1 == 'E' && b2 == 'L' && b3 == 'F';
+    } catch (Throwable e) {
+      return false;
     }
-    return Commons.runningMac() ? ".dylib" : ".so";
   }
 
   private static String familyOf(String alias) {
@@ -364,9 +481,12 @@ public class NativeProvenance {
             // Exclude every name we might create, not just this one: on a tier that already ships
             // unversioned files (darwin does, darwin-aarch64 does not) an alias could otherwise be
             // pointed at another unversioned file, which is the indirection this is meant to stop.
-            return n.contains(want) && !isAliasName(n)
-                && n.endsWith(platformSuffix());
+            return n.contains(want) && !isAliasName(n);
           })
+          .filter(NativeProvenance::isPlatformObject)
+          // Deterministic: Files.list() has no defined order, and a directory with two candidates
+          // would otherwise pick arbitrarily and fail intermittently rather than consistently.
+          .sorted(java.util.Comparator.comparing(pp -> pp.getFileName().toString()))
           .findFirst().orElse(null);
     } catch (Throwable e) {
       return null;

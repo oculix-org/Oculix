@@ -27,12 +27,18 @@ public class NativeProvenanceTest {
     assumeFalse(System.getProperty("os.name", "").toLowerCase().startsWith("windows"));
   }
 
+  private static final byte[] ELF_MAGIC = {0x7F, 'E', 'L', 'F', 2, 1, 1, 0};
+  private static final byte[] MACHO_MAGIC =
+      {(byte) 0xCF, (byte) 0xFA, (byte) 0xED, (byte) 0xFE, 0, 0, 0, 0};
+
   private static Path tierDirWith(String... fileNames) throws Exception {
     Path dir = Files.createTempDirectory("oculix-provenance");
     dir.toFile().deleteOnExit();
     for (String name : fileNames) {
       Path f = dir.resolve(name);
-      Files.write(f, new byte[]{0});
+      // Real magic bytes: targetFor() now sniffs the object format rather than trusting the
+      // extension, so a fixture of zero bytes would be filtered out and test nothing.
+      Files.write(f, name.endsWith(".dylib") ? MACHO_MAGIC : ELF_MAGIC);
       f.toFile().deleteOnExit();
     }
     NativeProvenance.recordExtraction(dir);
@@ -114,7 +120,8 @@ public class NativeProvenanceTest {
     // version of this test could not have caught an alias pointing at another unversioned file,
     // because its fixture never contained one — the name promised more than the body checked.
     Path dir = tierDirWith(versionedPayload());
-    Files.write(dir.resolve(System.mapLibraryName("leptonica")), new byte[]{0});
+    Files.write(dir.resolve(System.mapLibraryName("leptonica")),
+        System.mapLibraryName("x").endsWith(".dylib") ? MACHO_MAGIC : ELF_MAGIC);
     NativeProvenance.recordExtraction(dir);
     NativeProvenance.createAliases();
 
@@ -158,6 +165,26 @@ public class NativeProvenanceTest {
     String cmd = NativeProvenance.manualCommand();
     assertTrue(cmd.contains("cd " + dir));
     assertTrue(cmd.contains("ln -s"));
+  }
+
+  @Test
+  public void readElfNeededIgnoresAnythingThatIsNotElf() throws Exception {
+    // Safety property: on macOS every file it meets is Mach-O, and on any platform it may be
+    // handed a truncated or unrelated file. It must yield nothing rather than misparse — a wrong
+    // DT_NEEDED would invent an alias, which is worse than deriving none.
+    Path dir = Files.createTempDirectory("oculix-elf");
+    dir.toFile().deleteOnExit();
+    Path machO = dir.resolve("libfake.dylib");
+    Files.write(machO, new byte[]{(byte) 0xCF, (byte) 0xFA, (byte) 0xED, (byte) 0xFE, 0, 0, 0, 0});
+    assertTrue(NativeProvenance.readElfNeeded(machO).isEmpty());
+
+    Path truncated = dir.resolve("libtrunc.so");
+    Files.write(truncated, new byte[]{0x7F, 'E', 'L', 'F', 2, 1});
+    assertTrue(NativeProvenance.readElfNeeded(truncated).isEmpty());
+
+    Path empty = dir.resolve("libempty.so");
+    Files.write(empty, new byte[0]);
+    assertTrue(NativeProvenance.readElfNeeded(empty).isEmpty());
   }
 
   @Test
