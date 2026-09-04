@@ -10,6 +10,7 @@ import org.sikuli.support.devices.IScreen;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.sikuli.android.ADBScreen;
 
 /**
  * Composite keywords for OculiX — higher-level operations built on SikuliX primitives.
@@ -145,6 +146,249 @@ public class OculixKeywords {
     match.click();
     return MatchUtils.regionFromMatch(match);
   }
+
+// ── Android swipes + visual idle ───────────────────────────────────────
+
+private static final int VISUAL_IDLE_STABLE_FRAMES = 2;
+private static final double VISUAL_IDLE_MAX_CHANGE_RATIO = 0.001;
+private static final int VISUAL_IDLE_TIMEOUT_MS = 2000;
+
+private ADBScreen getADBScreen() {
+  if (!(screen instanceof ADBScreen)) {
+    throw new ScreenOperationException(
+        "Swipe is currently available only on ADBScreen"
+    );
+  }
+
+  return (ADBScreen) screen;
+}
+
+private boolean waitForVisualIdleAfterChange(byte[] before) {
+  long deadline = System.currentTimeMillis() + VISUAL_IDLE_TIMEOUT_MS;
+
+  byte[] previous = before;
+  boolean changed = false;
+  int stableFrames = 0;
+
+  while (System.currentTimeMillis() < deadline) {
+    byte[] current = captureRegionBytes();
+
+    double fromBefore = computeChangeRatio(before, current);
+    double fromPrevious = computeChangeRatio(previous, current);
+
+    // First wait until the swipe actually changes the screen
+    if (!changed) {
+      if (fromBefore > VISUAL_IDLE_MAX_CHANGE_RATIO) {
+        changed = true;
+      }
+    }
+
+    // Then wait until the resulting screen becomes stable
+    else {
+      if (fromPrevious <= VISUAL_IDLE_MAX_CHANGE_RATIO) {
+        stableFrames++;
+
+        if (stableFrames >= VISUAL_IDLE_STABLE_FRAMES) {
+          return true;
+        }
+      } else {
+        stableFrames = 0;
+      }
+    }
+
+    previous = current;
+  }
+
+  return false;
+}
+
+private byte[] captureRegionBytes() {
+  ScreenImage image = region.getScreen().capture(region);
+
+  if (image == null || image.getImage() == null) {
+    return null;
+  }
+
+  java.awt.image.BufferedImage source = image.getImage();
+
+  if (source.getType() == java.awt.image.BufferedImage.TYPE_3BYTE_BGR
+      && source.getRaster().getDataBuffer()
+          instanceof java.awt.image.DataBufferByte) {
+
+    return ((java.awt.image.DataBufferByte)
+        source.getRaster()
+            .getDataBuffer())
+        .getData()
+        .clone();
+  }
+
+  java.awt.image.BufferedImage normalized =
+      new java.awt.image.BufferedImage(
+          source.getWidth(),
+          source.getHeight(),
+          java.awt.image.BufferedImage.TYPE_3BYTE_BGR
+      );
+
+  java.awt.Graphics2D g = normalized.createGraphics();
+
+  try {
+    g.drawImage(source, 0, 0, null);
+  } finally {
+    g.dispose();
+  }
+
+  return ((java.awt.image.DataBufferByte)
+      normalized.getRaster()
+          .getDataBuffer())
+      .getData()
+      .clone();
+}
+
+private double computeChangeRatio(byte[] previous, byte[] current) {
+  if (previous == null || current == null) {
+    return 1.0;
+  }
+
+  if (previous.length != current.length) {
+    return 1.0;
+  }
+
+  if (previous.length == 0) {
+    return 0.0;
+  }
+
+  int changed = 0;
+
+  for (int i = 0; i < previous.length; i++) {
+    if (previous[i] != current[i]) {
+      changed++;
+    }
+  }
+
+  return (double) changed / (double) previous.length;
+}
+
+// ── Public swipe keywords ───────────────────────────────────────────────
+
+public void swipeUp() {
+  swipeUp(1);
+}
+
+public void swipeDown() {
+  swipeDown(1);
+}
+
+public void swipeLeft() {
+  swipeLeft(1);
+}
+
+public void swipeRight() {
+  swipeRight(1);
+}
+
+public void swipeUp(int count) {
+  ADBScreen adb = getADBScreen();
+
+  for (int i = 0; i < count; i++) {
+
+    int x = region.getX() + region.getW() / 2;
+
+    int fromY =
+        region.getY() + (region.getH() * 4 / 5);
+
+    int toY =
+        region.getY() + (region.getH() / 5);
+
+    byte[] before = captureRegionBytes();
+
+    adb.getDevice().swipe(
+        x,
+        fromY,
+        x,
+        toY
+    );
+
+    waitForVisualIdleAfterChange(before);
+  }
+}
+
+public void swipeDown(int count) {
+  ADBScreen adb = getADBScreen();
+
+  for (int i = 0; i < count; i++) {
+
+    int x = region.getX() + region.getW() / 2;
+
+    int fromY =
+        region.getY() + (region.getH() / 5);
+
+    int toY =
+        region.getY() + (region.getH() * 4 / 5);
+
+    byte[] before = captureRegionBytes();
+
+    adb.getDevice().swipe(
+        x,
+        fromY,
+        x,
+        toY
+    );
+
+    waitForVisualIdleAfterChange(before);
+  }
+}
+
+public void swipeLeft(int count) {
+  ADBScreen adb = getADBScreen();
+
+  for (int i = 0; i < count; i++) {
+
+    int y = region.getY() + region.getH() / 2;
+
+    int fromX =
+        region.getX() + (region.getW() * 4 / 5);
+
+    int toX =
+        region.getX() + (region.getW() / 5);
+
+    byte[] before = captureRegionBytes();
+
+    adb.getDevice().swipe(
+        fromX,
+        y,
+        toX,
+        y
+    );
+
+    waitForVisualIdleAfterChange(before);
+  }
+}
+
+public void swipeRight(int count) {
+  ADBScreen adb = getADBScreen();
+
+  for (int i = 0; i < count; i++) {
+
+    int y = region.getY() + region.getH() / 2;
+
+    int fromX =
+        region.getX() + (region.getW() / 5);
+
+    int toX =
+        region.getX() + (region.getW() * 4 / 5);
+
+    byte[] before = captureRegionBytes();
+
+    adb.getDevice().swipe(
+        fromX,
+        y,
+        toX,
+        y
+    );
+
+    waitForVisualIdleAfterChange(before);
+  }
+}
 
   // ── Click Text (OCR) ─────────────────────────────────────────────────
 
@@ -594,7 +838,7 @@ public class OculixKeywords {
     int w = coords[2];
     int h = coords[3];
     // Click the center of the found text
-    Region textRegion = new Region(absX, absY, w, h);
+    Region textRegion = searchRegion.getScreen().newRegion(absX, absY, w, h);
     textRegion.click();
     return new int[]{absX, absY, w, h};
   }
