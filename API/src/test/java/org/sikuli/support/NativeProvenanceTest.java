@@ -77,11 +77,17 @@ public class NativeProvenanceTest {
     assertTrue(advice.contains("contains no tesseract/leptonica library"));
   }
 
+  /** A real tier ships one object format; a fixture mixing them tests something that cannot occur. */
+  private static String[] versionedPayload() {
+    return System.mapLibraryName("x").endsWith(".dylib")
+        ? new String[]{"libtesseract.5.dylib", "libleptonica.6.dylib"}
+        : new String[]{"libtesseract.so.5", "libleptonica.so.6"};
+  }
+
   @Test
   public void versionedOnlyPayloadIsMissingTheUnversionedAliases() throws Exception {
     assumeNotWindows();
-    tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
-        "libtesseract.so.5", "libleptonica.so.6");
+    tierDirWith(versionedPayload());
     List<String> missing = NativeProvenance.missingAliases();
     assertTrue(missing.contains(System.mapLibraryName("tesseract")));
     assertTrue(missing.contains(System.mapLibraryName("leptonica")));
@@ -95,8 +101,7 @@ public class NativeProvenanceTest {
   @Test
   public void nothingMissingOnceTheAliasesExist() throws Exception {
     assumeNotWindows();
-    Path dir = tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
-        "libtesseract.so.5", "libleptonica.so.6");
+    Path dir = tierDirWith(versionedPayload());
     NativeProvenance.createAliases();
     NativeProvenance.recordExtraction(dir);
     assertTrue(NativeProvenance.missingAliases().isEmpty());
@@ -105,15 +110,42 @@ public class NativeProvenanceTest {
   @Test
   public void aliasesTargetTheRealLibraryNeverAnotherAlias() throws Exception {
     assumeNotWindows();
-    Path dir = tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
-        "libtesseract.so.5", "libleptonica.so.6");
+    // Seed a tier that ALREADY has an unversioned file, as the darwin tier does. The earlier
+    // version of this test could not have caught an alias pointing at another unversioned file,
+    // because its fixture never contained one — the name promised more than the body checked.
+    Path dir = tierDirWith(versionedPayload());
+    Files.write(dir.resolve(System.mapLibraryName("leptonica")), new byte[]{0});
+    NativeProvenance.recordExtraction(dir);
     NativeProvenance.createAliases();
+
+    java.util.List<String> versioned = java.util.Arrays.asList(versionedPayload());
     for (String name : new String[]{"tesseract", "leptonica", "lept"}) {
       Path alias = dir.resolve(System.mapLibraryName(name));
+      if (!Files.isSymbolicLink(alias)) {
+        continue;
+      }
+      String target = Files.readSymbolicLink(alias).getFileName().toString();
+      assertTrue(versioned.contains(target),
+          "alias " + alias.getFileName() + " -> " + target
+              + " : must point at a real versioned library, not " + versioned);
+    }
+  }
+
+  @Test
+  public void aliasTargetsNeverCrossObjectFormats() throws Exception {
+    assumeNotWindows();
+    // A directory holding both formats cannot occur in a shipped tier, but a hand-assembled one
+    // can — and a .so aliased to a Mach-O binary fails only at load time, far from the cause.
+    Path dir = tierDirWith("libtesseract.5.dylib", "libtesseract.so.5",
+        "libleptonica.6.dylib", "libleptonica.so.6");
+    NativeProvenance.createAliases();
+    String suffix = System.mapLibraryName("x").substring("libx".length());  // ".dylib" / ".so"
+    for (String name : new String[]{"tesseract", "leptonica"}) {
+      Path alias = dir.resolve(System.mapLibraryName(name));
       if (Files.isSymbolicLink(alias)) {
-        Path target = dir.resolve(Files.readSymbolicLink(alias));
-        assertFalse(Files.isSymbolicLink(target),
-            "alias " + alias.getFileName() + " chains to another alias");
+        String target = Files.readSymbolicLink(alias).getFileName().toString();
+        assertTrue(target.endsWith(suffix),
+            "alias " + alias.getFileName() + " -> " + target + " crosses object format");
       }
     }
   }
@@ -131,6 +163,19 @@ public class NativeProvenanceTest {
   @Test
   public void unverifiedUntilAnOcrCallHasBeenObserved() {
     // Must never read as "fine" merely because nothing has been checked yet.
+    NativeProvenance.resetForTest();
     assertFalse(NativeProvenance.isBindingVerified());
+  }
+
+  @Test
+  public void zeroObservationsIsNotAPass() throws Exception {
+    // The Windows case: tess4j binds fully versioned names it ships itself, so none of the short
+    // names is ever bound and verifyBinding() observes nothing. Running it must not flip the flag
+    // to true — an earlier version did exactly that, on the one platform it had checked nothing on.
+    NativeProvenance.resetForTest();
+    tierDirWith(versionedPayload());
+    NativeProvenance.verifyBinding();
+    assertFalse(NativeProvenance.isBindingVerified(),
+        "verifyBinding() reported success without observing a single bound name");
   }
 }

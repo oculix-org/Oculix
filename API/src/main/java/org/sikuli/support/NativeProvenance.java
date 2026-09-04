@@ -54,6 +54,16 @@ public class NativeProvenance {
     extractionDir = tierDir;
   }
 
+  /**
+   * Clears the one-shot latch so a test can exercise {@link #verifyBinding()} more than once.
+   * Package-private and used only by tests — without it the binding flag can only be asserted at
+   * its initial value, which is how a claim about it went untested in the first place.
+   */
+  static void resetForTest() {
+    bindingChecked = false;
+    bindingVerified = false;
+  }
+
   public static Path getExtractionDir() {
     return extractionDir;
   }
@@ -238,7 +248,11 @@ public class NativeProvenance {
           missing.add(alias);
         }
       }
-      if (Commons.runningLinux() && !missing.isEmpty() && targetFor(dir, "lept") != null
+      // Evaluated independently of what the loop above found. Gating this on the unversioned
+      // set being incomplete would skip exactly the users who already followed our earlier
+      // three-symlink advice: their unversioned aliases exist, so nothing is "missing", and the
+      // one file that satisfies tesseract's ELF NEEDED never gets created.
+      if (Commons.runningLinux() && targetFor(dir, "lept") != null
           && !Files.exists(dir.resolve(LINUX_LEPT_SONAME))) {
         missing.add(LINUX_LEPT_SONAME);
       }
@@ -302,7 +316,35 @@ public class NativeProvenance {
     return made;
   }
 
+  /**
+   * The versioned name tesseract's ELF {@code NEEDED} asks for. Verified on three of the four
+   * Linux tiers; {@code linux-x86-64-legacy} declares {@code libleptonica.so.6} instead, where
+   * this link is simply unused rather than harmful. Assuming a SONAME rather than reading it is
+   * what cost an earlier report a retraction, so it is stated here rather than left implicit.
+   */
   private static final String LINUX_LEPT_SONAME = "liblept.so.5";
+
+  /** True for any of the unversioned names this class creates, on any platform. */
+  private static boolean isAliasName(String lowerName) {
+    for (String n : CONSUMER_NAMES) {
+      if (lowerName.equals(System.mapLibraryName(n).toLowerCase(Locale.ROOT))) {
+        return true;
+      }
+    }
+    return lowerName.equals(LINUX_LEPT_SONAME);
+  }
+
+  /**
+   * Restricts alias targets to this platform's object format. A tier never ships both, but a test
+   * fixture or a hand-assembled directory can, and pointing a {@code .so} alias at a Mach-O binary
+   * would produce a link that fails only at load time.
+   */
+  private static String platformSuffix() {
+    if (Commons.runningWindows()) {
+      return ".dll";
+    }
+    return Commons.runningMac() ? ".dylib" : ".so";
+  }
 
   private static String familyOf(String alias) {
     return alias.contains("leptonica") ? "leptonica" : alias.contains("lept") ? "lept" : "tesseract";
@@ -319,8 +361,11 @@ public class NativeProvenance {
           .filter(p -> Files.isRegularFile(p, java.nio.file.LinkOption.NOFOLLOW_LINKS))
           .filter(p -> {
             String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
-            return n.contains(want) && !n.equals(System.mapLibraryName(name))
-                && !n.equals(LINUX_LEPT_SONAME);
+            // Exclude every name we might create, not just this one: on a tier that already ships
+            // unversioned files (darwin does, darwin-aarch64 does not) an alias could otherwise be
+            // pointed at another unversioned file, which is the indirection this is meant to stop.
+            return n.contains(want) && !isAliasName(n)
+                && n.endsWith(platformSuffix());
           })
           .findFirst().orElse(null);
     } catch (Throwable e) {
