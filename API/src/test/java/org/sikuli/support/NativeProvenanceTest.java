@@ -200,10 +200,10 @@ public class NativeProvenanceTest {
     java.util.List<String> forA = NativeProvenance.missingAliases(a);
     assertFalse(forA.isEmpty(), "fixture should need aliases");
 
-    // Re-point the field, exactly as a lazy static init would, then create.
+    // Re-point the field, exactly as a lazy static init would, then create against the captured
+    // path rather than whatever the field now says.
     NativeProvenance.recordExtraction(b);
-    NativeProvenance.recordExtraction(a);
-    NativeProvenance.createAliases();
+    NativeProvenance.createAliases(a);
 
     for (String alias : forA) {
       assertTrue(Files.exists(a.resolve(alias)), "alias " + alias + " belongs in the recorded dir");

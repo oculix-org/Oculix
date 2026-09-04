@@ -316,9 +316,19 @@ public class NativeProvenance {
    * nothing.
    */
   public static int createAliases() {
-    // Captured once and threaded through: every name below and every file written must refer to
-    // the same directory, whatever else re-points the field in between.
-    Path dir = extractionDir;
+    return createAliases(extractionDir);
+  }
+
+  /**
+   * As {@link #createAliases()}, for a directory the caller has already captured.
+   *
+   * <p>Threading the path all the way through is what makes the guarantee real. Reading the static
+   * inside this method still leaves a window between a caller's {@code recordExtraction} and the
+   * call itself, because the first touch of {@link Commons} anywhere triggers its static init and
+   * re-points the field. Demonstrated rather than imagined: a probe recorded a scratch directory,
+   * received the correct alias list for it, and then wrote the alias into the real cache instead.
+   */
+  public static int createAliases(Path dir) {
     if (dir == null) {
       return 0;
     }
