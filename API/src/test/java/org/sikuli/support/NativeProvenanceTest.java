@@ -188,6 +188,30 @@ public class NativeProvenanceTest {
   }
 
   @Test
+  public void oneCallNeverStraddlesTwoDirectories() throws Exception {
+    assumeNotWindows();
+    // extractionDir is a mutable static that lazy init can re-point underneath a caller. The names
+    // and the writes must therefore come from one captured value: a list computed for directory A
+    // must never be written into directory B, because the consequence is files on disk.
+    Path a = tierDirWith(versionedPayload());
+    Path b = Files.createTempDirectory("oculix-other");
+    b.toFile().deleteOnExit();
+
+    java.util.List<String> forA = NativeProvenance.missingAliases(a);
+    assertFalse(forA.isEmpty(), "fixture should need aliases");
+
+    // Re-point the field, exactly as a lazy static init would, then create.
+    NativeProvenance.recordExtraction(b);
+    NativeProvenance.recordExtraction(a);
+    NativeProvenance.createAliases();
+
+    for (String alias : forA) {
+      assertTrue(Files.exists(a.resolve(alias)), "alias " + alias + " belongs in the recorded dir");
+      assertFalse(Files.exists(b.resolve(alias)), "alias " + alias + " leaked into another dir");
+    }
+  }
+
+  @Test
   public void unverifiedUntilAnOcrCallHasBeenObserved() {
     // Must never read as "fine" merely because nothing has been checked yet.
     NativeProvenance.resetForTest();

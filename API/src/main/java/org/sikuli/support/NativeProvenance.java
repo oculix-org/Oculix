@@ -51,7 +51,14 @@ public class NativeProvenance {
    * (e.g. {@code ~/.cache/legerix/<version>/darwin-aarch64}); we previously discarded it.
    */
   public static void recordExtraction(Path tierDir) {
+    Path previous = extractionDir;
     extractionDir = tierDir;
+    if (previous != null && tierDir != null && !previous.equals(tierDir)) {
+      // Worth surfacing: the first touch of Commons from anywhere triggers its static init, which
+      // loads the natives and records the real tier directory — silently replacing whatever a
+      // caller had set. Anything computed against the old value is now stale.
+      Commons.startLog(3, "[OculiX] native extraction dir changed: %s -> %s", previous, tierDir);
+    }
   }
 
   /**
@@ -236,8 +243,21 @@ public class NativeProvenance {
    * </ul>
    */
   public static List<String> missingAliases() {
+    return missingAliases(extractionDir);
+  }
+
+  /**
+   * As {@link #missingAliases()}, for a directory the caller has already captured.
+   *
+   * <p>The explicit parameter is the point. {@code extractionDir} is a mutable static, and the
+   * first touch of {@link Commons} from anywhere triggers its static init, which loads the natives
+   * and records the real tier directory — replacing whatever a caller had set. Reading the field
+   * once per method meant a single logical operation could straddle two directories: the alias
+   * names computed for one, the symlinks written into another. With a filesystem write as the
+   * consequence, that is not a race worth leaving open.
+   */
+  static List<String> missingAliases(Path dir) {
     List<String> missing = new ArrayList<>();
-    Path dir = extractionDir;
     if (dir == null || !Files.isDirectory(dir) || Commons.runningWindows()) {
       return missing;
     }
@@ -274,7 +294,7 @@ public class NativeProvenance {
   /** The command a user who declines can run themselves. Never leave them worse off for saying no. */
   public static String manualCommand() {
     Path dir = extractionDir;
-    List<String> missing = missingAliases();
+    List<String> missing = missingAliases(dir);
     if (dir == null || missing.isEmpty()) {
       return "";
     }
@@ -296,12 +316,14 @@ public class NativeProvenance {
    * nothing.
    */
   public static int createAliases() {
+    // Captured once and threaded through: every name below and every file written must refer to
+    // the same directory, whatever else re-points the field in between.
     Path dir = extractionDir;
     if (dir == null) {
       return 0;
     }
     int made = 0;
-    for (String alias : missingAliases()) {
+    for (String alias : missingAliases(dir)) {
       // A DT_NEEDED-derived alias always names a leptonica; the unversioned ones map by family.
       Path target = targetFor(dir, alias.toLowerCase(Locale.ROOT).contains("lept")
           && !isAliasName(alias.toLowerCase(Locale.ROOT)) ? "lept" : familyOf(alias));
