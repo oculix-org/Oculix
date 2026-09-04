@@ -93,8 +93,8 @@ public class NativeProvenanceTest {
   @Test
   public void versionedOnlyPayloadIsMissingTheUnversionedAliases() throws Exception {
     assumeNotWindows();
-    tierDirWith(versionedPayload());
-    List<String> missing = NativeProvenance.missingAliases();
+    Path dir = tierDirWith(versionedPayload());
+    List<String> missing = NativeProvenance.missingAliases(dir);
     assertTrue(missing.contains(System.mapLibraryName("tesseract")));
     assertTrue(missing.contains(System.mapLibraryName("leptonica")));
     assertTrue(missing.contains(System.mapLibraryName("lept")));
@@ -108,9 +108,8 @@ public class NativeProvenanceTest {
   public void nothingMissingOnceTheAliasesExist() throws Exception {
     assumeNotWindows();
     Path dir = tierDirWith(versionedPayload());
-    NativeProvenance.createAliases();
-    NativeProvenance.recordExtraction(dir);
-    assertTrue(NativeProvenance.missingAliases().isEmpty());
+    NativeProvenance.createAliases(dir);
+    assertTrue(NativeProvenance.missingAliases(dir).isEmpty());
   }
 
   @Test
@@ -122,8 +121,7 @@ public class NativeProvenanceTest {
     Path dir = tierDirWith(versionedPayload());
     Files.write(dir.resolve(System.mapLibraryName("leptonica")),
         System.mapLibraryName("x").endsWith(".dylib") ? MACHO_MAGIC : ELF_MAGIC);
-    NativeProvenance.recordExtraction(dir);
-    NativeProvenance.createAliases();
+    NativeProvenance.createAliases(dir);
 
     java.util.List<String> versioned = java.util.Arrays.asList(versionedPayload());
     for (String name : new String[]{"tesseract", "leptonica", "lept"}) {
@@ -145,7 +143,7 @@ public class NativeProvenanceTest {
     // can — and a .so aliased to a Mach-O binary fails only at load time, far from the cause.
     Path dir = tierDirWith("libtesseract.5.dylib", "libtesseract.so.5",
         "libleptonica.6.dylib", "libleptonica.so.6");
-    NativeProvenance.createAliases();
+    NativeProvenance.createAliases(dir);
     String suffix = System.mapLibraryName("x").substring("libx".length());  // ".dylib" / ".so"
     for (String name : new String[]{"tesseract", "leptonica"}) {
       Path alias = dir.resolve(System.mapLibraryName(name));
@@ -162,7 +160,7 @@ public class NativeProvenanceTest {
     assumeNotWindows();
     Path dir = tierDirWith("libtesseract.5.dylib", "libleptonica.6.dylib",
         "libtesseract.so.5", "libleptonica.so.6");
-    String cmd = NativeProvenance.manualCommand();
+    String cmd = NativeProvenance.manualCommand(dir);
     assertTrue(cmd.contains("cd " + dir));
     assertTrue(cmd.contains("ln -s"));
   }

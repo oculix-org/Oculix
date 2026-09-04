@@ -242,14 +242,10 @@ public class NativeProvenance {
    *     lookup this repairs never happens there.</li>
    * </ul>
    */
-  public static List<String> missingAliases() {
-    return missingAliases(extractionDir);
-  }
-
   /**
-   * As {@link #missingAliases()}, for a directory the caller has already captured.
+   * The aliases missing from a directory the caller has captured.
    *
-   * <p>The explicit parameter is the point. {@code extractionDir} is a mutable static, and the
+   * <p>There is deliberately no no-argument form. The explicit parameter is the point: {@code extractionDir} is a mutable static, and the
    * first touch of {@link Commons} from anywhere triggers its static init, which loads the natives
    * and records the real tier directory — replacing whatever a caller had set. Reading the field
    * once per method meant a single logical operation could straddle two directories: the alias
@@ -292,11 +288,12 @@ public class NativeProvenance {
   }
 
   /** The command a user who declines can run themselves. Never leave them worse off for saying no. */
-  public static String manualCommand() {
-    return manualCommand(extractionDir);
-  }
-
-  /** As {@link #manualCommand()}, for a directory the caller has already captured. */
+  /**
+   * The command a user who declines can run themselves. Never leave them worse off for saying no.
+   *
+   * <p>Takes the directory explicitly, like everything else here. See {@link #missingAliases(Path)}
+   * for why there is no convenience form that reads the field for you.
+   */
   public static String manualCommand(Path dir) {
     List<String> missing = missingAliases(dir);
     if (dir == null || missing.isEmpty()) {
@@ -319,12 +316,9 @@ public class NativeProvenance {
    * where links are unavailable. Idempotent — if Legerix ever ships these itself, this does
    * nothing.
    */
-  public static int createAliases() {
-    return createAliases(extractionDir);
-  }
-
   /**
-   * As {@link #createAliases()}, for a directory the caller has already captured.
+   * Creates the missing aliases in a directory the caller has captured, returning how many were
+   * made. Symlinks; falls back to a copy where links are unavailable. Idempotent.
    *
    * <p>Threading the path all the way through is what makes the guarantee real. Reading the static
    * inside this method still leaves a window between a caller's {@code recordExtraction} and the
