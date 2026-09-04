@@ -872,7 +872,7 @@ public class PreferencesWin extends JFrame {
   }
 
   private static String wrapped(String text) {
-    return "<html><body style='width:290px'>" + text + "</body></html>";
+    return "<html><p width='290'>" + text + "</p></html>";
   }
 
   /** Greys out a hotkey's row when that hotkey is switched off. */
