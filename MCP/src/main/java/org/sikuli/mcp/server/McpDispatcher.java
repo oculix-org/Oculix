@@ -180,7 +180,19 @@ public final class McpDispatcher {
     return PROTOCOL_VERSION;
   }
 
-  private static final String[] SUPPORTED_PROTOCOL_VERSIONS = { PROTOCOL_VERSION };
+  /**
+   * Revisions we can honestly echo back. Our surface (initialize,
+   * tools/list, tools/call, ping) is identical across all four; what
+   * changes between them (Streamable HTTP, elicitation, structured
+   * output, URL-mode elicitation) is either already served or simply
+   * not used. Claude Code proposes 2025-11-25 — answering 2024-11-05
+   * to it was a lie that only produced a WARN on every connect.
+   * 2026-07-28 is deliberately absent: it removes initialize and
+   * replaces server-initiated requests with client retries, which is
+   * a different server, not a different date.
+   */
+  private static final String[] SUPPORTED_PROTOCOL_VERSIONS = {
+      PROTOCOL_VERSION, "2025-03-26", "2025-06-18", "2025-11-25" };
 
   private JSONObject handleToolsCall(Object id, JSONObject params, SessionHandle handle) {
     String toolName = params.optString("name", null);
