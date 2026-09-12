@@ -225,13 +225,22 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-<!--
               <archive>
-                <manifest>
-                  <mainClass>org.sikuli.script.SX</mainClass>
-                </manifest>
+                <!-- Legerix keys its extraction cache on this manifest
+                     section; without it the Windows jar reported 5.5.0
+                     instead of ${legerix.version} and a payload bump
+                     would never invalidate the cache. Same block as the
+                     Linux profile. -->
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
--->
               <descriptors>
                 <descriptor>makeapi-win.xml</descriptor>
               </descriptors>
@@ -261,13 +270,17 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-<!--
               <archive>
-                <manifest>
-                  <mainClass>org.sikuli.script.SX</mainClass>
-                </manifest>
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
--->
               <descriptors>
                 <descriptor>makeapi-mac.xml</descriptor>
               </descriptors>

@@ -162,6 +162,20 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <!-- Legerix keys its extraction cache on this manifest
+                     section; only the Linux profile carried it, so the
+                     Windows and macOS jars reported 5.5.0 instead of
+                     ${legerix.version} and a payload bump would never
+                     invalidate the cache. -->
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeide.xml</descriptor>
@@ -196,6 +210,15 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeide-win.xml</descriptor>
@@ -230,6 +253,15 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <manifestSections>
+                  <manifestSection>
+                    <name>io/github/julienmerconsulting/legerix/</name>
+                    <manifestEntries>
+                      <Implementation-Title>Legerix</Implementation-Title>
+                      <Implementation-Version>${legerix.version}</Implementation-Version>
+                    </manifestEntries>
+                  </manifestSection>
+                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeide-mac.xml</descriptor>
