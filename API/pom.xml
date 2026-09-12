@@ -209,41 +209,10 @@
   </dependencies>
 
   <profiles>
-    <!-- complete-jar -->
-    <profile>
-      <id>complete-jar</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-assembly-plugin</artifactId>
-            <version>3.8.0</version>
-            <configuration>
-         <!--     <archive>
-                <manifest>
-                  <mainClass>org.sikuli.script.SX</mainClass>
-                </manifest>
-              </archive>
--->
-              <descriptors>
-                <descriptor>makeapi.xml</descriptor>
-              </descriptors>
-            </configuration>
-            <executions>
-              <execution>
-                <id>make-assembly</id>
-                <phase>package</phase>
-                <goals>
-                  <goal>single</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
+    <!-- The API fat jar is built per OS only (complete-{win,mac,lux}-jar):
+         a single all-platform jar would carry ~250 MB of natives for one
+         platform's use. The generic complete-jar profile and its makeapi.xml
+         descriptor went away with that decision. -->
     <!-- complete-jar Windows only-->
     <profile>
       <id>complete-win-jar</id>
