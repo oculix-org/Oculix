@@ -136,6 +136,16 @@
          and config are picked up from <pluginManagement> above via the standard merge. -->
     <pluginManagement>
       <plugins>
+        <!-- central-publishing-maven-plugin: one version for the whole
+             reactor. The parent's release profile used to pin 0.9.0 while
+             API, IDE and MCP each pinned 0.10.0 — two versions of the same
+             plugin in a single deploy. Modules declare the plugin without
+             a version and inherit this one. -->
+        <plugin>
+          <groupId>org.sonatype.central</groupId>
+          <artifactId>central-publishing-maven-plugin</artifactId>
+          <version>0.10.0</version>
+        </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-site-plugin</artifactId>
@@ -251,7 +261,6 @@
           <plugin>
             <groupId>org.sonatype.central</groupId>
             <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.9.0</version>
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>
