@@ -268,7 +268,13 @@ public class Key {
 
   //<editor-fold defaultstate="collapsed" desc="KeyNames to UniCode (used in type() with Key.XXX)">
   public static final String SPACE = " ";
-  public static final String ENTER = "\n";
+  // "\r", as in release_2.0.x (the line SikuliX 2.0.5 shipped from). The
+  // Recorder work of 2019 flipped it to "\n" on master and it was never
+  // reconciled. On a local Robot both map to VK_ENTER (KeyboardLayout), so
+  // nobody noticed; over VNC, VNCRobot.charToXlib sends '\n' as XK_Linefeed
+  // and '\r' as XK_Return, and a 3270 terminal treats Linefeed as "move to
+  // the next line", not as Enter. Keep Keys.ENTER (hotkey package) in step.
+  public static final String ENTER = "\r";
   public static final String BACKSPACE = "\b";
   public static final String TAB = "\t";
   public static final String ESC = "\u001b";
