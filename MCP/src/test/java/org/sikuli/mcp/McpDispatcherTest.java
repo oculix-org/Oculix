@@ -138,6 +138,22 @@ class McpDispatcherTest {
   }
 
   @Test
+  void protocolVersionNegotiation_echoesNewerSupportedRevisions() {
+    // What Claude Code actually proposes today, plus the two in between.
+    for (String rev : new String[] { "2025-03-26", "2025-06-18", "2025-11-25" }) {
+      assertEquals(rev, McpDispatcher.negotiateProtocolVersion(rev));
+    }
+  }
+
+  @Test
+  void protocolVersionNegotiation_refusesRevisionWithoutInitialize() {
+    // 2026-07-28 drops the initialize handshake; echoing it would claim
+    // a protocol shape this server does not implement.
+    assertEquals(McpDispatcher.PROTOCOL_VERSION,
+        McpDispatcher.negotiateProtocolVersion("2026-07-28"));
+  }
+
+  @Test
   void protocolVersionNegotiation_fallsBackOnUnknown() {
     // Unknown proposal → we respond with our canonical version and log a warn.
     assertEquals(McpDispatcher.PROTOCOL_VERSION,
