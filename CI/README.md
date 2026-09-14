@@ -9,7 +9,10 @@ The runner is a **licensed product** of OculiX's author; its source is not publi
 documents how it works and how to operate it. To deploy it, contact
 **julien.mer@oculix.org**.
 
-<!-- video: side-by-side recording of a TSO logon on TK5, log on the left, screen on the right -->
+A TSO logon on TK5 through the runner, recorded by the runner itself: the run's log on the left,
+the mainframe screen on the right, same clock.
+
+https://github.com/user-attachments/assets/b6ed5c2d-1fe7-4bfb-a89f-f7a702ae92de
 
 ## Use cases
 
