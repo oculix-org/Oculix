@@ -84,7 +84,31 @@ public class Screen extends Region implements IScreen, EventObserver {
     if (Commons.runningMac()) {
       MouseDevice.start();
     }
+    warmUpFind();
     log(logLevel, "initScreens: ending");
+  }
+
+  /**
+   * Runs the whole find path once, in memory: a corner of the primary screen is
+   * captured, round-tripped through PNG, given its own position and searched with
+   * exists() in a small region. Nothing is written anywhere. The first real
+   * find of the process then costs what every following one costs.
+   */
+  private static void warmUpFind() {
+    if (!Settings.WarmUpFind) {
+      return;
+    }
+    try {
+      Screen s = screens[primaryScreen];
+      java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+      javax.imageio.ImageIO.write(s.capture(s.x, s.y, 32, 32).getImage(), "png", bytes);
+      BufferedImage decoded = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes.toByteArray()));
+      Image patch = new Image(decoded, "oculix-warmup");
+      patch.setLastSeen(new Rectangle(s.x, s.y, 32, 32), 0.99);
+      new Region(s.x, s.y, 64, 64).exists(patch, 0);
+    } catch (Throwable e) {
+      log(logLevel, "initScreens: warm-up skipped: %s", e.getMessage());
+    }
   }
 
   public static void resetScreens() {
