@@ -3576,21 +3576,29 @@ public class Region extends Element {
     return doCheckLastSeenAndCreateFinder(null, img, findTimeout, ptn);
   }
 
+  /**
+   * Similarity to use for a search around the last known position of {@code img},
+   * or {@code null} when the full search must run: no position known, or the
+   * similarity the caller asks for (the Pattern's, {@link Settings#MinSimilarity}
+   * for a plain image) is stricter than the last score minus 0.01.
+   */
+  static Double lastSeenScoreFor(Image img, Pattern ptn) {
+    if (!Settings.CheckLastSeen || img == null || img.getLastSeen() == null) {
+      return null;
+    }
+    double score = img.getLastSeenScore() - 0.01;
+    double wanted = ptn != null ? ptn.getSimilar() : Settings.MinSimilarity;
+    return wanted > score ? null : score;
+  }
+
   private Finder doCheckLastSeenAndCreateFinder(ScreenImage base, Image img, double findTimeout, Pattern ptn) {
     // #353: the position is known (PNG -> lastSeen at load). Do NOT capture the full
     // screen to locate it — capture ONLY the small ROI around it (the PoC's approach,
     // source of the ~x6.5 win; wait() inherits it on every poll). The full-screen
     // capture is deferred to the fallback path (no chunk / moved / not-found).
-    boolean shouldCheckLastSeen = false;
-    double score = 0;
-    if (Settings.CheckLastSeen && null != img.getLastSeen()) {
-      score = img.getLastSeenScore() - 0.01;
-      if (ptn != null) {
-        if (!(ptn.getSimilar() > score)) {
-          shouldCheckLastSeen = true;
-        }
-      }
-    }
+    Double lastSeenScore = lastSeenScoreFor(img, ptn);
+    boolean shouldCheckLastSeen = lastSeenScore != null;
+    double score = shouldCheckLastSeen ? lastSeenScore : 0;
     if (shouldCheckLastSeen) {
       Region r = Region.create(img.getLastSeen());
       // #353: expand the known position x2.5 around its center (clamped to this
