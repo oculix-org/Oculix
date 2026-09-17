@@ -371,6 +371,8 @@ class RegionSourceWindowTest {
     } catch (Throwable ignored) {
       // Swing fallback may fail in headless-ish setups; the invariant we
       // test lives upstream (native highlight refused on secs <= 0).
+    } finally {
+      switchOff(r);
     }
     assertEquals(0, w.highlightNativeCalls,
         "persistent whole-window highlight must NOT route to highlightNative (would flash and vanish)");
@@ -387,10 +389,24 @@ class RegionSourceWindowTest {
     try {
       roi.doHighlight(-1, null);
     } catch (Throwable ignored) {
+    } finally {
+      switchOff(roi);
     }
     assertEquals(0, w.highlightRegionCalls,
         "persistent ROI highlight must NOT route to highlightRegionNative (would flash and vanish)");
     assertEquals(0, w.highlightNativeCalls);
+  }
+
+  /**
+   * Removes a persistent Swing highlight from the screen: the overlay is shown
+   * on the EDT, so the switch-off is queued behind it, and the test leaves
+   * nothing drawn on the developer's screen.
+   */
+  private static void switchOff(Region r) {
+    try {
+      javax.swing.SwingUtilities.invokeAndWait(r::highlightOff);
+    } catch (Exception ignored) {
+    }
   }
 
   // ---------- Spanning-logical tests (no physical mixed-DPI required) ----------
