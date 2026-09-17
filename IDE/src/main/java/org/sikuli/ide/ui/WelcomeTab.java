@@ -51,7 +51,8 @@ public class WelcomeTab extends JPanel {
 
   private java.awt.image.BufferedImage hazeCache;
   private java.awt.image.BufferedImage geckoCache;
-  private static java.awt.image.BufferedImage geckoSource;
+  private String geckoCacheLocale;
+  private static final java.util.Map<String, java.awt.image.BufferedImage> geckoSources = new java.util.HashMap<>();
 
   public WelcomeTab(ActionListener onNew, ActionListener onOpen,
                     ActionListener onNewWorkspace, ActionListener onOpenWorkspace) {
@@ -230,7 +231,8 @@ public class WelcomeTab extends JPanel {
    * the reporter fills in (key + current value + suggested value +
    * context).
    */
-  private static String buildReportTranslationUrl() {
+  /** The IDE locale as a bundle tag: {@code fr}, {@code zh_CN}, {@code pt_BR}. */
+  private static String currentLocaleTag() {
     java.util.Locale locale;
     try {
       locale = PreferencesUser.get().getLocale();
@@ -241,6 +243,11 @@ public class WelcomeTab extends JPanel {
     if (locale.getCountry() != null && !locale.getCountry().isEmpty()) {
       localeTag = localeTag + "_" + locale.getCountry();
     }
+    return localeTag;
+  }
+
+  private static String buildReportTranslationUrl() {
+    String localeTag = currentLocaleTag();
     // Open the dedicated translation_issue.yml form template (defined in
     // .github/ISSUE_TEMPLATE/) instead of a free-form issue. The form's
     // 'locale' and 'oculix-version' inputs are pre-populated via query
@@ -264,9 +271,12 @@ public class WelcomeTab extends JPanel {
     int w = getWidth();
     int h = getHeight();
     if (w <= 0 || h <= 0) return;
-    if (hazeCache == null || hazeCache.getWidth() != w || hazeCache.getHeight() != h) {
+    String localeTag = currentLocaleTag();
+    if (hazeCache == null || hazeCache.getWidth() != w || hazeCache.getHeight() != h
+        || !localeTag.equals(geckoCacheLocale)) {
       hazeCache = renderHaze(w, h);
-      geckoCache = renderGecko(w, h);
+      geckoCache = renderGecko(w, h, localeTag);
+      geckoCacheLocale = localeTag;
     }
     g.drawImage(hazeCache, 0, 0, null);
     if (geckoCache != null) {
@@ -275,19 +285,41 @@ public class WelcomeTab extends JPanel {
   }
 
   /**
-   * Loads the gecko mascot once per JVM, then composes it on the right edge
-   * of the panel at 28% alpha — fills the empty space without competing
-   * with the hero text. Cached at panel size, regenerated only on resize.
+   * The gecko of a locale, loaded once per JVM: {@code /icons/gecko/<locale>.png}
+   * (the gecko in that language's costume), else the language alone, else the
+   * plain hero gecko.
    */
-  private java.awt.image.BufferedImage renderGecko(int w, int h) {
-    if (geckoSource == null) {
-      try {
-        java.net.URL url = WelcomeTab.class.getResource("/icons/gecko_cyclope_hero.png");
-        if (url != null) geckoSource = javax.imageio.ImageIO.read(url);
-      } catch (Exception ignored) {
-        return null;
+  private static java.awt.image.BufferedImage geckoFor(String localeTag) {
+    synchronized (geckoSources) {
+      if (geckoSources.containsKey(localeTag)) {
+        return geckoSources.get(localeTag);
       }
+      java.awt.image.BufferedImage found = null;
+      String language = localeTag.contains("_") ? localeTag.substring(0, localeTag.indexOf('_')) : localeTag;
+      for (String path : new String[]{"/icons/gecko/" + localeTag + ".png", "/icons/gecko/" + language + ".png",
+          "/icons/gecko_cyclope_hero.png"}) {
+        try {
+          java.net.URL url = WelcomeTab.class.getResource(path);
+          if (url != null) {
+            found = javax.imageio.ImageIO.read(url);
+            if (found != null) break;
+          }
+        } catch (Exception ignored) {
+          // next candidate
+        }
+      }
+      geckoSources.put(localeTag, found);
+      return found;
     }
+  }
+
+  /**
+   * Composes the locale's gecko on the right edge of the panel at 40% alpha:
+   * present without competing with the hero text. Cached at panel size and
+   * locale, regenerated on resize or language change.
+   */
+  private java.awt.image.BufferedImage renderGecko(int w, int h, String localeTag) {
+    java.awt.image.BufferedImage geckoSource = geckoFor(localeTag);
     if (geckoSource == null) return null;
 
     java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(
@@ -313,7 +345,7 @@ public class WelcomeTab extends JPanel {
     int x = (int) (w * 0.78) - targetW / 2;
     int y = (h - targetH) / 2;
 
-    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.28f));
+    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.40f));
     g2.drawImage(geckoSource, x, y, targetW, targetH, null);
     g2.dispose();
     return out;
