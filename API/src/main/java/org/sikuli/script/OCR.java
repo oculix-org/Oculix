@@ -11,13 +11,14 @@ import org.sikuli.support.Commons;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.*;
 
 /**
- * Static helper class for OCR via Tess4J/Tesseract.
+ * Static helper class for OCR via Octachorix/Tesseract.
  * <p>
  * The methods in this class are not threadsafe.
  * @see <a href="https://sikulix-2014.readthedocs.io/en/latest/textandocr.html">SikuliX docs: Text and OCR</a>
@@ -90,15 +91,20 @@ public class OCR {
 
   //<editor-fold desc="05 options">
   private static Options options = new Options();
+  private static String settingsLanguageApplied = Settings.OcrLanguage;
 
   /**
    * access/get the current global Options (Singleton).
+   * <p>A change of {@link Settings#OcrLanguage} since the last call is applied to the global language.
    *
    * @return the global Options
    */
   public static Options globalOptions() {
-    if (!Settings.OcrLanguage.equals("eng") && !Settings.OcrLanguage.isEmpty()) {
-      options.language(Settings.OcrLanguage);
+    String settingsLanguage = Settings.OcrLanguage;
+    if (settingsLanguage != null && !settingsLanguage.isEmpty()
+        && !settingsLanguage.equals(settingsLanguageApplied)) {
+      options.language(settingsLanguage);
+      settingsLanguageApplied = settingsLanguage;
     }
     return options;
   }
@@ -143,6 +149,7 @@ public class OCR {
       options.configs = new LinkedHashSet<>(configs);
       options.bestDPI = bestDPI;
       options.userDPI = userDPI;
+      options.largeImageFactor = largeImageFactor;
       return options;
     }
 
@@ -178,6 +185,7 @@ public class OCR {
       configs.clear();
       bestDPI = null;
       userDPI(TESSERACT_USER_DEFINED_DPI);
+      largeImageFactor = LARGE_IMAGE_FACTOR_DEFAULT;
       return this;
     }
 
@@ -200,7 +208,7 @@ public class OCR {
                       "\nlanguage(%s) oem(%d) psm(%d) height(%.1f) factor(%.2f) dpi(%d) %s",
               dataPath(), language(), oem(), psm(),
               textHeight(), factor(),
-              Toolkit.getDefaultToolkit().getScreenResolution(), light);
+              screenDpi(), light);
       if (hasVariablesOrConfigs()) {
         msg += "\n" + logVariablesConfigs();
       }
@@ -209,29 +217,52 @@ public class OCR {
 
     /**
      * INTERNAL: validates this Options before OCR usage.
+     * <p>Every language of a {@code lang1+lang2} combination needs its own traineddata file;
+     * an OSD page segmentation mode needs osd.traineddata as well.
      */
     protected void validate() {
-      String lang = language();
-      File trained = new File(dataPath(), lang + ".traineddata");
-      if (!trained.exists()) {
-        List<String> available = availableLanguages();
-        String availMsg = available.isEmpty() ? "(none found)" : String.join(", ", available);
-        String msg = "\n\n"
-            + "══════════════════════════════════════════════════════════════\n"
-            + " OCR language '" + lang + "' is not available.\n"
-            + "══════════════════════════════════════════════════════════════\n\n"
-            + " Looked in: " + dataPath() + "\n"
-            + " Languages currently bundled: " + availMsg + "\n\n"
-            + " Fix:\n"
-            + "  - Pick a bundled language via Settings.OcrLanguage = \"eng\";\n"
-            + "  - Or drop a <lang>.traineddata file into a custom tessdata\n"
-            + "    folder and set Settings.OcrDataPath to its parent.\n"
-            + "══════════════════════════════════════════════════════════════";
-        Debug.error(msg);
-        throw new SikuliXception(String.format("OCR: language: no %s.traineddata in %s (available: %s)",
-                lang, dataPath(), availMsg));
+      for (String lang : language().split("\\+")) {
+        File trained = new File(dataPath(), lang + ".traineddata");
+        if (!trained.exists()) {
+          List<String> available = availableLanguages();
+          String availMsg = available.isEmpty() ? "(none found)" : String.join(", ", available);
+          String msg = "\n\n"
+              + "══════════════════════════════════════════════════════════════\n"
+              + " OCR language '" + lang + "' is not available.\n"
+              + "══════════════════════════════════════════════════════════════\n\n"
+              + " Looked in: " + dataPath() + "\n"
+              + " Languages currently bundled: " + availMsg + "\n\n"
+              + " Fix:\n"
+              + "  - Pick a bundled language via Settings.OcrLanguage = \"eng\";\n"
+              + "  - Or drop a <lang>.traineddata file into a custom tessdata\n"
+              + "    folder and set Settings.OcrDataPath to its parent.\n"
+              + "══════════════════════════════════════════════════════════════";
+          Debug.error(msg);
+          throw new SikuliXception(String.format("OCR: language: no %s.traineddata in %s (available: %s)",
+                  lang, dataPath(), availMsg));
+        }
+      }
+      if (needsOsd(psm) && !osdAvailable()) {
+        throw new SikuliXception(String.format("OCR: psm %d needs OSD, but no osd.traineddata in %s",
+            psm, dataPath()));
       }
       maybePrintWelcome(this);
+    }
+
+    private static boolean needsOsd(int psm) {
+      return psm == PSM.OSD_ONLY.ordinal() || psm == PSM.AUTO_OSD.ordinal()
+          || psm == PSM.SPARSE_TEXT_OSD.ordinal();
+    }
+
+    private boolean osdAvailable() {
+      return new File(dataPath(), "osd.traineddata").exists();
+    }
+
+    private static int screenDpi() {
+      if (GraphicsEnvironment.isHeadless()) {
+        return 96;
+      }
+      return Toolkit.getDefaultToolkit().getScreenResolution();
     }
     //</editor-fold>
 
@@ -298,17 +329,12 @@ public class OCR {
      */
     public Options psm(int psm) {
       if (psm < 0 || psm > 13) {
-        throw new IllegalArgumentException(String.format("OCR: Invalid PSM %s (0 .. 12)", psm));
+        throw new IllegalArgumentException(String.format("OCR: Invalid PSM %s (0 .. 13)", psm));
       }
-
-      if (psm == PSM.OSD_ONLY.ordinal() || psm == PSM.AUTO_OSD.ordinal()
-              || psm == PSM.SPARSE_TEXT_OSD.ordinal()) {
-        if (!new File(dataPath(), "osd.traineddata").exists()) {
-          throw new IllegalArgumentException(String.format("OCR: setPSM(%d): needs OSD, " +
-                  "but no osd.traineddata found in tessdata folder", psm));
-        }
+      if (needsOsd(psm) && dataPath() != null && !osdAvailable()) {
+        throw new IllegalArgumentException(String.format("OCR: setPSM(%d): needs OSD, " +
+                "but no osd.traineddata found in tessdata folder", psm));
       }
-
       this.psm = psm;
       return this;
     }
@@ -568,7 +594,7 @@ public class OCR {
     //TODO why is this needed? Tess4J/Tesseract produce a warning is not set or not 70 .. 2400
     public Options userDPI(int dpi) {
       if (dpi == 0) {
-        dpi = Toolkit.getDefaultToolkit().getScreenResolution();
+        dpi = screenDpi();
       }
       if (dpi < 70 || dpi > 2400) {
         throw new IllegalArgumentException(String.format("OCR: Invalid user DPI: %s (must be 70 .. 2400)", dpi));
@@ -582,12 +608,13 @@ public class OCR {
       // LEGACY: Calculate the resize factor based on the optimal and
       // calculated DPI value if bestDPI has been set manually
       if (bestDPI != null) {
-        return bestDPI / Toolkit.getDefaultToolkit().getScreenResolution();
+        return bestDPI / screenDpi();
       }
       return OPTIMAL_X_HEIGHT / textHeight;
     }
 
-    private float largeImageFactor = 2.0f;
+    private static final float LARGE_IMAGE_FACTOR_DEFAULT = 2.0f;
+    private float largeImageFactor = LARGE_IMAGE_FACTOR_DEFAULT;
 
     /**
      * Resize factor applied to large search regions ({@code > 1 MP}) before OCR.
@@ -732,6 +759,7 @@ public class OCR {
    * @return the global Options
    */
   public static Options reset() {
+    Options.defaultDataPath = null;
     return globalOptions().reset();
   }
 
@@ -751,10 +779,12 @@ public class OCR {
     List<String> out = new ArrayList<>();
     String dataPath = globalOptions().dataPath();
     if (dataPath == null) {
-      // OCR not yet exercised — fall back to the Legerix-bundled tessdata
-      // so callers (e.g. IDE Preferences) can populate a language picker
-      // before the first read.
-      dataPath = Commons.getTesseractDataPath();
+      try {
+        TextRecognizer.initDefaultDataPath();
+        dataPath = globalOptions().dataPath();
+      } catch (RuntimeException e) {
+        dataPath = Commons.getTesseractDataPath();
+      }
     }
     if (dataPath == null) {
       return out;
@@ -818,7 +848,7 @@ public class OCR {
    */
   public static <SFIRBS> String readText(SFIRBS from, Options options) {
     if (options.psm() == PSM.AUTO.ordinal()) {
-      options.psm(PSM.SINGLE_BLOCK);
+      options = options.clone().psm(PSM.SINGLE_BLOCK);
     }
     return TextRecognizer.get(options).readText(from);
   }
