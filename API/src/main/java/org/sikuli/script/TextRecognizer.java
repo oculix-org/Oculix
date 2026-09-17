@@ -78,6 +78,9 @@ public class TextRecognizer {
     if (options == null) {
       options = OCR.globalOptions();
     }
+    if (OCR.AUTO.equals(options.language())) {
+      options = options.clone().language(OCR.resolveAuto());
+    }
     options.validate();
 
     TextRecognizer textRecognizer = new TextRecognizer();
