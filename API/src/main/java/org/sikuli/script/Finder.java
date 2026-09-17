@@ -772,6 +772,46 @@ public class Finder implements Iterator<Match> {
       return matcher.find();
     }
 
+    /**
+     * Positions [first, last] of every occurrence of the probe words in a line of words, in order
+     * and without overlap; a probe matches a word when it is contained in it, case-insensitively.
+     * With anyWordsBetween only the first and the last probe are matched and any words may sit between.
+     */
+    private List<int[]> findWordSpans(List<Match> words, String[] probes, boolean anyWordsBetween) {
+      List<int[]> spans = new ArrayList<>();
+      String first = probes[0].toLowerCase();
+      String last = probes[probes.length - 1].toLowerCase();
+      int ix = 0;
+      while (ix < words.size()) {
+        int end = -1;
+        if (anyWordsBetween) {
+          if (words.get(ix).getText().toLowerCase().contains(first)) {
+            for (int jx = ix + 1; jx < words.size(); jx++) {
+              if (words.get(jx).getText().toLowerCase().contains(last)) {
+                end = jx;
+                break;
+              }
+            }
+          }
+        } else if (ix + probes.length <= words.size()) {
+          end = ix + probes.length - 1;
+          for (int px = 0; px < probes.length; px++) {
+            if (!words.get(ix + px).getText().toLowerCase().contains(probes[px].toLowerCase())) {
+              end = -1;
+              break;
+            }
+          }
+        }
+        if (end < 0) {
+          ix++;
+          continue;
+        }
+        spans.add(new int[]{ix, end});
+        ix = end + 1;
+      }
+      return spans;
+    }
+
     private FindResult2 doFind() {
       if (!fInput.isValid()) {
         return null;
@@ -1094,33 +1134,20 @@ public class Finder implements Iterator<Match> {
                 wordsMatch.add(new Match(rword, wordInLine.getScore(), wordInLine.getText(), where));
               }
             } else {
-              int startText = -1;
-              int endText = -1;
-              int ix = 0;
-              String firstWord = textSplit[0].toLowerCase();
-              String lastWord = textSplit[textSplit.length - 1].toLowerCase();
-              for (Match wordInLine : wordsInLine) {
-                if (startText < 0) {
-                  if (isTextContained(wordInLine.getText().toLowerCase(), firstWord, null)) {
-                    startText = ix;
-                  }
-                } else if (endText < 0) {
-                  if (isTextContained(wordInLine.getText().toLowerCase(), lastWord, null)) {
-                    endText = ix;
-                  }
-                } else {
-                  break;
+              for (int[] span : findWordSpans(wordsInLine, textSplit, pattern != null)) {
+                Rectangle rword = new Rectangle(wordsInLine.get(span[0]).getRect());
+                double score = 0;
+                List<String> found = new ArrayList<>();
+                for (int ix = span[0]; ix <= span[1]; ix++) {
+                  Match wordInLine = wordsInLine.get(ix);
+                  rword = rword.union(wordInLine.getRect());
+                  score += wordInLine.getScore();
+                  found.add(wordInLine.getText());
                 }
-                ix++;
-              }
-              if (startText > -1 && endText > -1) {
-                Rectangle rword = (new Rectangle(wordsInLine.get(startText).getRect())).
-                    union(new Rectangle(wordsInLine.get(endText).getRect()));
                 rword.x += wordOrLine.x;
                 rword.y += wordOrLine.y;
-                double score = (wordsInLine.get(startText).getScore() + wordsInLine.get(endText).getScore()) / 2;
-                String foundText = wordsInLine.get(startText).getText() + " ... " + wordsInLine.get(endText);
-                wordsMatch.add(new Match(rword, score, foundText, where));
+                score /= (span[1] - span[0] + 1);
+                wordsMatch.add(new Match(rword, score, String.join(" ", found), where));
               }
             }
           } else {
