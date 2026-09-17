@@ -195,7 +195,6 @@ public class Commons {
     // static-init chain has been triggered yet. Fixes UnsatisfiedLinkError on
     // first new Mat() from non-Finder call paths (e.g. Pattern.patternMask field init).
     loadOpenCV();
-    loadTesseract();
   }
 
   public static void init() {
@@ -1494,46 +1493,65 @@ public class Commons {
   }
 
   private static final String libLegerixClassref = "io.github.julienmerconsulting.legerix.Legerix";
-  // No inline initializers: this field is declared AFTER the static {} block
-  // that calls loadTesseract(), so an explicit `= false` would run later in
-  // <clinit> and clobber the value loadTesseract() set. JLS default (false)
-  // is what we want.
-  private static volatile boolean libTesseractLoaded;
-  private static volatile String libTesseractDataPath;
+  private static volatile boolean libTesseractAttempted = false;
+  private static volatile boolean libTesseractLoaded = false;
+  private static volatile String libTesseractDataPath = null;
   // Absolute paths of the Legerix-extracted shared libraries. Octachorix
   // binds by absolute path only (no short-name resolution), so these two are
   // the whole contract between the native provisioner and the OCR binding.
-  private static volatile String libTesseractLibraryPath;
-  private static volatile String libLeptonicaLibraryPath;
-  private static volatile String libTesseractFailure;
+  private static volatile String libTesseractLibraryPath = null;
+  private static volatile String libLeptonicaLibraryPath = null;
+  private static volatile String libTesseractFailure = null;
 
   public static boolean isTesseractLoaded() {
+    loadTesseract();
     return libTesseractLoaded;
   }
 
   public static String getTesseractDataPath() {
+    loadTesseract();
     return libTesseractDataPath;
   }
 
   /** Absolute path of the bundled libtesseract, or null if Legerix did not deliver. */
   public static String getTesseractLibraryPath() {
+    loadTesseract();
     return libTesseractLibraryPath;
   }
 
   /** Absolute path of the bundled libleptonica, or null if Legerix did not deliver. */
   public static String getLeptonicaLibraryPath() {
+    loadTesseract();
     return libLeptonicaLibraryPath;
   }
 
   /** Why the bundled Tesseract is unavailable, or null when it is. */
   public static String getTesseractFailure() {
+    loadTesseract();
     return libTesseractFailure;
   }
 
+  /**
+   * Provisions the bundled Tesseract through Legerix on first use. Concurrent callers wait for
+   * that first provisioning to finish; later calls return at once, whatever its outcome.
+   */
   public static void loadTesseract() {
-    if (libTesseractLoaded) {
+    if (libTesseractAttempted) {
       return;
     }
+    synchronized (Commons.class) {
+      if (libTesseractAttempted) {
+        return;
+      }
+      try {
+        provisionTesseract();
+      } finally {
+        libTesseractAttempted = true;
+      }
+    }
+  }
+
+  private static void provisionTesseract() {
     File nativesDir = null;
     String version = "?";
     try {
