@@ -21,12 +21,17 @@ import org.sikuli.support.Commons;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.lang.ref.Cleaner;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Intended to be used only internally - still public for being backward compatible
@@ -98,6 +103,7 @@ public class TextRecognizer {
     if (isValid) {
       return;
     }
+    Commons.loadTesseract();
     if (Commons.isTesseractLoaded()) {
       isValid = true;
       Debug.log(lvl, "OCR: start: Octachorix %s using bundled Tesseract (Legerix): %s",
@@ -125,37 +131,84 @@ public class TextRecognizer {
    * readWords/readWord/readLine/readChar each have their own PSM and thus
    * their own session; alternating between them costs nothing after the
    * first call of each. Bounded to a handful of sessions, least recently
-   * used evicted and closed.
+   * used evicted and closed; the sessions of a thread that is gone are closed
+   * by a {@link Cleaner} once its cache is collected.
    */
   private static final int MAX_SESSIONS = 6;
 
-  private static final ThreadLocal<Map<String, Scribe>> SESSIONS = ThreadLocal.withInitial(
-      () -> new java.util.LinkedHashMap<String, Scribe>(8, 0.75f, true) {
+  private static final Cleaner CLEANER = Cleaner.create();
+
+  private static final class Sessions {
+    final Map<String, Scribe> byKey;
+    final List<Scribe> open = new CopyOnWriteArrayList<>();
+
+    Sessions() {
+      byKey = new LinkedHashMap<String, Scribe>(8, 0.75f, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, Scribe> eldest) {
           if (size() > MAX_SESSIONS) {
-            eldest.getValue().close();
+            release(eldest.getValue());
             return true;
           }
           return false;
         }
-      });
+      };
+      CLEANER.register(this, closer(open));
+    }
+
+    void put(String key, Scribe scribe) {
+      open.add(scribe);
+      byKey.put(key, scribe);
+    }
+
+    void release(Scribe scribe) {
+      open.remove(scribe);
+      scribe.close();
+    }
+
+    void closeAll() {
+      for (Scribe scribe : new ArrayList<>(open)) {
+        release(scribe);
+      }
+      byKey.clear();
+    }
+
+    private static Runnable closer(List<Scribe> open) {
+      return () -> {
+        for (Scribe scribe : open) {
+          scribe.close();
+        }
+      };
+    }
+  }
+
+  private static final ThreadLocal<Sessions> SESSIONS = ThreadLocal.withInitial(Sessions::new);
+
+  /**
+   * Closes the Tesseract sessions held by the calling thread and frees their native memory.
+   * The next OCR call on this thread opens a fresh session.
+   */
+  public static void closeSessions() {
+    SESSIONS.get().closeAll();
+    SESSIONS.remove();
+  }
 
   private static String sessionKey(OCR.Options options) {
     return options.oem() + "|" + options.psm() + "|" + options.language() + "|" + options.dataPath()
-        + "|" + options.variables() + "|" + options.configs();
+        + "|" + new TreeMap<>(options.variables()) + "|" + options.configs();
   }
 
   private Scribe getScribe() {
     checkLib();
-    Map<String, Scribe> sessions = SESSIONS.get();
+    Sessions sessions = SESSIONS.get();
     String key = sessionKey(options);
-    Scribe cached = sessions.get(key);
+    Scribe cached = sessions.byKey.get(key);
     if (cached != null && !cached.isClosed()) {
       return cached;
     }
     if (cached != null) {
-      sessions.remove(key);
+      sessions.byKey.remove(key);
+      sessions.open.remove(cached);
     }
     try {
       Scribe.Builder builder = Scribe.builder()
@@ -179,7 +232,7 @@ public class TextRecognizer {
       Scribe scribe = builder.build();
       sessions.put(key, scribe);
       Debug.log(lvl, "OCR: session %d/%d: Tesseract %s (lang=%s, oem=%d, psm=%d)",
-          sessions.size(), MAX_SESSIONS, scribe.tesseractVersion(), options.language(), options.oem(), options.psm());
+          sessions.byKey.size(), MAX_SESSIONS, scribe.tesseractVersion(), options.language(), options.oem(), options.psm());
       return scribe;
     } catch (OctachorixFault | UnsatisfiedLinkError e) {
       // Defense-in-depth net for #107: the pre-flight above only knows that
@@ -382,25 +435,26 @@ public class TextRecognizer {
   }
 
   private BufferedImage optimize(BufferedImage bimg) {
-    Mat mimg = Commons.makeMat(bimg);
+    Mat mimg = Commons.makeMat(asOpenCvImage(bimg));
+    if (mimg.empty()) {
+      throw new SikuliXception(String.format("OCR: image type %d not supported (%dx%d)",
+          bimg.getType(), bimg.getWidth(), bimg.getHeight()));
+    }
 
-    Imgproc.cvtColor(mimg, mimg, Imgproc.COLOR_BGR2GRAY);
+    if (mimg.channels() == 4) {
+      Imgproc.cvtColor(mimg, mimg, Imgproc.COLOR_BGRA2GRAY);
+    } else if (mimg.channels() == 3) {
+      Imgproc.cvtColor(mimg, mimg, Imgproc.COLOR_BGR2GRAY);
+    }
 
     // sharpen original image to primarily get rid of sub pixel rendering artifacts
     mimg = unsharpMask(mimg, 3);
 
     float rFactor = options.factor();
 
-    // #378: on a large, full-screen search region the default factor (~3.0,
-    // calibrated for tiny UI text) explodes the image to ~18 MP and drives
-    // Tesseract LSTM to ~8s. Cap on > 1 MP regions; default 2.0 keeps precision
-    // (-1 mot mesuré sur cleaned full-HD vs baseline) with ~×1.4 speedup.
-    // Tunable via OCR.globalOptions().largeImageFactor(...) — Auchan-style
-    // dashboards (text >= 14 px) can set 0.8 for ~×4 speedup.
-    // Supersedes the original hardcoded 0.8 on this branch (commit 26d30979);
-    // see #378 thread for the empirical justification.
+    // above 1 MP the factor is capped by largeImageFactor (#378)
     if ((long) mimg.cols() * mimg.rows() > 1_000_000L) {
-      rFactor = options.largeImageFactor();
+      rFactor = Math.min(rFactor, options.largeImageFactor());
     }
 
     if (rFactor > 0 && rFactor != 1) {
@@ -421,6 +475,29 @@ public class TextRecognizer {
 
     BufferedImage optImg = Commons.getBufferedImage(mimg);
     return optImg;
+  }
+
+  /**
+   * Redraws an image whose raster layout {@link Commons#makeMat} does not read directly
+   * (INT_ARGB, INT_BGR, USHORT_*, custom) into a plain 3-byte BGR image; the others pass through.
+   */
+  private static BufferedImage asOpenCvImage(BufferedImage bimg) {
+    switch (bimg.getType()) {
+      case BufferedImage.TYPE_INT_RGB:
+      case BufferedImage.TYPE_3BYTE_BGR:
+      case BufferedImage.TYPE_4BYTE_ABGR:
+      case BufferedImage.TYPE_BYTE_GRAY:
+        return bimg;
+      default:
+        BufferedImage bgr = new BufferedImage(bimg.getWidth(), bimg.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+        Graphics2D g = bgr.createGraphics();
+        try {
+          g.drawImage(bimg, 0, 0, null);
+        } finally {
+          g.dispose();
+        }
+        return bgr;
+    }
   }
 
   /*
@@ -451,17 +528,23 @@ public class TextRecognizer {
   //</editor-fold>
 
   //<editor-fold desc="30 helper">
-  private static void initDefaultDataPath() {
-    if (OCR.Options.defaultDataPath != null) {
+  private static String settingsDataPathResolved;
+
+  /**
+   * Resolves the default tessdata folder: Settings.OcrDataPath (given with or without the
+   * trailing tessdata segment), else the Legerix bundle, else the legacy resource export.
+   * Re-resolved whenever Settings.OcrDataPath changes.
+   */
+  static void initDefaultDataPath() {
+    if (OCR.Options.defaultDataPath != null
+        && Objects.equals(settingsDataPathResolved, Settings.OcrDataPath)) {
       return;
     }
-    // Priority order:
-    //   1. Settings.OcrDataPath (user override)
-    //   2. Legerix bundled tessdata (eng, fra, spa, chi_sim, hin)
-    //   3. Legacy SikulixTesseract resource extraction
     String defaultDataPath = null;
     if (Settings.OcrDataPath != null) {
-      defaultDataPath = new File(Settings.OcrDataPath, "tessdata").getAbsolutePath();
+      File given = new File(Settings.OcrDataPath);
+      File tessdata = "tessdata".equals(given.getName()) ? given : new File(given, "tessdata");
+      defaultDataPath = tessdata.getAbsolutePath();
     } else {
       String legerixPath = Commons.getTesseractDataPath();
       if (legerixPath != null && new File(legerixPath).isDirectory()) {
@@ -480,6 +563,7 @@ public class TextRecognizer {
       defaultDataPath = fTessDataPath.getAbsolutePath();
     }
     OCR.Options.defaultDataPath = defaultDataPath;
+    settingsDataPathResolved = Settings.OcrDataPath;
   }
 
   protected <SFIRBS> String doRead(SFIRBS from) {
@@ -490,7 +574,7 @@ public class TextRecognizer {
       return reading.text().trim().replace("\n\n", "\n");
     } catch (OctachorixFault e) {
       Debug.error("OCR: read: Octachorix: %s", e.getMessage());
-      return "";
+      throw new SikuliXception("OCR: read failed: " + e.getMessage());
     }
   }
 
@@ -504,7 +588,7 @@ public class TextRecognizer {
       textItems = getScribe().read(bimgResized, EnumSet.of(pageLevel)).elements(pageLevel);
     } catch (OctachorixFault e) {
       Debug.error("OCR: read: Octachorix: %s", e.getMessage());
-      return lines;
+      throw new SikuliXception("OCR: read failed: " + e.getMessage());
     }
     double wFactor = (double) bimg.getWidth() / bimgResized.getWidth();
     double hFactor = (double) bimg.getHeight() / bimgResized.getHeight();
