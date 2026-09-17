@@ -88,7 +88,7 @@ class OCROptionsTest {
     assertThrows(IllegalArgumentException.class, () -> without.psm(OCR.PSM.AUTO_OSD));
 
     Files.createFile(tmp.resolve("tessdata").resolve("osd.traineddata"));
-    OCR.Options with = new OCR.Options().dataPath(tmp.toString()).psm(OCR.PSM.AUTO_OSD);
+    OCR.Options with = new OCR.Options().language("eng").dataPath(tmp.toString()).psm(OCR.PSM.AUTO_OSD);
     assertDoesNotThrow(with::validate);
   }
 
