@@ -15,6 +15,13 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URLConnection;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 /**
@@ -176,7 +183,7 @@ public class OCR {
       // single source of truth so both globalOptions() and freshly-cloned
       // Options agree on the default language.
       String settingsLang = Settings.OcrLanguage;
-      language = (settingsLang == null || settingsLang.isEmpty()) ? "eng" : settingsLang;
+      language = (settingsLang == null || settingsLang.isEmpty()) ? AUTO : settingsLang;
       dataPath = null;
       isLightFont = false;
       textHeight = getDefaultTextHeight();
@@ -760,6 +767,7 @@ public class OCR {
    */
   public static Options reset() {
     Options.defaultDataPath = null;
+    autoLanguage = null;
     return globalOptions().reset();
   }
 
@@ -800,6 +808,112 @@ public class OCR {
     }
     Collections.sort(out);
     return out;
+  }
+
+  /** The language code standing for "the language of this system", resolved on first use. */
+  public static final String AUTO = "auto";
+
+  private static volatile String autoLanguage = null;
+
+  /**
+   * The Tesseract language code of the display language of this system.
+   * ISO 639-2 as Java reports it, except where Tesseract names its models differently.
+   */
+  public static String systemLanguage() {
+    return systemLanguage(Locale.getDefault(Locale.Category.DISPLAY));
+  }
+
+  /**
+   * The Tesseract language code for a locale.
+   */
+  public static String systemLanguage(Locale locale) {
+    String language = locale.getLanguage();
+    String script = locale.getScript();
+    String country = locale.getCountry();
+    switch (language) {
+      case "zh":
+        boolean traditional = "Hant".equals(script)
+            || (script.isEmpty() && (country.equals("TW") || country.equals("HK") || country.equals("MO")));
+        return traditional ? "chi_tra" : "chi_sim";
+      case "nb":
+      case "nn":
+      case "no":
+        return "nor";
+      case "tl":
+      case "fil":
+        return "tgl";
+      case "sr":
+        return "Cyrl".equals(script) ? "srp" : "srp_latn";
+      case "uz":
+        return "Cyrl".equals(script) ? "uzb_cyrl" : "uzb";
+      default:
+        try {
+          String iso3 = locale.getISO3Language();
+          return iso3.isEmpty() ? Settings.OcrLanguageFallback : iso3;
+        } catch (MissingResourceException e) {
+          return Settings.OcrLanguageFallback;
+        }
+    }
+  }
+
+  /**
+   * Makes sure a language model is in the tessdata folder, fetching it from
+   * {@link Settings#OcrTessdataUrl} when it is not, and returns the code to use:
+   * the one asked for, or {@link Settings#OcrLanguageFallback} when the model is
+   * neither present nor fetchable. Each language of a {@code lang1+lang2}
+   * combination is handled on its own.
+   */
+  public static String ensureLanguage(String language) {
+    TextRecognizer.initDefaultDataPath();
+    String dataPath = globalOptions().dataPath();
+    List<String> ready = new ArrayList<>();
+    for (String code : language.split("\\+")) {
+      File model = new File(dataPath, code + ".traineddata");
+      if (model.isFile() && model.length() > 0) {
+        ready.add(code);
+        continue;
+      }
+      try {
+        fetchModel(code, model.toPath());
+        ready.add(code);
+      } catch (IOException | RuntimeException e) {
+        Debug.info("OCR: language %s: no %s.traineddata in %s and none fetched from %s (%s); using %s",
+            language, code, dataPath, Settings.OcrTessdataUrl, e.getMessage(), Settings.OcrLanguageFallback);
+        return Settings.OcrLanguageFallback;
+      }
+    }
+    return String.join("+", ready);
+  }
+
+  private static void fetchModel(String code, Path model) throws IOException {
+    URLConnection connection = URI.create(Settings.OcrTessdataUrl + code + ".traineddata").toURL().openConnection();
+    connection.setConnectTimeout(10_000);
+    connection.setReadTimeout(60_000);
+    Files.createDirectories(model.getParent());
+    Path part = Files.createTempFile(model.getParent(), code, ".part");
+    try (InputStream in = connection.getInputStream()) {
+      Files.copy(in, part, StandardCopyOption.REPLACE_EXISTING);
+      if (Files.size(part) == 0) {
+        throw new IOException("empty download");
+      }
+      Files.move(part, model, StandardCopyOption.REPLACE_EXISTING);
+      Debug.info("OCR: language %s: fetched %s (%d bytes)", code, model, Files.size(model));
+    } finally {
+      Files.deleteIfExists(part);
+    }
+  }
+
+  /**
+   * The language {@link #AUTO} stands for on this system, resolved once per JVM:
+   * the system language, fetched if needed, or the fallback.
+   */
+  static String resolveAuto() {
+    String resolved = autoLanguage;
+    if (resolved == null) {
+      resolved = ensureLanguage(systemLanguage());
+      autoLanguage = resolved;
+    }
+    return resolved;
   }
 
   private static volatile boolean welcomePrinted = false;
