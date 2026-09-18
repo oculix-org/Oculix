@@ -13,6 +13,8 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -190,43 +192,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     JButton reportBtn = new JButton("Report bug…", new FlatSVGIcon("icons/menu/ladybug.svg", 16, 16));
     reportBtn.setFocusable(false);
     reportBtn.setToolTipText("Copy log to clipboard and open the OculiX bug report form on GitHub");
-    reportBtn.addActionListener(e -> {
-      // 1) Copy plain-text log to clipboard so the user can paste it directly.
-      try {
-        String plain = textArea.getDocument().getText(0, textArea.getDocument().getLength());
-        StringSelection sel = new StringSelection(plain);
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
-      } catch (BadLocationException ble) {
-        StringSelection sel = new StringSelection(textArea.getText());
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
-      }
-      // 2) Inform the user — what was done, what to paste, where to paste it.
-      java.awt.Image geckoRaw = new ImageIcon(getClass().getResource("/icons/gecko_cyclope.png")).getImage();
-      ImageIcon gecko = new ImageIcon(geckoRaw.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
-      JOptionPane.showMessageDialog(
-          EditorConsolePane.this,
-          "Your log has been copied to the clipboard.\n\n"
-              + "The OculiX bug report form will open in your browser.\n"
-              + "Please paste the log into the \"Logs / console output\" field,\n"
-              + "fill in the other sections, then submit.\n\n"
-              + "Thanks for helping us improve OculiX.",
-          "Report a bug",
-          JOptionPane.INFORMATION_MESSAGE,
-          gecko);
-      // 3) Open the bug_report.yml template — no API call, no auto-creation,
-      // the user stays in full control of what gets submitted.
-      try {
-        Desktop.getDesktop().browse(java.net.URI.create(
-            "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml"));
-      } catch (Exception ex) {
-        JOptionPane.showMessageDialog(
-            EditorConsolePane.this,
-            "Could not open the browser. Please go to:\n"
-                + "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml",
-            "Report a bug",
-            JOptionPane.WARNING_MESSAGE);
-      }
-    });
+    reportBtn.addActionListener(e -> askBeforeReportingBug());
     rightToolbar.add(reportBtn);
 
     JPanel toolbar = new JPanel(new BorderLayout());
@@ -271,6 +237,59 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   private static boolean isDarkLaf() {
     String theme = org.sikuli.basics.PreferencesUser.get().getIdeTheme();
     return !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(theme);
+  }
+
+  private static final String BUG_REPORT_URL = "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml";
+
+  /**
+   * Explains what "Report bug…" is about to do and waits for an explicit OK.
+   * Cancel, ESC and a click anywhere outside the dialog leave the IDE exactly
+   * as it was: nothing copied, no browser opened.
+   */
+  private void askBeforeReportingBug() {
+    java.awt.Image geckoRaw = new ImageIcon(getClass().getResource("/icons/gecko_cyclope.png")).getImage();
+    ImageIcon gecko = new ImageIcon(geckoRaw.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
+    JOptionPane pane = new JOptionPane(
+        "Your log will be copied to the clipboard and the OculiX bug report form\n"
+            + "will open in your browser.\n\n"
+            + "Paste the log into the \"Logs / console output\" field,\n"
+            + "fill in the other sections, then submit.\n\n"
+            + "Thanks for helping us improve OculiX.",
+        JOptionPane.INFORMATION_MESSAGE, JOptionPane.OK_CANCEL_OPTION, gecko);
+    JDialog dialog = pane.createDialog(this, "Report a bug");
+    dialog.setModal(false);
+    dialog.addWindowFocusListener(new WindowAdapter() {
+      @Override
+      public void windowLostFocus(WindowEvent w) {
+        dialog.dispose();
+      }
+    });
+    pane.addPropertyChangeListener(JOptionPane.VALUE_PROPERTY, ev -> {
+      boolean ok = Integer.valueOf(JOptionPane.OK_OPTION).equals(pane.getValue());
+      dialog.dispose();
+      if (ok) {
+        reportBug();
+      }
+    });
+    dialog.setVisible(true);
+  }
+
+  private void reportBug() {
+    String plain;
+    try {
+      plain = textArea.getDocument().getText(0, textArea.getDocument().getLength());
+    } catch (BadLocationException ble) {
+      plain = textArea.getText();
+    }
+    StringSelection sel = new StringSelection(plain);
+    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+    try {
+      Desktop.getDesktop().browse(java.net.URI.create(BUG_REPORT_URL));
+    } catch (Exception ex) {
+      JOptionPane.showMessageDialog(this,
+          "Could not open the browser. Please go to:\n" + BUG_REPORT_URL,
+          "Report a bug", JOptionPane.WARNING_MESSAGE);
+    }
   }
 
   /**
