@@ -4,6 +4,7 @@
 package org.sikuli.ide;
 
 import org.sikuli.basics.PreferencesUser;
+import org.sikuli.ide.theme.OculixFonts;
 import com.jgoodies.forms.factories.DefaultComponentFactory;
 
 import java.awt.*;
@@ -960,13 +961,9 @@ class LocaleListCellRenderer extends DefaultListCellRenderer {
   public Component getListCellRendererComponent(JList list,
                                                 Object value, int index, boolean isSelected, boolean hasFocus) {
     Locale locale = (Locale) (value);
-    Component c = super.getListCellRendererComponent(list,
-        locale.getDisplayName(locale), index, isSelected, hasFocus);
-    // The text shown is locale.getDisplayName(locale) — the language name in
-    // its own native script. Inter (FlatLaf default) is Latin-only; force the
-    // Dialog logical family so the JVM composites with system fonts that
-    // cover CJK / Arabic / Cyrillic / Indic.
-    c.setFont(new Font(Font.DIALOG, Font.PLAIN, c.getFont().getSize()));
+    String label = locale.getDisplayName(locale);
+    Component c = super.getListCellRendererComponent(list, label, index, isSelected, hasFocus);
+    c.setFont(OculixFonts.forText(label, new Font(Font.DIALOG, Font.PLAIN, c.getFont().getSize())));
     return c;
   }
 }
