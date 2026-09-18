@@ -400,13 +400,16 @@ public class OculixSidebar extends JPanel {
    * Persists the new locale, reloads the SikuliIDEI18N bundle and hands over
    * to the IDE, which rebuilds what shows translated text.
    */
-  private void changeLocale(java.util.Locale newLocale) {
+  public void changeLocale(java.util.Locale newLocale) {
     try {
       PreferencesUser prefs = PreferencesUser.get();
       prefs.setLocale(newLocale);
       prefs.store();
       org.sikuli.support.ide.SikuliIDEI18N.setLocale(newLocale);
       if (languagePicker != null) languagePicker.setSelectedLocale(newLocale);
+      FlatLaf.setPreferredFontFamily(OculixFonts.uiFamily());
+      FlatLaf.setPreferredMonospacedFontFamily(OculixFonts.monoFamily());
+      installLaf();
       if (onLocaleChanged != null) {
         onLocaleChanged.run();
       }
@@ -416,7 +419,12 @@ public class OculixSidebar extends JPanel {
   }
 
   private void toggleTheme() {
-    isDark = !isDark;
+    applyTheme(!isDark);
+  }
+
+  /** Switches the IDE to the dark or the light theme and repaints the pill. */
+  public void applyTheme(boolean dark) {
+    isDark = dark;
     try {
       // Persist the new theme BEFORE installing the LaF so any component
       // that reads PreferencesUser.getIdeTheme() during the swap (e.g.
@@ -424,16 +432,21 @@ public class OculixSidebar extends JPanel {
       PreferencesUser prefs = PreferencesUser.get();
       prefs.setIdeTheme(isDark ? PreferencesUser.THEME_DARK : PreferencesUser.THEME_LIGHT);
       prefs.store();
-      if (isDark) OculixDarkLaf.setup(); else OculixLightLaf.setup();
-      FlatLaf.updateUI();
-      // Force a full LaF propagation on every visible top-level window,
-      // including detached frames (Preferences, More options, splash).
-      // FlatLaf.updateUI() walks the JFrame tree but stale references on
-      // some windows can keep the old LaF until the next focus event.
-      for (java.awt.Window w : java.awt.Window.getWindows()) {
-        if (w.isDisplayable()) SwingUtilities.updateComponentTreeUI(w);
-      }
+      installLaf();
     } catch (Exception ex) {}
+    repaint();
+  }
+
+  /**
+   * Installs the theme again with the preferred font families of the moment
+   * and pushes it to every open window, detached frames included.
+   */
+  private void installLaf() {
+    if (isDark) OculixDarkLaf.setup(); else OculixLightLaf.setup();
+    FlatLaf.updateUI();
+    for (java.awt.Window w : java.awt.Window.getWindows()) {
+      if (w.isDisplayable()) SwingUtilities.updateComponentTreeUI(w);
+    }
   }
 
   public boolean isDarkTheme() { return isDark; }
@@ -859,6 +872,47 @@ public class OculixSidebar extends JPanel {
         new java.util.Locale("te")
     );
 
+    /** The regions of the picker, i18n key of the region to the locale codes it holds. */
+    private static final java.util.LinkedHashMap<String, String[]> REGIONS = new java.util.LinkedHashMap<>();
+    static {
+      REGIONS.put("languageRegionLatinEurope", new String[]{
+          "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR", "sv", "da", "ca"});
+      REGIONS.put("languageRegionSlavicEurope", new String[]{"pl", "ru", "uk", "bg", "tr"});
+      REGIONS.put("languageRegionMiddleEast", new String[]{"he", "ar"});
+      REGIONS.put("languageRegionEastAsia", new String[]{
+          "ja", "ko", "zh", "zh_CN", "zh_TW", "zh_HK", "zh_MO", "zh_SG"});
+      REGIONS.put("languageRegionIndianSubcontinent", new String[]{"hi", "bn", "te", "ta", "ta_IN"});
+    }
+
+    static java.util.Map<String, String[]> regions() {
+      return java.util.Collections.unmodifiableMap(REGIONS);
+    }
+
+    /** The selectable locales whose code is among the given ones, in picker order. */
+    static java.util.List<java.util.Locale> localesOf(String... codes) {
+      java.util.Set<String> wanted = new java.util.HashSet<>(java.util.Arrays.asList(codes));
+      java.util.List<java.util.Locale> out = new java.util.ArrayList<>();
+      for (java.util.Locale loc : AVAILABLE) {
+        if (wanted.contains(localeKey(loc))) out.add(loc);
+      }
+      return out;
+    }
+
+    /** The name of the locale in its own language, capitalised. */
+    static String displayLabel(java.util.Locale loc) {
+      String label = loc.getDisplayName(loc);
+      if (label == null || label.isEmpty()) {
+        return loc.toLanguageTag();
+      }
+      return Character.toUpperCase(label.charAt(0)) + label.substring(1);
+    }
+
+    static boolean sameLocale(java.util.Locale a, java.util.Locale b) {
+      return a.equals(b)
+          || (a.getLanguage().equals(b.getLanguage())
+              && java.util.Objects.equals(a.getCountry(), b.getCountry()));
+    }
+
     private java.util.Locale current;
     private boolean hover;
     private final java.util.function.Consumer<java.util.Locale> onChange;
@@ -905,29 +959,13 @@ public class OculixSidebar extends JPanel {
       // Region grouping. Each submenu carries an SVG icon (Apple Silicon
       // Swing renders Unicode flag emojis as tofu; SVG bypasses the font
       // fallback entirely).
-      addRegionSubmenu(menu, itemFont, _I("languageRegionLatinEurope"),
-          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
-          "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR",
-          "sv", "da", "ca");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionSlavicEurope"),
-          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
-          "pl", "ru", "uk", "bg", "tr");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionMiddleEast"),
-          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
-          "he", "ar");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionEastAsia"),
-          new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
-          "ja", "ko", "zh", "zh_CN", "zh_TW", "zh_HK", "zh_MO", "zh_SG");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionIndianSubcontinent"),
-          new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
-          "hi", "bn", "te", "ta", "ta_IN");
-
-      // Allow selecting any AVAILABLE locale that wasn't covered above
-      // (defensive — none today, but keeps the picker honest if locales
-      // get added without a region tag).
-      java.util.Set<String> covered = new java.util.HashSet<>();
-      for (java.util.Locale loc : AVAILABLE) covered.add(localeKey(loc));
-      // (no-op for now; the regions above already cover AVAILABLE)
+      for (java.util.Map.Entry<String, String[]> region : REGIONS.entrySet()) {
+        boolean asia = region.getKey().equals("languageRegionEastAsia")
+            || region.getKey().equals("languageRegionIndianSubcontinent");
+        addRegionSubmenu(menu, itemFont, _I(region.getKey()),
+            new FlatSVGIcon(asia ? "icons/menu/globe-asia.svg" : "icons/menu/globe-europe.svg", 16, 16),
+            region.getValue());
+      }
 
       menu.show(this, 0, getHeight());
     }
@@ -942,21 +980,12 @@ public class OculixSidebar extends JPanel {
       JMenu region = new JMenu(label);
       region.setFont(font);
       if (icon != null) region.setIcon(icon);
-      java.util.Set<String> wanted = new java.util.HashSet<>(java.util.Arrays.asList(codes));
-      for (java.util.Locale loc : AVAILABLE) {
-        if (!wanted.contains(localeKey(loc))) continue;
-        String displayLabel = loc.getDisplayName(loc);
-        if (displayLabel == null || displayLabel.isEmpty()) {
-          displayLabel = loc.toLanguageTag();
-        } else {
-          displayLabel = Character.toUpperCase(displayLabel.charAt(0))
-              + displayLabel.substring(1);
-        }
-        boolean isActive = loc.equals(current)
-            || (loc.getLanguage().equals(current.getLanguage())
-                && java.util.Objects.equals(loc.getCountry(), current.getCountry()));
+      for (java.util.Locale loc : localesOf(codes)) {
+        String displayLabel = displayLabel(loc);
+        boolean isActive = sameLocale(loc, current);
         JMenuItem item = new JMenuItem(displayLabel);
-        item.setFont(isActive ? font.deriveFont(Font.BOLD) : font);
+        Font labelFont = OculixFonts.forText(displayLabel, font);
+        item.setFont(isActive ? labelFont.deriveFont(Font.BOLD) : labelFont);
         if (isActive) item.setForeground(OculixColors.OX_LIME_400);
         final java.util.Locale picked = loc;
         item.addActionListener(e -> {
