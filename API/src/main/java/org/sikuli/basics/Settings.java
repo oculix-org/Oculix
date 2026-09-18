@@ -46,6 +46,7 @@ public class Settings {
 
   public static boolean CheckLastSeen = true;
   public static float CheckLastSeenSimilar = 0.95f;
+  public static boolean WarmUpFind = true; // one in-memory find at screen init, so the first real find is not the slow one
 
   public static org.sikuli.script.ImageCallback ImageCallback = null;
 
