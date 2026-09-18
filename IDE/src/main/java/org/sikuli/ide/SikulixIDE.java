@@ -37,6 +37,7 @@ import org.sikuli.support.recorder.actions.IRecordedAction;
 import org.sikuli.ide.ui.OculixSidebar;
 import org.sikuli.ide.ui.ScriptExplorer;
 import org.sikuli.ide.ui.SidebarSubmenu;
+import org.sikuli.ide.ui.TrayIndicator;
 import org.sikuli.ide.ui.WelcomeTab;
 import org.sikuli.ide.ui.WorkspaceDialog;
 import org.sikuli.util.EventObserver;
@@ -272,6 +273,7 @@ public class SikulixIDE extends JFrame {
 
     installCaptureHotkey();
     installStopHotkey();
+    tray = TrayIndicator.install(trayActions());
 
     ideWindow.setSize(ideWindowRect.getSize());
     ideWindow.setLocation(ideWindowRect.getLocation());
@@ -606,6 +608,79 @@ public class SikulixIDE extends JFrame {
   }
 
   private int lastRunExit = Integer.MIN_VALUE;
+  private TrayIndicator tray;
+
+  /** What the tray icon menu can do to the IDE. */
+  private TrayIndicator.Actions trayActions() {
+    return new TrayIndicator.Actions() {
+      @Override
+      public void showIde() {
+        EventQueue.invokeLater(() -> {
+          ideWindow.setExtendedState(JFrame.NORMAL);
+          showAgain();
+          ideWindow.toFront();
+        });
+      }
+
+      @Override
+      public void runScript() {
+        if (getActiveContext() != null && btnRun != null) {
+          btnRun.runCurrentScript();
+        }
+      }
+
+      @Override
+      public void stopScript() {
+        onStopRunning();
+      }
+
+      @Override
+      public void quit() {
+        log("Quit from the tray: no questions asked");
+        Commons.terminate(0, "");
+      }
+
+      @Override
+      public void newWorkspace() {
+        showIde();
+        EventQueue.invokeLater(() -> openNewWorkspaceDialog());
+      }
+
+      @Override
+      public void openWorkspace() {
+        showIde();
+        EventQueue.invokeLater(() -> openExistingWorkspace());
+      }
+
+      @Override
+      public boolean isDark() {
+        return sidebar == null || sidebar.isDarkTheme();
+      }
+
+      @Override
+      public void applyTheme(boolean dark) {
+        if (sidebar != null) {
+          EventQueue.invokeLater(() -> {
+            sidebar.applyTheme(dark);
+            refreshAfterThemeChange();
+            if (tray != null) tray.relabel();
+          });
+        }
+      }
+
+      @Override
+      public Locale currentLocale() {
+        return PreferencesUser.get().getLocale();
+      }
+
+      @Override
+      public void changeLocale(Locale locale) {
+        if (sidebar != null) {
+          EventQueue.invokeLater(() -> sidebar.changeLocale(locale));
+        }
+      }
+    };
+  }
   private long lastRunDuration;
 
   /**
@@ -645,6 +720,9 @@ public class SikulixIDE extends JFrame {
       showWelcomeTab();
     } else {
       welcomeTab = null;
+    }
+    if (tray != null) {
+      tray.relabel();
     }
     ideContainer.revalidate();
     ideContainer.repaint();
@@ -2796,7 +2874,31 @@ public class SikulixIDE extends JFrame {
     _menuBar.add(_viewMenu);
     _menuBar.add(_toolMenu);
     _menuBar.add(_helpMenu);
-    frame.setJMenuBar(_menuBar);
+    frame.setJMenuBar(titleBarControls());
+  }
+
+  /**
+   * The bar FlatLaf embeds in the title bar: empty, except for the button
+   * that hides the window into the notification area, sitting just left of
+   * the minimise button. The classic menus stay in the sidebar.
+   */
+  private JMenuBar titleBarControls() {
+    JMenuBar bar = new JMenuBar();
+    bar.add(Box.createHorizontalGlue());
+    if (tray != null) {
+      JButton hide = new JButton(org.sikuli.ide.theme.TitleBarIcons.hide());
+      hide.setToolTipText(_I("trayHideWindow"));
+      hide.setFocusable(false);
+      hide.setContentAreaFilled(false);
+      hide.setMargin(new Insets(0, 0, 0, 0));
+      hide.setBorder(BorderFactory.createEmptyBorder());
+      hide.addActionListener(e -> {
+        ideWindow.setVisible(false);
+        tray.windowHidden();
+      });
+      bar.add(hide);
+    }
+    return bar;
   }
 
   JMenuItem createMenuItem(JMenuItem item, KeyStroke shortcut, ActionListener listener) {
@@ -4265,6 +4367,9 @@ public class SikulixIDE extends JFrame {
           resetErrorMark();
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
           doBeforeRun();
+          if (tray != null) {
+            tray.runStarted(contextName);
+          }
           Debug.info(String.format("-------- Run started @ %s ---- %s ----", runStamp, contextName));
 
           long runStart = System.currentTimeMillis();
@@ -4290,6 +4395,9 @@ public class SikulixIDE extends JFrame {
           // Update sidebar last run info
           final int finalExit = exitValue;
           final long duration = System.currentTimeMillis() - runStart;
+          if (tray != null) {
+            tray.runEnded();
+          }
           EventQueue.invokeLater(() -> {
             lastRunExit = finalExit;
             lastRunDuration = duration;
