@@ -863,6 +863,9 @@ public class OculixSidebar extends JPanel {
         new java.util.Locale("ko"),
         new java.util.Locale("zh", "CN"),
         new java.util.Locale("zh", "TW"),
+        new java.util.Locale("zh", "HK"),
+        new java.util.Locale("zh", "MO"),
+        new java.util.Locale("zh", "SG"),
         new java.util.Locale("ta", "IN"),
         new java.util.Locale("hi"),
         new java.util.Locale("bn"),
@@ -927,7 +930,7 @@ public class OculixSidebar extends JPanel {
           "he", "ar");
       addRegionSubmenu(menu, itemFont, _I("languageRegionEastAsia"),
           new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
-          "ja", "ko", "zh", "zh_CN", "zh_TW");
+          "ja", "ko", "zh", "zh_CN", "zh_TW", "zh_HK", "zh_MO", "zh_SG");
       addRegionSubmenu(menu, itemFont, _I("languageRegionIndianSubcontinent"),
           new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
           "hi", "bn", "te", "ta", "ta_IN");
