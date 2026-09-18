@@ -36,6 +36,8 @@ public class Settings {
   public static boolean ThrowException = true; // throw FindFailed exception
   public static float AutoWaitTimeout = 3f; // in seconds
   public static float WaitScanRate = 3f; // frames per second
+  /** Seconds without a beat from the running script before the IDE tray icon reports it as stuck. */
+  public static int TrayStuckSeconds = 30;
   public static float ObserveScanRate = 3f; // frames per second
   public static int ObserveMinChangedPixels = 50; // in pixels
   public static int RepeatWaitTime = 1; // wait 1 second for visual to vanish after action
