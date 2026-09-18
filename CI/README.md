@@ -5,7 +5,7 @@ JVM behind an HTTP API, with a SQLite base that records every run. It is what yo
 OculiX scripts have to run from a scheduler, a CI/CD pipeline or a container, against VNC targets
 that nothing is installed on.
 
-The runner is a **licensed product** of OculiX's author; its source is not published. This folder
+The runner is a **licensed product** of OculiX's author; its source is published under the PolyForm Strict license, which forbids commercial use and modification. This folder
 documents how it works and how to operate it. To deploy it, contact
 **julien.mer@oculix.org**.
 
