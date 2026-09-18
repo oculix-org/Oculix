@@ -132,7 +132,7 @@ public abstract class Element {
    */
   public <PSI> Match find(PSI target) throws FindFailed {
     //TODO implement find image
-    throw new SikuliXception(String.format("Pixels: find: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: find: not implemented for %s", this.getClass().getCanonicalName()));
     //return match;
   }
   //</editor-fold>
@@ -327,7 +327,7 @@ public abstract class Element {
   //<editor-fold desc="17 find text like find image">
   public Match findText(String text) throws FindFailed {
     //TODO implement findText
-    throw new SikuliXception(String.format("Pixels: findText: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: findText: not implemented for %s", this.getClass().getCanonicalName()));
     //return match;
   }
 
@@ -337,7 +337,7 @@ public abstract class Element {
 
   public Match existsText(String text) {
     //TODO existsText: try: findText:true catch: false
-    throw new SikuliXception(String.format("Pixels: existsText: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: existsText: not implemented for %s", this.getClass().getCanonicalName()));
     //return match;
   }
 
@@ -355,7 +355,7 @@ public abstract class Element {
 
   public List<Match> findAllText(String text) {
     List<Match> matches = new ArrayList<>();
-    throw new SikuliXception(String.format("Pixels: findAllText: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: findAllText: not implemented for %s", this.getClass().getCanonicalName()));
     //return matches;
   }
 
@@ -407,7 +407,7 @@ public abstract class Element {
   }
 
   protected Image getImage() {
-    throw new SikuliXception(String.format("Pixels: getImage: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: getImage: not implemented for %s", this.getClass().getCanonicalName()));
   }
 
   protected List<Match> relocate(List<Match> matches) {

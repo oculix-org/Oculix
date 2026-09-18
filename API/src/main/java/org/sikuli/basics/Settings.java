@@ -93,9 +93,14 @@ public class Settings {
   public static String BundlePath = null;
   public static boolean OverwriteImages = false;
 
-  public static final String OcrLanguageDefault = "eng";
+  /** "auto": the language of the system the JVM runs on, fetched on first use if it is not bundled; else a Tesseract code. */
+  public static final String OcrLanguageDefault = "auto";
   public static String OcrLanguage = OcrLanguageDefault;
   public static String OcrDataPath = null;
+  /** Where a missing language model is fetched from: {@code <url><code>.traineddata}; a local or mirror URL works too. */
+  public static String OcrTessdataUrl = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/";
+  /** The language used when the system language has no model and none can be fetched. */
+  public static final String OcrLanguageFallback = "eng";
   public static boolean OcrTextSearch = true;
   public static boolean OcrTextRead = true;
   public static boolean SwitchToText = false;
