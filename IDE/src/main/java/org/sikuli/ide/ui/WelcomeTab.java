@@ -51,7 +51,8 @@ public class WelcomeTab extends JPanel {
 
   private java.awt.image.BufferedImage hazeCache;
   private java.awt.image.BufferedImage geckoCache;
-  private static java.awt.image.BufferedImage geckoSource;
+  private String geckoCacheLocale;
+  private static final java.util.Map<String, java.awt.image.BufferedImage> geckoSources = new java.util.HashMap<>();
 
   public WelcomeTab(ActionListener onNew, ActionListener onOpen,
                     ActionListener onNewWorkspace, ActionListener onOpenWorkspace) {
@@ -59,13 +60,10 @@ public class WelcomeTab extends JPanel {
     this.onOpen = onOpen;
     this.onNewWorkspace = onNewWorkspace;
     this.onOpenWorkspace = onOpenWorkspace;
-    // Two-row layout : the content column (centred horizontally, ~580px) sits
-    // in the middle, the footer docks at the bottom with full window width so
-    // its links can breathe without being truncated by the 580px constraint.
-    // `fillx` keeps the cell stretchy horizontally so the footer's growx works,
-    // while `[center]` centres anything that does NOT set growx — the column
-    // stays centred at its preferred 652 px, the footer overrides with growx.
-    setLayout(new MigLayout("fillx, wrap 1", "[center]", "push[]push[]"));
+    // The content column scrolls in the middle when the window is too short
+    // for it; the footer docks at the bottom and stays visible whatever the
+    // height, its links spread over the full window width.
+    setLayout(new BorderLayout());
     setOpaque(true);
     // Welcome is the brand surface in both modes — always navy with cyan /
     // violet haze + white text, but a touch lighter in OculiX Light so the
@@ -134,7 +132,7 @@ public class WelcomeTab extends JPanel {
 
     JLabel attribution = new JLabel(_I("welcomeAttribution"));
     attribution.setFont(OculixFonts.ui(11).deriveFont(Font.ITALIC));
-    attribution.setForeground(OculixColors.OX_INK_400);
+    attribution.setForeground(OculixColors.OX_INK_300);
     column.add(attribution, "gapbottom 18");
 
     // ── OculiX-adds box ──
@@ -149,37 +147,64 @@ public class WelcomeTab extends JPanel {
     primaryCtas.add(new HeroButton(_I("welcomeBtnOpenScript"), "Ctrl+O", false, onOpen));
     column.add(primaryCtas, "gapbottom 10");
 
-    // ── Secondary grid ──
-    JPanel secondary = new JPanel(new MigLayout("insets 0, wrap 2, gap 4 18", "[grow, fill][grow, fill]", ""));
+    // ── Workspace buttons, same ghost style as "Open script" ──
+    JPanel secondary = new JPanel(new MigLayout("insets 0, gap 10", "[]10[]push"));
     secondary.setOpaque(false);
-    secondary.add(new SecondaryRow(_I("welcomeBtnNewWorkspace"), "Ctrl+Shift+N", onNewWorkspace));
-    secondary.add(new SecondaryRow(_I("welcomeBtnOpenWorkspace"), "Ctrl+Shift+O", onOpenWorkspace));
+    secondary.add(new HeroButton(_I("welcomeBtnNewWorkspace"), "Ctrl+Shift+N", false, onNewWorkspace));
+    secondary.add(new HeroButton(_I("welcomeBtnOpenWorkspace"), "Ctrl+Shift+O", false, onOpenWorkspace));
     column.add(secondary, "gapbottom 18");
 
     // ── Footer ──
     // "v3.0.x" + "MIT" + "github.com/oculix-org" stay un-translated (version
-    // string, license code, URL display). "fork of SikuliX1", "Docs",
-    // "Release notes" go through _I().
-    // Footer takes the full WelcomeTab width (via the growx constraint when
-    // added below), but the 9 items are centred as a group with `alignx
-    // center` — version + license + lineage + links read horizontally in the
-    // middle of the screen, not glued to a side or split by a push.
+    // string, license code, URL display); "Docs", "Release notes" go through _I().
+    // The items are centred as a group: version + license + links read
+    // horizontally in the middle of the screen.
     JPanel footer = new JPanel(new MigLayout("insets 0, gap 12, alignx center"));
     footer.setOpaque(false);
     footer.add(footerText("v" + Commons.getSXVersionShort()));
     footer.add(footerSep());
     footer.add(footerText("MIT"));
     footer.add(footerSep());
-    footer.add(footerText(_I("welcomeFooterFork")));
     footer.add(footerLink(_I("welcomeFooterDocs"), "https://github.com/oculix-org/Oculix/wiki"));
     footer.add(footerLink(_I("welcomeFooterReleaseNotes"), "https://github.com/oculix-org/Oculix/releases"));
     footer.add(footerLink(_I("welcomeFooterReportTranslation"), buildReportTranslationUrl()));
     footer.add(footerLink("github.com/oculix-org", "https://github.com/oculix-org/Oculix"));
 
-    // Column centred horizontally by the [center] cell constraint; footer
-    // overrides with growx so it takes the full WelcomeTab width.
-    add(column);
-    add(footer, "growx, gap 36 36 0 20");
+    // The column sits centred, horizontally and vertically, while there is
+    // room; once the window is shorter than the column, the middle scrolls.
+    ScrollableContent content = new ScrollableContent(new MigLayout("fillx, wrap 1", "[center]", "push[]push"));
+    content.setOpaque(false);
+    content.add(column);
+    JScrollPane scroll = new JScrollPane(content);
+    scroll.setBorder(null);
+    scroll.setOpaque(false);
+    scroll.getViewport().setOpaque(false);
+    scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+    scroll.getVerticalScrollBar().setUnitIncrement(16);
+    add(scroll, BorderLayout.CENTER);
+    footer.setBorder(BorderFactory.createEmptyBorder(8, 36, 20, 36));
+    add(footer, BorderLayout.SOUTH);
+  }
+
+  /**
+   * A panel that fills the viewport while it is smaller than it, so its
+   * content stays centred, and scrolls only once it grows past it.
+   */
+  private static final class ScrollableContent extends JPanel implements Scrollable {
+    ScrollableContent(LayoutManager layout) {
+      super(layout);
+    }
+
+    @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+    @Override public int getScrollableUnitIncrement(Rectangle r, int o, int d) { return 16; }
+    @Override public int getScrollableBlockIncrement(Rectangle r, int o, int d) { return Math.max(16, r.height - 16); }
+    @Override public boolean getScrollableTracksViewportWidth() { return true; }
+
+    @Override
+    public boolean getScrollableTracksViewportHeight() {
+      Container viewport = getParent();
+      return viewport != null && viewport.getHeight() > getPreferredSize().height;
+    }
   }
 
   // ── Footer helpers ──────────────────────────────────────────────
@@ -187,14 +212,14 @@ public class WelcomeTab extends JPanel {
   private static JLabel footerText(String s) {
     JLabel l = new JLabel(s);
     l.setFont(OculixFonts.mono(11));
-    l.setForeground(OculixColors.OX_INK_400);
+    l.setForeground(OculixColors.OX_INK_200);
     return l;
   }
 
   private static JLabel footerSep() {
     JLabel l = new JLabel("·");
     l.setFont(OculixFonts.mono(11));
-    l.setForeground(OculixColors.OX_INK_500);
+    l.setForeground(OculixColors.OX_INK_300);
     return l;
   }
 
@@ -230,7 +255,8 @@ public class WelcomeTab extends JPanel {
    * the reporter fills in (key + current value + suggested value +
    * context).
    */
-  private static String buildReportTranslationUrl() {
+  /** The IDE locale as a bundle tag: {@code fr}, {@code zh_CN}, {@code pt_BR}. */
+  private static String currentLocaleTag() {
     java.util.Locale locale;
     try {
       locale = PreferencesUser.get().getLocale();
@@ -241,6 +267,11 @@ public class WelcomeTab extends JPanel {
     if (locale.getCountry() != null && !locale.getCountry().isEmpty()) {
       localeTag = localeTag + "_" + locale.getCountry();
     }
+    return localeTag;
+  }
+
+  private static String buildReportTranslationUrl() {
+    String localeTag = currentLocaleTag();
     // Open the dedicated translation_issue.yml form template (defined in
     // .github/ISSUE_TEMPLATE/) instead of a free-form issue. The form's
     // 'locale' and 'oculix-version' inputs are pre-populated via query
@@ -264,9 +295,12 @@ public class WelcomeTab extends JPanel {
     int w = getWidth();
     int h = getHeight();
     if (w <= 0 || h <= 0) return;
-    if (hazeCache == null || hazeCache.getWidth() != w || hazeCache.getHeight() != h) {
+    String localeTag = currentLocaleTag();
+    if (hazeCache == null || hazeCache.getWidth() != w || hazeCache.getHeight() != h
+        || !localeTag.equals(geckoCacheLocale)) {
       hazeCache = renderHaze(w, h);
-      geckoCache = renderGecko(w, h);
+      geckoCache = renderGecko(w, h, localeTag);
+      geckoCacheLocale = localeTag;
     }
     g.drawImage(hazeCache, 0, 0, null);
     if (geckoCache != null) {
@@ -275,19 +309,41 @@ public class WelcomeTab extends JPanel {
   }
 
   /**
-   * Loads the gecko mascot once per JVM, then composes it on the right edge
-   * of the panel at 28% alpha — fills the empty space without competing
-   * with the hero text. Cached at panel size, regenerated only on resize.
+   * The gecko of a locale, loaded once per JVM: {@code /icons/gecko/<locale>.png}
+   * (the gecko in that language's costume), else the language alone, else the
+   * plain hero gecko.
    */
-  private java.awt.image.BufferedImage renderGecko(int w, int h) {
-    if (geckoSource == null) {
-      try {
-        java.net.URL url = WelcomeTab.class.getResource("/icons/gecko_cyclope_hero.png");
-        if (url != null) geckoSource = javax.imageio.ImageIO.read(url);
-      } catch (Exception ignored) {
-        return null;
+  private static java.awt.image.BufferedImage geckoFor(String localeTag) {
+    synchronized (geckoSources) {
+      if (geckoSources.containsKey(localeTag)) {
+        return geckoSources.get(localeTag);
       }
+      java.awt.image.BufferedImage found = null;
+      String language = localeTag.contains("_") ? localeTag.substring(0, localeTag.indexOf('_')) : localeTag;
+      for (String path : new String[]{"/icons/gecko/" + localeTag + ".png", "/icons/gecko/" + language + ".png",
+          "/icons/gecko_cyclope_hero.png"}) {
+        try {
+          java.net.URL url = WelcomeTab.class.getResource(path);
+          if (url != null) {
+            found = javax.imageio.ImageIO.read(url);
+            if (found != null) break;
+          }
+        } catch (Exception ignored) {
+          // next candidate
+        }
+      }
+      geckoSources.put(localeTag, found);
+      return found;
     }
+  }
+
+  /**
+   * Composes the locale's gecko on the right edge of the panel at 40% alpha:
+   * present without competing with the hero text. Cached at panel size and
+   * locale, regenerated on resize or language change.
+   */
+  private java.awt.image.BufferedImage renderGecko(int w, int h, String localeTag) {
+    java.awt.image.BufferedImage geckoSource = geckoFor(localeTag);
     if (geckoSource == null) return null;
 
     java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(
@@ -313,7 +369,7 @@ public class WelcomeTab extends JPanel {
     int x = (int) (w * 0.78) - targetW / 2;
     int y = (h - targetH) / 2;
 
-    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.28f));
+    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.40f));
     g2.drawImage(geckoSource, x, y, targetW, targetH, null);
     g2.dispose();
     return out;
@@ -418,7 +474,7 @@ public class WelcomeTab extends JPanel {
 
       JLabel s = new JLabel(shortcut);
       s.setFont(OculixFonts.mono(10));
-      s.setForeground(primary ? OculixColors.withAlpha(new Color(0x00131F), 180) : OculixColors.OX_INK_400);
+      s.setForeground(primary ? OculixColors.withAlpha(new Color(0x00131F), 180) : OculixColors.OX_INK_200);
       add(s);
 
       addMouseListener(new MouseAdapter() {
@@ -460,45 +516,4 @@ public class WelcomeTab extends JPanel {
     }
   }
 
-  // ── Inner: Secondary action row ─────────────────────────────────
-
-  private static class SecondaryRow extends JPanel {
-    private boolean hover;
-
-    SecondaryRow(String label, String shortcut, ActionListener action) {
-      super(new MigLayout("insets 8 12 8 12, gap 10", "[]push[]"));
-      setOpaque(false);
-      setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-      JLabel l = new JLabel(label);
-      l.setFont(OculixFonts.ui(13));
-      l.setForeground(OculixColors.OX_INK_100);
-      add(l);
-
-      JLabel s = new JLabel(shortcut);
-      s.setFont(OculixFonts.mono(10));
-      s.setForeground(OculixColors.OX_INK_400);
-      add(s);
-
-      addMouseListener(new MouseAdapter() {
-        @Override public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
-        @Override public void mouseExited(MouseEvent e)  { hover = false; repaint(); }
-        @Override public void mouseClicked(MouseEvent e) {
-          if (action != null) action.actionPerformed(null);
-        }
-      });
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-      if (hover) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(OculixColors.withAlpha(OculixColors.OX_INK_700, 120));
-        g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
-        g2.dispose();
-      }
-      super.paintComponent(g);
-    }
-  }
 }

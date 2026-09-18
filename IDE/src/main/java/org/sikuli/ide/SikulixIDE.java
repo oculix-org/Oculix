@@ -371,6 +371,7 @@ public class SikulixIDE extends JFrame {
     initSidebarActions();
     initSidebarNavigation();
     sidebar.initFooter(Commons.getSXVersionShort(), e -> refreshAfterThemeChange());
+    sidebar.setOnLocaleChanged(this::rebuildForLocale);
     ideContainer.add(sidebar, BorderLayout.WEST);
     updateScriptDependentItems(); // grey out Run/Capture/Record until a script is open
     Debug.log("IDE: Putting all together - after sidebar");
@@ -602,6 +603,51 @@ public class SikulixIDE extends JFrame {
   // Phase 1b: init sidebar navigation items
   private void initSidebarActions() {
     sidebar.initNavItems();
+  }
+
+  private int lastRunExit = Integer.MIN_VALUE;
+  private long lastRunDuration;
+
+  /**
+   * Rebuilds the sidebar and the Welcome tab in the current IDE language,
+   * keeping the open script, the last run and the theme. Editor tabs already
+   * open keep their labels until they are reopened.
+   */
+  void rebuildForLocale() {
+    Container ideContainer = ideWindow.getContentPane();
+    // the Edit, View and Help entries of the sidebar are copied from these menus
+    _menuBar.removeAll();
+    initMenuBars(ideWindow);
+    _menuBar.setVisible(false);
+    migrateAcceleratorsToRootPane();
+    if (getActiveContext() != null) {
+      chkShowThumbs.setState(getActiveContext().getShowThumbs());
+    }
+    ideContainer.remove(sidebar);
+    scriptDependentItems.clear();
+    sidebar = new OculixSidebar();
+    initSidebarActions();
+    initSidebarNavigation();
+    sidebar.initFooter(Commons.getSXVersionShort(), e -> refreshAfterThemeChange());
+    sidebar.setOnLocaleChanged(this::rebuildForLocale);
+    ideContainer.add(sidebar, BorderLayout.WEST);
+    PaneContext active = getActiveContext();
+    if (active != null) {
+      sidebar.updateProjectInfo(active.getFileName(), active.getFolder());
+    }
+    if (lastRunExit != Integer.MIN_VALUE) {
+      sidebar.updateLastRun(lastRunExit, lastRunDuration);
+    }
+    updateScriptDependentItems();
+    if (welcomeShowing) {
+      hideWelcomeTab();
+      welcomeTab = null;
+      showWelcomeTab();
+    } else {
+      welcomeTab = null;
+    }
+    ideContainer.revalidate();
+    ideContainer.repaint();
   }
 
   // Phase 1b: build sidebar submenus from existing menu actions
@@ -4245,6 +4291,8 @@ public class SikulixIDE extends JFrame {
           final int finalExit = exitValue;
           final long duration = System.currentTimeMillis() - runStart;
           EventQueue.invokeLater(() -> {
+            lastRunExit = finalExit;
+            lastRunDuration = duration;
             if (sidebar != null) {
               sidebar.updateLastRun(finalExit, duration);
             }

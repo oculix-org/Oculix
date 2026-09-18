@@ -386,13 +386,19 @@ public class OculixSidebar extends JPanel {
     footerPanel.add(versionLabel);
   }
 
+  private Runnable onLocaleChanged;
+
   /**
-   * Persists the new locale + reloads the SikuliIDEI18N bundle, then
-   * surfaces a "restart for full effect" toast on the IDE message panel.
-   * The Welcome tab + Sidebar section headers will pick up the new
-   * locale on the next IDE launch (Java Swing components cache strings
-   * at construction time, so a partial live-refresh is unreliable
-   * across the whole IDE).
+   * What the IDE does once the language has changed: it rebuilds the sidebar
+   * and the Welcome tab in the new language.
+   */
+  public void setOnLocaleChanged(Runnable onLocaleChanged) {
+    this.onLocaleChanged = onLocaleChanged;
+  }
+
+  /**
+   * Persists the new locale, reloads the SikuliIDEI18N bundle and hands over
+   * to the IDE, which rebuilds what shows translated text.
    */
   private void changeLocale(java.util.Locale newLocale) {
     try {
@@ -400,29 +406,10 @@ public class OculixSidebar extends JPanel {
       prefs.setLocale(newLocale);
       prefs.store();
       org.sikuli.support.ide.SikuliIDEI18N.setLocale(newLocale);
-      // Update the picker label to the freshly-selected locale so the
-      // user sees feedback even before restart. setSelectedLocale (not
-      // setLocale) — the latter is inherited from java.awt.Component
-      // and renaming avoids a weak-access override compile error.
       if (languagePicker != null) languagePicker.setSelectedLocale(newLocale);
-
-      // User-facing notice that a restart is required for the full UI
-      // to switch (Welcome tab + Sidebar labels are constructed once,
-      // can't refresh in-place without rebuilding the whole tree).
-      // The popup itself uses _I() with the freshly-set locale, so the
-      // user sees the new translation as proof the change took effect.
-      String displayName = newLocale.getDisplayName(newLocale);
-      if (displayName == null || displayName.isEmpty()) {
-        displayName = newLocale.toLanguageTag();
+      if (onLocaleChanged != null) {
+        onLocaleChanged.run();
       }
-      // Capitalize first letter so 'français' / 'deutsch' look right.
-      displayName = Character.toUpperCase(displayName.charAt(0)) + displayName.substring(1);
-
-      JOptionPane.showMessageDialog(
-          SwingUtilities.getWindowAncestor(this),
-          _I("i18nLanguageChangedBody", displayName),
-          _I("i18nLanguageChangedTitle"),
-          JOptionPane.INFORMATION_MESSAGE);
     } catch (Exception ex) {
       System.err.println("[i18n] failed to change locale: " + ex);
     }
