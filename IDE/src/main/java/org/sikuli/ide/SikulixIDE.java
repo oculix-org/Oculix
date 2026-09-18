@@ -615,6 +615,14 @@ public class SikulixIDE extends JFrame {
    */
   void rebuildForLocale() {
     Container ideContainer = ideWindow.getContentPane();
+    // the Edit, View and Help entries of the sidebar are copied from these menus
+    _menuBar.removeAll();
+    initMenuBars(ideWindow);
+    _menuBar.setVisible(false);
+    migrateAcceleratorsToRootPane();
+    if (getActiveContext() != null) {
+      chkShowThumbs.setState(getActiveContext().getShowThumbs());
+    }
     ideContainer.remove(sidebar);
     scriptDependentItems.clear();
     sidebar = new OculixSidebar();
