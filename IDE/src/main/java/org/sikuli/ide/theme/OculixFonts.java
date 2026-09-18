@@ -105,10 +105,58 @@ public final class OculixFonts {
   public static Font mono(int size) {
     // Mono fallback uses Java's logical "Monospaced" family which auto-
     // composites with system mono fonts that have CJK/Arabic/etc.
-    if (currentLocaleNeedsFallback()) {
-      return new Font(Font.MONOSPACED, Font.PLAIN, size);
+    return new Font(monoFamily(), Font.PLAIN, size);
+  }
+
+  private static final java.util.Map<Character.UnicodeScript, String> FAMILY_FOR_SCRIPT =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
+  /** Families tried first when the base font lacks the glyphs of a text. */
+  private static final String[] PREFERRED_FALLBACKS = {
+      "Nirmala UI", "Segoe UI", "Noto Sans", "Kohinoor Devanagari", "Devanagari Sangam MN",
+      "Arial Unicode MS", "DejaVu Sans"
+  };
+
+  /**
+   * The font to draw {@code text} with: {@code base} when it has every glyph,
+   * otherwise an installed family that has them, in the same style and size.
+   * The family found for a script is remembered for the next texts of that script.
+   */
+  public static Font forText(String text, Font base) {
+    if (text == null || text.isEmpty() || base.canDisplayUpTo(text) == -1) {
+      return base;
     }
-    return new Font(FAMILY_MONO, Font.PLAIN, size);
+    Character.UnicodeScript script = scriptOf(text);
+    String family = FAMILY_FOR_SCRIPT.computeIfAbsent(script, s -> familyDisplaying(text));
+    return family.isEmpty() ? base : new Font(family, base.getStyle(), base.getSize());
+  }
+
+  private static Character.UnicodeScript scriptOf(String text) {
+    for (int i = 0; i < text.length(); ) {
+      int cp = text.codePointAt(i);
+      Character.UnicodeScript script = Character.UnicodeScript.of(cp);
+      if (script != Character.UnicodeScript.COMMON && script != Character.UnicodeScript.INHERITED
+          && script != Character.UnicodeScript.LATIN) {
+        return script;
+      }
+      i += Character.charCount(cp);
+    }
+    return Character.UnicodeScript.LATIN;
+  }
+
+  private static String familyDisplaying(String text) {
+    if (new Font(Font.DIALOG, Font.PLAIN, 12).canDisplayUpTo(text) == -1) {
+      return Font.DIALOG;
+    }
+    java.util.List<String> candidates = new java.util.ArrayList<>(java.util.Arrays.asList(PREFERRED_FALLBACKS));
+    candidates.addAll(java.util.Arrays.asList(
+        GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+    for (String family : candidates) {
+      if (new Font(family, Font.PLAIN, 12).canDisplayUpTo(text) == -1) {
+        return family;
+      }
+    }
+    return "";
   }
 
   // ── Locale-aware font fallback ─────────────────────────────────────
@@ -160,8 +208,37 @@ public final class OculixFonts {
 
   private static Font brandOrFallback(String brandFamily, int style, int size) {
     if (currentLocaleNeedsFallback()) {
-      return new Font(Font.DIALOG, style, size);
+      return new Font(uiFamily(), style, size);
     }
     return new Font(brandFamily, style, size);
+  }
+
+  /**
+   * The UI family for the current IDE language: Inter for Latin scripts,
+   * otherwise the first installed family that draws the language's own name.
+   */
+  public static String uiFamily() {
+    if (!currentLocaleNeedsFallback()) {
+      return FAMILY_INTER;
+    }
+    return forText(localeSample(), new Font(Font.DIALOG, Font.PLAIN, 12)).getFamily();
+  }
+
+  /**
+   * The monospaced family for the current IDE language: JetBrains Mono for
+   * Latin scripts, the logical Monospaced family when it draws the language's
+   * own name, else the same family as {@link #uiFamily()}.
+   */
+  public static String monoFamily() {
+    if (!currentLocaleNeedsFallback()) {
+      return FAMILY_MONO;
+    }
+    Font mono = new Font(Font.MONOSPACED, Font.PLAIN, 12);
+    return mono.canDisplayUpTo(localeSample()) == -1 ? Font.MONOSPACED : uiFamily();
+  }
+
+  private static String localeSample() {
+    java.util.Locale loc = org.sikuli.basics.PreferencesUser.get().getLocale();
+    return loc.getDisplayName(loc);
   }
 }
