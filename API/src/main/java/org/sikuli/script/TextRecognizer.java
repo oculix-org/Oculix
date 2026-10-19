@@ -30,8 +30,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Intended to be used only internally - still public for being backward compatible
@@ -141,9 +144,57 @@ public class TextRecognizer {
 
   private static final Cleaner CLEANER = Cleaner.create();
 
+  /**
+   * The open sessions of one thread, and the lock that thread holds while one of them
+   * reads. Kept apart from {@link Sessions} so that the registry of live guards never
+   * keeps a thread's cache reachable: the {@link Cleaner} still sees it go.
+   */
+  private static final class Guard {
+    final ReentrantLock lock = new ReentrantLock();
+    final List<Scribe> open = new CopyOnWriteArrayList<>();
+
+    /** Closes every session of this guard under its lock and leaves the registry. */
+    void closeAll() {
+      lock.lock();
+      try {
+        for (Scribe scribe : open) {
+          scribe.close();
+        }
+        open.clear();
+      } finally {
+        lock.unlock();
+      }
+      LIVE.remove(this);
+    }
+  }
+
+  /** Guards of the threads that currently hold sessions. */
+  private static final Set<Guard> LIVE = ConcurrentHashMap.newKeySet();
+
+  static {
+    Runtime.getRuntime().addShutdownHook(new Thread(TextRecognizer::closeIdleSessions, "oculix-ocr-shutdown"));
+  }
+
+  /**
+   * Closes the sessions that no thread is reading with, so that Tesseract has no
+   * dictionary still referenced when the JVM ends. A session busy in another thread
+   * is left open: closing it would free native memory Tesseract is still reading.
+   */
+  static void closeIdleSessions() {
+    for (Guard guard : LIVE) {
+      if (guard.lock.tryLock()) {
+        try {
+          guard.closeAll();
+        } finally {
+          guard.lock.unlock();
+        }
+      }
+    }
+  }
+
   private static final class Sessions {
     final Map<String, Scribe> byKey;
-    final List<Scribe> open = new CopyOnWriteArrayList<>();
+    final Guard guard = new Guard();
 
     Sessions() {
       byKey = new LinkedHashMap<String, Scribe>(8, 0.75f, true) {
@@ -156,32 +207,26 @@ public class TextRecognizer {
           return false;
         }
       };
-      CLEANER.register(this, closer(open));
+      CLEANER.register(this, guard::closeAll);
     }
 
+    /** Keeps a new session for its option key and puts this thread back in the registry. */
     void put(String key, Scribe scribe) {
-      open.add(scribe);
+      guard.open.add(scribe);
+      LIVE.add(guard);
       byKey.put(key, scribe);
     }
 
+    /** Closes one session evicted from the cache. */
     void release(Scribe scribe) {
-      open.remove(scribe);
+      guard.open.remove(scribe);
       scribe.close();
     }
 
+    /** Closes every session of this thread and empties its cache. */
     void closeAll() {
-      for (Scribe scribe : new ArrayList<>(open)) {
-        release(scribe);
-      }
+      guard.closeAll();
       byKey.clear();
-    }
-
-    private static Runnable closer(List<Scribe> open) {
-      return () -> {
-        for (Scribe scribe : open) {
-          scribe.close();
-        }
-      };
     }
   }
 
@@ -211,7 +256,7 @@ public class TextRecognizer {
     }
     if (cached != null) {
       sessions.byKey.remove(key);
-      sessions.open.remove(cached);
+      sessions.guard.open.remove(cached);
     }
     try {
       Scribe.Builder builder = Scribe.builder()
@@ -569,11 +614,26 @@ public class TextRecognizer {
     settingsDataPathResolved = Settings.OcrDataPath;
   }
 
+  /**
+   * Reads {@code image} with this thread's session for the current options, holding the
+   * thread's session lock for the whole native pass so the shutdown hook never closes a
+   * session in use.
+   */
+  private Reading readGuarded(BufferedImage image, EnumSet<PageLevel> levels) {
+    Guard guard = SESSIONS.get().guard;
+    guard.lock.lock();
+    try {
+      return getScribe().read(image, levels);
+    } finally {
+      guard.lock.unlock();
+    }
+  }
+
   protected <SFIRBS> String doRead(SFIRBS from) {
     BufferedImage bimg = Element.getBufferedImage(from);
     try {
       // No page level requested: one Recognize pass, full text only, no iterator walk.
-      Reading reading = getScribe().read(optimize(bimg), EnumSet.noneOf(PageLevel.class));
+      Reading reading = readGuarded(optimize(bimg), EnumSet.noneOf(PageLevel.class));
       return reading.text().trim().replace("\n\n", "\n");
     } catch (OctachorixFault e) {
       Debug.error("OCR: read: Octachorix: %s", e.getMessage());
@@ -588,7 +648,7 @@ public class TextRecognizer {
     PageLevel pageLevel = toPageLevel(level);
     List<TextElement> textItems;
     try {
-      textItems = getScribe().read(bimgResized, EnumSet.of(pageLevel)).elements(pageLevel);
+      textItems = readGuarded(bimgResized, EnumSet.of(pageLevel)).elements(pageLevel);
     } catch (OctachorixFault e) {
       Debug.error("OCR: read: Octachorix: %s", e.getMessage());
       throw new SikuliXception("OCR: read failed: " + e.getMessage());
