@@ -43,6 +43,12 @@ public class Settings {
   public static int RepeatWaitTime = 1; // wait 1 second for visual to vanish after action
   public static double MinSimilarity = 0.7;
   public static float AlwaysResize = 0;
+  /**
+   * true: when the search in colour fails, the image search also compares in grayscale and accepts
+   * the same drawing in other colours (an application that changes theme); false (default): a button
+   * in another colour is never taken for the searched one
+   */
+  public static boolean AnyColor = false;
   public static int DefaultPadding = 50;
   public static boolean AutoDetectKeyboardLayout = true;  
 

@@ -815,7 +815,7 @@ public class Finder implements Iterator<Match> {
       // Mode 1 (above) = standard exact match
       // Mode 2 = DPI-aware scale
       // Mode 3 = tolerant match (GaussianBlur)
-      // Mode 4 = smart match (grayscale)
+      // Mode 4 = smart match (grayscale), only when Settings.AnyColor
       // Mode 5 = relative search (handled at the Region/Pattern level)
       // ========================================================
 
@@ -873,7 +873,7 @@ public class Finder implements Iterator<Match> {
         log.trace("doFindImage: stop requested after Mode 3, %d msec", new Date().getTime() - begin_find);
         return null;
       }
-      if (findResult == null && !findInput.isFindAll() && !findInput.isGray() && !findInput.hasMask()) {
+      if (findResult == null && Settings.AnyColor && !findInput.isFindAll() && !findInput.isGray() && !findInput.hasMask()) {
         begin_lap = new Date().getTime();
         Mat whatGray = new Mat();
         Mat whereGray = new Mat();
