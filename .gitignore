@@ -34,3 +34,4 @@ Test*.java
 # IDE runtime resources are product files — never ignorable (the blanket
 # *.txt above exists for scratch notes, not for shipped ascii art)
 !IDE/src/main/resources/*.txt
+!API/src/test/resources/**/*.txt
