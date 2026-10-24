@@ -1,0 +1,18 @@
+#globals; m 5; c; f 12; b 1; p 4
+
+[
+#close; (X);
+---5
+#icon; /icons/test/a.png; rename; Rename
+---3
+#icon; /icons/test/b.png; optimize; Optimize
+---3
+#icon; /icons/test/a.png; pattern; As Pattern
+#icon; /icons/test/a.png; unpattern; As Image
+---3
+#icon; /icons/test/b.png; code; Edit code
+]
+---5
+#html; first|second
+---3
+#action; Go; code
