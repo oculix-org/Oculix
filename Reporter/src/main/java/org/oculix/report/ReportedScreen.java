@@ -67,6 +67,16 @@ public class ReportedScreen extends Screen {
         this.explicitTest = test;
     }
 
+    /**
+     * Ambient-mode screen typed as a plain {@link Screen}. The facade calls
+     * this instead of the constructor so that loading the facade never asks
+     * the JVM to check {@code ReportedScreen} against {@code Screen}: a
+     * Selenium-only project has no OculiX API on its class path.
+     */
+    static Screen create() {
+        return new ReportedScreen();
+    }
+
     private Test currentTest() {
         if (explicitTest != null) return explicitTest;
         return org.oculix.report.OculixReporter.currentTest();
