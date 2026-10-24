@@ -1,0 +1,242 @@
+<?xml version="1.0"?>
+<!--
+  ~ Copyright (c) 2026, oculix-org - MIT license
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculix</artifactId>
+    <version>${revision}</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>oculixruntime</artifactId>
+
+  <name>OculiX Runtime Engine</name>
+  <description>Runs OculiX scripts from the command line, without the IDE's windows, theme or splash</description>
+
+  <url>https://github.com/oculix-org/Oculix</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://github.com/oculix-org/Oculix/blob/master/LICENSE</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>julienmerconsulting</id>
+      <name>Julien Mer</name>
+      <email>julien.mer38@gmail.com</email>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git@github.com:oculix-org/Oculix.git</connection>
+    <developerConnection>scm:git:git@github.com:oculix-org/Oculix.git</developerConnection>
+    <url>https://github.com/oculix-org/Oculix</url>
+  </scm>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!-- The runners and the -r entry point live in the IDE module; the libraries
+         that only draw the IDE are left out. -->
+    <dependency>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>oculixide</artifactId>
+      <version>${project.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.formdev</groupId>
+          <artifactId>flatlaf</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.formdev</groupId>
+          <artifactId>flatlaf-extras</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>io.github.dj-raven</groupId>
+          <artifactId>modal-dialog</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>io.github.dj-raven</groupId>
+          <artifactId>swing-pack</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.miglayout</groupId>
+          <artifactId>miglayout-swing</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.explodingpixels</groupId>
+          <artifactId>mac_widgets</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.swinglabs</groupId>
+          <artifactId>swing-layout</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+
+  <!-- Same four complete jars as the IDE, with no SplashScreen-Image in the manifest
+       and OculiX-Runtime: true, which tells the code it runs from the runtime jar. -->
+  <profiles>
+    <!-- complete-jar-->
+    <profile>
+      <id>complete-jar</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <version>3.8.0</version>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>org.sikuli.ide.Sikulix</mainClass>
+                </manifest>
+                <manifestEntries>
+                  <OculiX-Runtime>true</OculiX-Runtime>
+                </manifestEntries>
+              </archive>
+              <descriptors>
+                <descriptor>makeruntime.xml</descriptor>
+              </descriptors>
+            </configuration>
+            <executions>
+              <execution>
+                <id>make-assembly</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- complete-jar Windows only-->
+    <profile>
+      <id>complete-win-jar</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <version>3.8.0</version>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>org.sikuli.ide.Sikulix</mainClass>
+                </manifest>
+                <manifestEntries>
+                  <OculiX-Runtime>true</OculiX-Runtime>
+                </manifestEntries>
+              </archive>
+              <descriptors>
+                <descriptor>makeruntime-win.xml</descriptor>
+              </descriptors>
+            </configuration>
+            <executions>
+              <execution>
+                <id>make-assembly</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- complete-jar Mac only-->
+    <profile>
+      <id>complete-mac-jar</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <version>3.8.0</version>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>org.sikuli.ide.Sikulix</mainClass>
+                </manifest>
+                <manifestEntries>
+                  <OculiX-Runtime>true</OculiX-Runtime>
+                </manifestEntries>
+              </archive>
+              <descriptors>
+                <descriptor>makeruntime-mac.xml</descriptor>
+              </descriptors>
+            </configuration>
+            <executions>
+              <execution>
+                <id>make-assembly</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- complete-jar Linux only-->
+    <profile>
+      <id>complete-lux-jar</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <version>3.8.0</version>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>org.sikuli.ide.Sikulix</mainClass>
+                </manifest>
+                <manifestEntries>
+                  <OculiX-Runtime>true</OculiX-Runtime>
+                </manifestEntries>
+              </archive>
+              <descriptors>
+                <descriptor>makeruntime-lux.xml</descriptor>
+              </descriptors>
+            </configuration>
+            <executions>
+              <execution>
+                <id>make-assembly</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
