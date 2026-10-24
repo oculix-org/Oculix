@@ -10,8 +10,9 @@ import java.lang.reflect.Method;
  * <ul>
  *   <li><b>Selenium 4+</b>: uses {@code EventFiringDecorator} with the
  *     modern {@code WebDriverListener} interface (non-deprecated).</li>
- *   <li><b>Selenium 3 / Selenium 4 pre-4.15</b>: falls back to
- *     {@code EventFiringWebDriver} + {@code WebDriverEventListener}.</li>
+ *   <li><b>Selenium 3</b>: falls back to {@code EventFiringWebDriver} +
+ *     {@code WebDriverEventListener}. Selenium 4.0 to 4.16 still ship both
+ *     APIs; they take the Selenium 4 path above.</li>
  * </ul>
  *
  * <p>Entirely reflective so the Reporter jar does not impose a specific
@@ -28,8 +29,6 @@ public final class SeleniumWrap {
     public static Object wrap(Object driver) {
         if (driver == null) throw new IllegalArgumentException("driver must not be null");
 
-        SeleniumReportingListener listener = new SeleniumReportingListener();
-
         // --- Try Selenium 4 (modern API) ---
         try {
             Class<?> decoratorCls = Class.forName(
@@ -37,11 +36,15 @@ public final class SeleniumWrap {
             Class<?> listenerIface = Class.forName(
                 "org.openqa.selenium.support.events.WebDriverListener");
             Class<?> webDriverCls = Class.forName("org.openqa.selenium.WebDriver");
+            Object listener = new SeleniumReportingListener();
 
-            // new EventFiringDecorator(new WebDriverListener[] { listener })
+            // new EventFiringDecorator(new WebDriverListener[] { listener }):
+            // the array must be a real WebDriverListener[], an Object[] is refused.
+            Object listeners = java.lang.reflect.Array.newInstance(listenerIface, 1);
+            java.lang.reflect.Array.set(listeners, 0, listener);
             Object decorator = decoratorCls
-                .getDeclaredConstructor(java.lang.reflect.Array.newInstance(listenerIface, 0).getClass())
-                .newInstance(new Object[] { new Object[] { listener } });
+                .getDeclaredConstructor(listeners.getClass())
+                .newInstance(listeners);
 
             // decorator.decorate(driver)
             Method decorate = decoratorCls.getMethod("decorate", webDriverCls);
@@ -60,6 +63,11 @@ public final class SeleniumWrap {
             Class<?> webDriverCls = Class.forName("org.openqa.selenium.WebDriver");
             Class<?> eventListenerIface = Class.forName(
                 "org.openqa.selenium.support.events.WebDriverEventListener");
+
+            // Loaded by name: its interface is gone from Selenium 4.17 on, and
+            // this branch is only reached when the Selenium 4 API is absent.
+            Object listener = Class.forName("org.oculix.report.selenium.Selenium3ReportingListener")
+                .getDeclaredConstructor().newInstance();
 
             // new EventFiringWebDriver(driver)
             Object efwd = efwdCls.getDeclaredConstructor(webDriverCls).newInstance(driver);
