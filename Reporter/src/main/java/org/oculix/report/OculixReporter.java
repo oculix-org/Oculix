@@ -75,12 +75,54 @@ public final class OculixReporter {
         Test t = currentTest.get();
         if (t == null) return null;
         t.end(Instant.now());
-        if (outcome == Outcome.ERROR || outcome == Outcome.FAILED) {
-            t.withError(errorMessage == null ? "" : errorMessage,
-                stackTrace == null ? "" : stackTrace);
-        }
+        // The framework's verdict wins: a step that threw and was caught by
+        // the test (an optional element looked up in a try) stays visible as
+        // a failed step inside a passed test.
+        t.withOutcome(outcome, errorMessage, stackTrace);
         currentTest.remove();
         return t;
+    }
+
+    /**
+     * Records a test that never ran (disabled, or skipped before it started)
+     * with the reason the framework gave.
+     */
+    public static Test skippedTest(String name, String reason) {
+        startTest(name);
+        return endTest(Outcome.SKIPPED, reason, "");
+    }
+
+    /**
+     * Everything the JVM would print for {@code t}: type, message, frames,
+     * every {@code Caused by} and suppressed exception.
+     */
+    public static String stackTraceOf(Throwable t) {
+        if (t == null) return "";
+        java.io.StringWriter out = new java.io.StringWriter();
+        t.printStackTrace(new java.io.PrintWriter(out));
+        return out.toString();
+    }
+
+    /** The first line of {@code t} as the JVM prints it: type and message. */
+    public static String messageOf(Throwable t) {
+        return t == null ? "" : t.toString();
+    }
+
+    // ---- Which integration drives the run ----
+
+    private static volatile boolean platformListenerActive;
+
+    /**
+     * Set by the JUnit Platform listener when it starts a run, so that the
+     * {@code @ExtendWith} extension, still accepted for older projects, stays
+     * silent instead of recording every test twice.
+     */
+    public static void markPlatformListenerActive(boolean active) {
+        platformListenerActive = active;
+    }
+
+    public static boolean isPlatformListenerActive() {
+        return platformListenerActive;
     }
 
     public static Test endTest() {
@@ -116,7 +158,7 @@ public final class OculixReporter {
      * won't record anything until a test context exists.
      */
     public static Screen wrapScreen() {
-        return new ReportedScreen();
+        return ReportedScreen.create();
     }
 
     /**
