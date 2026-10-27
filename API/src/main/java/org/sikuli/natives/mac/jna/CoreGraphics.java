@@ -78,6 +78,19 @@ public interface CoreGraphics extends Library {
 	CFArrayRef CGWindowListCopyWindowInfo(int option, int relativeToWindow);
 	boolean CGRectMakeWithDictionaryRepresentation(Pointer dict, CGRectRef rect);
 
+	/**
+	 * Whether this process may record the screen, without asking. Non-zero when allowed.
+	 * The C function returns a one-byte bool, read as a byte. Absent before macOS 11:
+	 * calling it there throws {@link UnsatisfiedLinkError}.
+	 */
+	byte CGPreflightScreenCaptureAccess();
+
+	/**
+	 * Adds this process to the Screen Recording list and, the first time, shows the
+	 * system prompt. Non-zero when already allowed. Absent before macOS 11.
+	 */
+	byte CGRequestScreenCaptureAccess();
+
 	class CGPoint extends Structure {
 	    public double x;
 	    public double y;
