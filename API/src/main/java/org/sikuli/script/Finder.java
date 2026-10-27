@@ -815,7 +815,7 @@ public class Finder implements Iterator<Match> {
       // Mode 1 (above) = standard exact match
       // Mode 2 = DPI-aware scale
       // Mode 3 = tolerant match (GaussianBlur)
-      // Mode 4 = smart match (grayscale), only when Settings.AnyColor
+      // Mode 4 = smart match (grayscale), only when Settings.AnyColor or Settings.AnyTheme (negative too)
       // Mode 5 = relative search (handled at the Region/Pattern level)
       // ========================================================
 
@@ -873,7 +873,7 @@ public class Finder implements Iterator<Match> {
         log.trace("doFindImage: stop requested after Mode 3, %d msec", new Date().getTime() - begin_find);
         return null;
       }
-      if (findResult == null && Settings.AnyColor && !findInput.isFindAll() && !findInput.isGray() && !findInput.hasMask()) {
+      if (findResult == null && (Settings.AnyColor || Settings.AnyTheme) && !findInput.isFindAll() && !findInput.isGray() && !findInput.hasMask()) {
         begin_lap = new Date().getTime();
         Mat whatGray = new Mat();
         Mat whereGray = new Mat();
@@ -894,6 +894,14 @@ public class Finder implements Iterator<Match> {
               findResult = new FindResult2(mResultGray, findInput);
               log.trace("OculiX Mode 4 smart: match %%%.4f (threshold=%%%.4f) %d msec",
                   mMinMax.maxVal * 100, originalScore * 100, new Date().getTime() - begin_lap);
+            } else if (Settings.AnyTheme && Double.isFinite(mMinMax.minVal)
+                && -mMinMax.minVal > originalScore) {
+              // a negative of the template scores near -1: flip the map so FindResult2 reads it as a match
+              Mat mResultInverted = Commons.getNewMat();
+              Core.multiply(mResultGray, new Scalar(-1), mResultInverted);
+              findResult = new FindResult2(mResultInverted, findInput);
+              log.trace("OculiX Mode 4 smart: negative match %%%.4f (threshold=%%%.4f) %d msec",
+                  -mMinMax.minVal * 100, originalScore * 100, new Date().getTime() - begin_lap);
             }
           } else {
             log.trace("OculiX Mode 4 smart: skip — grayscale template variance ≈ 0 (#395)");
