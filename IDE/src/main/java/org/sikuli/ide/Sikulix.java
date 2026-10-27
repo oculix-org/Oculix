@@ -6,6 +6,7 @@ package org.sikuli.ide;
 
 import org.apache.commons.cli.CommandLine;
 import org.sikuli.basics.*;
+import org.sikuli.natives.MacPermissions;
 import org.sikuli.script.SX;
 import org.sikuli.support.FileManager;
 import org.sikuli.script.SikuliXception;
@@ -19,14 +20,20 @@ import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.ide.theme.OculixLightLaf;
 import org.sikuli.idesupport.CommandArgs;
 
+import javax.swing.JDialog;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.sikuli.idesupport.CommandArgsEnum.*;
+import static org.sikuli.support.ide.SikuliIDEI18N._I;
 
 public class Sikulix {
 
@@ -47,6 +54,45 @@ public class Sikulix {
       ideSplash.close();
       ideSplash = null;
     }
+  }
+
+  /**
+   * On macOS, ends OculiX before anything runs when Screen Recording or Accessibility is
+   * not granted: a capture would only show the desktop picture and the robot would act
+   * on nothing. macOS is asked for each missing permission first, so it shows its own
+   * prompt. With a window, a notice without buttons says what to turn on and stays five
+   * seconds; the message and the commands that open the lists also go to the console,
+   * which is all there is without a window ({@code -r}). OculiX ends in every case:
+   * macOS applies a permission only to a program that starts after it is given.
+   */
+  private static void stopWhenMacPermissionsMissing(boolean withWindow) {
+    List<MacPermissions.Permission> missing = MacPermissions.missing();
+    if (missing.isEmpty()) {
+      return;
+    }
+    MacPermissions.request(missing);
+    if (!withWindow) {
+      Commons.terminate(1, "%s", MacPermissions.message(missing));
+    }
+    String lines = missing.stream()
+        .map(p -> "- " + _I(p == MacPermissions.Permission.SCREEN_RECORDING
+            ? "msgMacPermissionScreen" : "msgMacPermissionAccessibility"))
+        .collect(Collectors.joining("\n"));
+    try {
+      SwingUtilities.invokeAndWait(() -> {
+        JOptionPane pane = new JOptionPane(_I("msgMacPermission", lines),
+            JOptionPane.WARNING_MESSAGE, JOptionPane.DEFAULT_OPTION, null, new Object[0]);
+        JDialog dialog = pane.createDialog(_I("dlgMacPermission"));
+        dialog.setModal(false);
+        dialog.setVisible(true);
+      });
+      Thread.sleep(5000);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    } catch (InvocationTargetException e) {
+      Debug.log(3, "MacPermissions: notice not shown: %s", e.getCause());
+    }
+    Commons.terminate(1, "%s", MacPermissions.message(missing));
   }
 
   private static File ideIsRunningFile = null;
@@ -198,6 +244,7 @@ public class Sikulix {
     }
 
     if (hasArg(RUN.shortname())) {
+      stopWhenMacPermissionsMissing(false);
       Commons.loadOpenCV();
       HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
         @Override
@@ -238,6 +285,8 @@ public class Sikulix {
       OculixDarkLaf.setup();
     }
     Commons.startLog(1, "fonts + theme (%4.1f)", Commons.getSinceStart());
+
+    stopWhenMacPermissionsMissing(true);
 
     ideSplash = new OculixSplash();
     Commons.observeStartLog(ideSplash::status);
