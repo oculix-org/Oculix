@@ -49,6 +49,13 @@ public class Settings {
    * in another colour is never taken for the searched one
    */
   public static boolean AnyColor = false;
+  /**
+   * true: the grayscale comparison also accepts the searched image in negative, light on dark
+   * instead of dark on light (an application switched between a light and a dark theme); a
+   * normal match always wins over a negative one; false (default): a negative is never taken
+   * for the searched image
+   */
+  public static boolean AnyTheme = false;
   public static int DefaultPadding = 50;
   public static boolean AutoDetectKeyboardLayout = true;  
 
