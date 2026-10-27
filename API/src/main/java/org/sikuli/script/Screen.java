@@ -8,10 +8,12 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
+import org.sikuli.natives.MacPermissions;
 import org.sikuli.support.*;
 import org.sikuli.support.devices.*;
 import org.sikuli.util.EventObserver;
@@ -82,10 +84,26 @@ public class Screen extends Region implements IScreen, EventObserver {
     // hang silently in keyboard-only flows. Gating to runningMac() avoids the
     // cosmetic mouse-jump on Linux/Windows where the check is a no-op terminate-wise.
     if (Commons.runningMac()) {
+      stopWhenMacPermissionsMissing();
       MouseDevice.start();
     }
     warmUpFind();
     log(logLevel, "initScreens: ending");
+  }
+
+  /**
+   * Fails the screen set-up on macOS when Screen Recording or Accessibility is not
+   * granted, with a message that names each one and the command that opens its list in
+   * System Settings. The process is put in those lists first. For a program using the
+   * API this is a {@link SikuliXception}: nothing is captured or clicked for nothing.
+   */
+  private static void stopWhenMacPermissionsMissing() {
+    List<MacPermissions.Permission> missing = MacPermissions.missing();
+    if (missing.isEmpty()) {
+      return;
+    }
+    MacPermissions.request(missing);
+    Commons.terminate(999, "%s", MacPermissions.message(missing));
   }
 
   /**
