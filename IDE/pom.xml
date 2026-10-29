@@ -161,9 +161,6 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
-                <manifestEntries>
-                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
-                </manifestEntries>
               </archive>
               <descriptors>
                 <descriptor>makeide.xml</descriptor>
@@ -198,9 +195,6 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
-                <manifestEntries>
-                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
-                </manifestEntries>
               </archive>
               <descriptors>
                 <descriptor>makeide-win.xml</descriptor>
@@ -235,9 +229,6 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
-                <manifestEntries>
-                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
-                </manifestEntries>
               </archive>
               <descriptors>
                 <descriptor>makeide-mac.xml</descriptor>
@@ -272,9 +263,6 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
-                <manifestEntries>
-                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
-                </manifestEntries>
               </archive>
               <descriptors>
                 <descriptor>makeide-lux.xml</descriptor>
@@ -376,6 +364,32 @@
         <configuration>
           <release>17</release>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>jython-precompile-lib</id>
+            <phase>process-classes</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>java</executable>
+              <arguments>
+                <argument>-classpath</argument>
+                <classpath/>
+                <argument>org.python.util.jython</argument>
+                <argument>-m</argument>
+                <argument>compileall</argument>
+                <argument>-q</argument>
+                <argument>${project.build.outputDirectory}/Lib</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
