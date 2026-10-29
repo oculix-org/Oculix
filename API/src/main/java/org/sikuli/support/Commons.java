@@ -1755,7 +1755,7 @@ public class Commons {
       }
       String pid = String.valueOf(ProcessHandle.current().pid());
       Path tempDir = Files.createTempDirectory("oculix-opencv-" + pid + "-");
-      File tempLib = tempDir.resolve("libopencv_java4100.so").toFile();
+      File tempLib = tempDir.resolve(fileName).toFile();
       tempDir.toFile().deleteOnExit();  // 2nd: delete folder
       tempLib.deleteOnExit();           // 1st: delete file
       Debug.log("Creating OpenCV temp lib: %s", tempLib.toString());
