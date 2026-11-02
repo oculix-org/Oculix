@@ -154,7 +154,7 @@ public class TesseractEngine implements OCREngine {
     private String buildJsonFromMatches(List<?> matches, double elapsedSeconds) {
         StringBuilder json = new StringBuilder();
         json.append("{\"success\":true,\"engine\":\"tesseract\",\"recognition_time\":");
-        json.append(String.format("%.3f", elapsedSeconds));
+        json.append(String.format(Locale.ROOT, "%.3f", elapsedSeconds));
         json.append(",\"results\":[");
 
         boolean first = true;
@@ -186,7 +186,7 @@ public class TesseractEngine implements OCREngine {
                 if (text != null && !text.trim().isEmpty()) {
                     if (!first) json.append(",");
                     json.append("{\"text\":\"").append(escapeJson(text.trim()))
-                        .append("\",\"confidence\":").append(String.format("%.2f", score))
+                        .append("\",\"confidence\":").append(String.format(Locale.ROOT, "%.2f", score))
                         .append(",\"bbox\":[[").append(mx).append(",").append(my)
                         .append("],[").append(mx + mw).append(",").append(my)
                         .append("],[").append(mx + mw).append(",").append(my + mh)
@@ -207,7 +207,7 @@ public class TesseractEngine implements OCREngine {
     private String buildJsonFromText(String text, double elapsedSeconds) {
         StringBuilder json = new StringBuilder();
         json.append("{\"success\":true,\"engine\":\"tesseract\",\"recognition_time\":");
-        json.append(String.format("%.3f", elapsedSeconds));
+        json.append(String.format(Locale.ROOT, "%.3f", elapsedSeconds));
         json.append(",\"results\":[");
 
         if (text != null && !text.trim().isEmpty()) {
