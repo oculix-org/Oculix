@@ -148,9 +148,8 @@ class RecorderActions {
 
       if (result != null) {
         if (result.warning == PatternValidator.Warning.AMBIGUOUS) {
-          pattern = pattern.similar((float) result.suggestedSimilarity);
           RecorderNotifications.warning(
-              "Pattern matches " + result.matchCount + " locations. Similarity raised to " + result.suggestedSimilarity);
+              "Pattern matches " + result.matchCount + " locations. Capture a more distinctive area, or set similar() yourself.");
         } else if (result.warning == PatternValidator.Warning.COLOR_DEPENDENT) {
           RecorderNotifications.warning("Pattern depends on colors. May break with theme changes.");
         } else if (result.warning == PatternValidator.Warning.TOO_SMALL) {
