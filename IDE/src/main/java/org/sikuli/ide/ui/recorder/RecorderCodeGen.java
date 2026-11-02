@@ -137,6 +137,48 @@ class RecorderCodeGen {
   }
 
   /**
+   * The remote session as the script will replay it: an SSH tunnel opened by
+   * {@code SSHTunnel} (pure Java, no WSL, no sshpass, no X server), then a
+   * {@code VNCScreen} on the tunnel's local port, the same path on every OS.
+   * The SSH password is never written: a placeholder the user fills in.
+   *
+   * @param vncPassword VNC password, or null when the server has none
+   */
+  void generateRemoteVnc(String host, String user, String vncPort, String vncPassword) {
+    String vncPass = vncPassword == null ? null : vncPassword.replace("\\", "\\\\").replace("\"", "\\\"");
+    if (isJava()) {
+      addLine("// SSH tunnel to " + host + ", then VNC through it; replace <SSH_PASSWORD>");
+      addLine("SSHTunnel tunnel = SSHTunnel.open(\"" + host + "\", 22, \"" + user
+          + "\", \"<SSH_PASSWORD>\", \"localhost\", " + vncPort + ", 0);");
+      addLine("VNCScreen vncSession = VNCScreen.start(\"127.0.0.1\", tunnel.getLocalPort(), "
+          + (vncPass == null ? "null" : "\"" + vncPass + "\"") + ", 10, 1000);");
+    } else if (isRF()) {
+      addLine("    # VNC via SSH tunnel to " + host + " is not available in the Robot keywords");
+    } else {
+      addLine("# SSH tunnel to " + host + ", then VNC through it; replace <SSH_PASSWORD>");
+      addLine("from com.sikulix.util import SSHTunnel");
+      addLine("from org.sikuli.vnc import VNCScreen");
+      addLine("tunnel = SSHTunnel.open(\"" + host + "\", 22, \"" + user
+          + "\", \"<SSH_PASSWORD>\", \"localhost\", " + vncPort + ", 0)");
+      addLine("vncSession = VNCScreen.start(\"127.0.0.1\", tunnel.getLocalPort(), "
+          + (vncPass == null ? "None" : "\"" + vncPass + "\"") + ", 10, 1000)");
+    }
+  }
+
+  /** Closes what {@link #generateRemoteVnc} opened: the VNC session first, then the tunnel. */
+  void generateCloseRemoteVnc() {
+    if (isJava()) {
+      addLine("vncSession.stop();");
+      addLine("tunnel.close();");
+    } else if (isRF()) {
+      addLine("    # nothing to close: see the remote VNC note above");
+    } else {
+      addLine("vncSession.stop()");
+      addLine("tunnel.close()");
+    }
+  }
+
+  /**
    * Number of header lines this generator pushes at the top of the preview
    * via {@link #initHeaders()}. Used by {@code RecorderAssistant.insertAndClose}
    * to skip the header when the destination pane already contains the
