@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -21,9 +21,8 @@ import java.util.stream.Stream;
 public class AppLauncher {
 
   private static final String VCXSRV_PROCESS = "vcxsrv.exe";
-  private static final String VCXSRV_PATH = "C:\\Program Files\\VcXsrv\\vcxsrv.exe";
+  static final String VCXSRV_PATH = "C:\\Program Files\\VcXsrv\\vcxsrv.exe";
   private static final int XSERVER_STARTUP_DELAY = 5000;
-  private static final int LAUNCH_TIMEOUT_SECONDS = 120;
 
   private static final String DEFAULT_SSH_OPTIONS =
       "-Y -C -o Ciphers=aes128-ctr -o MACs=hmac-sha2-256,hmac-sha1 " +
@@ -129,6 +128,36 @@ public class AppLauncher {
     launchRemoteVNC(host, user, password, "5900");
   }
 
+  /**
+   * Tell whether a program exists on the target, through the same ssh path the launch
+   * uses (same credentials, same host key policy). The viewer runs on the target, so
+   * this is where it has to be looked for.
+   *
+   * @param tool program name, e.g. {@code vncviewer}
+   * @return true if {@code command -v tool} succeeds on the target
+   */
+  public static boolean checkRemoteTool(String host, String user, String password, String tool)
+      throws IOException, InterruptedException {
+    if (!tool.matches("[A-Za-z0-9._+-]+")) {
+      throw new IllegalArgumentException("tool name: " + tool);
+    }
+    ProcessBuilder builder = new VncCommandBuilder()
+        .credentials(user, password)
+        .targetIp(host)
+        .sshOptions("-o BatchMode=no -o ConnectTimeout=10")
+        .remoteMode(RemoteMode.fromEnvOrDefault())
+        .remoteCommand("command -v " + tool)
+        .build();
+    builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+    builder.redirectError(ProcessBuilder.Redirect.DISCARD);
+    Process process = builder.start();
+    if (!process.waitFor(30, TimeUnit.SECONDS)) {
+      process.destroyForcibly();
+      return false;
+    }
+    return process.exitValue() == 0;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // X SERVER
   // ═══════════════════════════════════════════════════════════════════════
@@ -181,50 +210,6 @@ public class AppLauncher {
     return Optional.empty();
   }
 
-  private static Optional<String> getWslIpFromResolvConf() {
-    try (Stream<String> lines = CommandExecutor.execWsl("cat /etc/resolv.conf")) {
-      Pattern nsPattern = Pattern.compile("nameserver\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)");
-      for (String line : (Iterable<String>) lines::iterator) {
-        Matcher m = nsPattern.matcher(line);
-        if (m.find()) return Optional.of(m.group(1));
-      }
-    } catch (Exception ignored) {
-    }
-    return Optional.empty();
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // VNC WINDOW DETECTION WITH TIMEOUT
-  // ═══════════════════════════════════════════════════════════════════════
-
-  private static void waitForVncWindow() throws TimeoutException {
-    ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-      Thread t = new Thread(r, "VncWindowWait");
-      t.setDaemon(true);
-      return t;
-    });
-
-    Future<?> future = executor.submit(() -> {
-      while (!Thread.currentThread().isInterrupted()) {
-        if (CommandExecutor.isProcessRunning("vncviewer")) return;
-        sleep(1000);
-      }
-    });
-
-    try {
-      future.get(LAUNCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-    } catch (TimeoutException e) {
-      future.cancel(true);
-      throw new TimeoutException(
-          "VNC window did not appear within " + LAUNCH_TIMEOUT_SECONDS + " seconds. "
-          + "Check SSH credentials, network, and X Server.");
-    } catch (Exception e) {
-      throw new RuntimeException("VNC launch failed: " + e.getMessage(), e);
-    } finally {
-      executor.shutdownNow();
-    }
-  }
-
   // ═══════════════════════════════════════════════════════════════════════
   // VNC COMMAND BUILDER
   // ═══════════════════════════════════════════════════════════════════════
@@ -237,8 +222,11 @@ public class AppLauncher {
     private String vncPort = "5900";
     private String sshOptions = "";
     private RemoteMode remoteMode = RemoteMode.CONFIDENTIAL;
+    private String remoteCommand;
 
     public VncCommandBuilder displayIp(String ip) { this.displayIp = ip; return this; }
+    /** Command run on the target instead of the viewer; null means {@code vncviewer -FullColor localhost:PORT}. */
+    public VncCommandBuilder remoteCommand(String command) { this.remoteCommand = command; return this; }
     public VncCommandBuilder credentials(String user, String pass) {
       this.sshUser = user; this.sshPassword = pass; return this;
     }
@@ -273,7 +261,7 @@ public class AppLauncher {
       ssh.add("-o");
       ssh.add(yolo ? "StrictHostKeyChecking=no" : "StrictHostKeyChecking=yes");
       ssh.add(sshUser + "@" + targetIp);
-      ssh.add("vncviewer -FullColor localhost:" + vncPort);
+      ssh.add(remoteCommand != null ? remoteCommand : "vncviewer -FullColor localhost:" + vncPort);
 
       List<String> command = new ArrayList<>();
       if (Commons.runningWindows()) {
