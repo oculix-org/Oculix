@@ -1,24 +1,31 @@
 /*
- * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
+ * Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license
  * SSH Tunnel for VNC connections via JSch
  */
 package com.sikulix.util;
 
-import com.jcraft.jsch.*;
-import com.sikulix.util.SikuliLogger;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+import org.sikuli.support.RemoteMode;
 
 import java.io.Closeable;
+import java.io.File;
 
 /**
  * Integrated SSH tunnel for VNC connections through a bastion/remote server.
- * Eliminates the dependency on WSL/sshpass.
+ * Pure Java (JSch): no WSL, no sshpass, no X server, the same code on every OS.
  *
- * Uses JSch (pure Java SSH) for maximum portability.
+ * <p>The host key policy follows {@link RemoteMode}: in {@code confidential}
+ * (the default) the server must already be in {@code ~/.ssh/known_hosts},
+ * an unknown key is a hard failure; in {@code yolo} unknown keys are accepted.
+ * Authentication is by password, or by private key when {@link #identity(String)}
+ * is set. The cipher, MAC and key-exchange lists deliberately include legacy
+ * algorithms: some of the targets this tunnel exists for are old SUSE boxes.
  *
- * Usage:
  * <pre>
  *   try (SSHTunnel tunnel = SSHTunnel.open("192.168.1.100", "user", "password")) {
- *       VNCScreen vnc = VNCScreen.start("127.0.0.1", tunnel.getLocalPort(), 10, 1000);
+ *       VNCScreen vnc = VNCScreen.start("127.0.0.1", tunnel.getLocalPort(), null, 10, 1000);
  *       // ... use VNC
  *       vnc.stop();
  *   }
@@ -32,10 +39,29 @@ public class SSHTunnel implements Closeable {
     private static final int DEFAULT_SERVER_ALIVE_INTERVAL = 30;
     private static final int DEFAULT_SERVER_ALIVE_COUNT_MAX = 3;
 
+    private static volatile String identityPath;
+
     private Session session;
     private int localPort;
 
     private SSHTunnel() {
+    }
+
+    /**
+     * Use a private key (OpenSSH or PEM file) for every tunnel opened afterwards.
+     * The password given to {@code open} then serves as the key passphrase, and may be null.
+     *
+     * @param path absolute path to the private key, or {@code null} to go back to passwords
+     */
+    public static void identity(String path) {
+        identityPath = (path == null || path.trim().isEmpty()) ? null : path.trim();
+    }
+
+    /**
+     * @return the private key path set by {@link #identity(String)}, or {@code null}
+     */
+    public static String getIdentity() {
+        return identityPath;
     }
 
     /**
@@ -44,27 +70,46 @@ public class SSHTunnel implements Closeable {
      * @param sshHost      SSH server address (e.g., "192.168.1.100")
      * @param sshPort      SSH port (typically 22)
      * @param sshUser      SSH username (e.g., "root")
-     * @param sshPassword  SSH password
-     * @param remoteHost   remote host for forwarding (typically "localhost")
+     * @param sshPassword  SSH password, or the key passphrase when an identity is set (may be null)
+     * @param remoteHost   remote host for forwarding, as seen from the SSH server (typically "localhost")
      * @param remotePort   remote port to forward (e.g., 5900 for VNC)
      * @param localPort    local port to bind (e.g., 5900, or 0 for auto)
      * @return the SSHTunnel instance with the effective local port
-     * @throws JSchException if SSH connection fails
+     * @throws JSchException if the SSH connection fails, or if the host key is unknown in confidential mode
      */
     public static SSHTunnel open(String sshHost, int sshPort, String sshUser,
                                   String sshPassword, String remoteHost,
                                   int remotePort, int localPort) throws JSchException {
         SSHTunnel tunnel = new SSHTunnel();
+        RemoteMode mode = RemoteMode.fromEnvOrDefault();
 
         SikuliLogger.info("[SSH] Opening tunnel to " + sshHost + ":" + sshPort
-            + " -> " + remoteHost + ":" + remotePort);
+            + " -> " + remoteHost + ":" + remotePort + " (" + mode + ")");
 
         JSch jsch = new JSch();
-        Session session = jsch.getSession(sshUser, sshHost, sshPort);
-        session.setPassword(sshPassword);
+        File knownHosts = new File(System.getProperty("user.home"), ".ssh/known_hosts");
+        if (knownHosts.isFile()) {
+            jsch.setKnownHosts(knownHosts.getAbsolutePath());
+        } else if (!mode.isYolo()) {
+            throw new JSchException("[SSH] " + knownHosts + " not found: add the host key first"
+                + " (ssh-keyscan -H " + sshHost + " >> " + knownHosts + "), or set OCULIX_REMOTE_MODE=yolo");
+        }
 
-        // Disable strict host key checking (hosts change keys frequently)
-        session.setConfig("StrictHostKeyChecking", "no");
+        String identity = identityPath;
+        if (identity != null) {
+            if (sshPassword == null || sshPassword.isEmpty()) {
+                jsch.addIdentity(identity);
+            } else {
+                jsch.addIdentity(identity, sshPassword);
+            }
+        }
+
+        Session session = jsch.getSession(sshUser, sshHost, sshPort);
+        if (identity == null) {
+            session.setPassword(sshPassword);
+        }
+
+        session.setConfig("StrictHostKeyChecking", mode.isYolo() ? "no" : "yes");
 
         // Configure ciphers compatible with old servers (SUSE 12)
         session.setConfig("cipher.s2c", "aes128-ctr,aes128-cbc,3des-cbc,aes192-ctr,aes256-ctr");
@@ -87,16 +132,34 @@ public class SSHTunnel implements Closeable {
         // Disable TCP keepalive (we use ServerAlive instead)
         session.setConfig("TCPKeepAlive", "no");
 
-        // Connect with timeout
-        session.connect(DEFAULT_CONNECT_TIMEOUT_MS);
+        try {
+            session.connect(DEFAULT_CONNECT_TIMEOUT_MS);
+        } catch (JSchException e) {
+            String reason = String.valueOf(e.getMessage());
+            if (reason.contains("HostKey has been changed")) {
+                throw new JSchException("[SSH] Host key of " + sshHost + " differs from the one in " + knownHosts
+                    + ": either the server was reinstalled, or someone is impersonating it. If you trust it,"
+                    + " remove the old key (ssh-keygen -R " + sshHost + ") and add the new one"
+                    + " (ssh-keyscan -H " + sshHost + " >> " + knownHosts + ")", e);
+            }
+            if (reason.contains("UnknownHostKey") || reason.contains("reject HostKey")) {
+                throw new JSchException("[SSH] Host key of " + sshHost + " is not in " + knownHosts
+                    + ": add it first (ssh-keyscan -H " + sshHost + " >> " + knownHosts
+                    + "), or set OCULIX_REMOTE_MODE=yolo", e);
+            }
+            throw e;
+        }
 
-        // Set up port forwarding
-        int assignedPort = session.setPortForwardingL(localPort, remoteHost, remotePort);
+        try {
+            int assignedPort = session.setPortForwardingL(localPort, remoteHost, remotePort);
+            tunnel.session = session;
+            tunnel.localPort = assignedPort;
+        } catch (JSchException e) {
+            session.disconnect();
+            throw e;
+        }
 
-        tunnel.session = session;
-        tunnel.localPort = assignedPort;
-
-        SikuliLogger.info("[SSH] Tunnel established: localhost:" + assignedPort
+        SikuliLogger.info("[SSH] Tunnel established: localhost:" + tunnel.localPort
             + " -> " + remoteHost + ":" + remotePort);
 
         return tunnel;
@@ -152,21 +215,21 @@ public class SSHTunnel implements Closeable {
     }
 
     /**
-     * Get the local port the tunnel is listening on.
+     * @return the local port the tunnel is listening on
      */
     public int getLocalPort() {
         return localPort;
     }
 
     /**
-     * Check if the tunnel is active.
+     * @return true while the SSH session behind the tunnel is connected
      */
     public boolean isConnected() {
         return session != null && session.isConnected();
     }
 
     /**
-     * Close the tunnel and SSH session.
+     * Close the tunnel and SSH session. Safe to call twice.
      */
     @Override
     public void close() {
@@ -174,7 +237,7 @@ public class SSHTunnel implements Closeable {
             try {
                 session.delPortForwardingL(localPort);
             } catch (JSchException e) {
-                // Ignore cleanup errors
+                // the session is going down anyway
             }
             session.disconnect();
             SikuliLogger.info("[SSH] Tunnel closed (port " + localPort + ")");
