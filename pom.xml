@@ -172,6 +172,34 @@
             </execution>
           </executions>
         </plugin>
+        <!-- Enable-Native-Access: JDK 24+ (JEP 472) warns when JNA calls
+             System.load from the unnamed module, and announces that the call
+             will be blocked in a later release. The manifest attribute is the
+             documented opt-in for a jar started with java -jar; it is inherited
+             by every jar and assembly of the reactor through the standard
+             configuration merge, next to each module's own mainClass. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <configuration>
+            <archive>
+              <manifestEntries>
+                <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+              </manifestEntries>
+            </archive>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <configuration>
+            <archive>
+              <manifestEntries>
+                <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+              </manifestEntries>
+            </archive>
+          </configuration>
+        </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>flatten-maven-plugin</artifactId>
