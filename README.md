@@ -205,6 +205,4 @@ Visible at [Contributors](https://github.com/oculix-org/Oculix/graphs/contributo
 
 OculiX is released under the [MIT License](LICENSE). It is the active continuation of the Sikuli (Tom Yeh, MIT UIST 2009) and SikuliX (Raimund Hocke, 2010–2025) lineage. The `org.sikuli.*` package namespace and historical prose are preserved as a matter of respect to the foundations.
 
-This project is tested with BrowserStack.
-
 🦎
