@@ -116,7 +116,21 @@ public final class TesseractLastSeen {
                 return null;
             }
 
-            return new Region(x, y, w, h, searchRegion.getScreen());
+            // Tesseract cannot read a word cropped at its own glyph bounds: it needs
+            // room around the text to place its lines. Re-read a zone 5 px wider on
+            // every side, clamped to the search region. Not more vertically: text
+            // lines sit 4 to 5 px apart (Notepad, 11 pt at 125 %), a taller margin
+            // would cut the neighbouring lines in half and give Tesseract three
+            // bands, two of them truncated. Measured before this margin: the tight
+            // ROI failed on every call, the catalog was invalidated and rewritten
+            // each time, and findText always paid the full scan (2 s for a word on
+            // a 1536x864 screen).
+            int margin = 5;
+            int left = Math.max(searchRegion.x, x - margin);
+            int top = Math.max(searchRegion.y, y - margin);
+            int right = Math.min(searchRegion.x + searchRegion.w, x + w + margin);
+            int bottom = Math.min(searchRegion.y + searchRegion.h, y + h + margin);
+            return new Region(left, top, right - left, bottom - top, searchRegion.getScreen());
         }
     }
 
