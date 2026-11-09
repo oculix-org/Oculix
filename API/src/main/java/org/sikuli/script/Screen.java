@@ -11,6 +11,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.opencv.core.Core;
+import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
 import org.sikuli.natives.MacPermissions;
@@ -88,6 +91,7 @@ public class Screen extends Region implements IScreen, EventObserver {
       MouseDevice.start();
     }
     warmUpFind();
+    measureFullSearch();
     log(logLevel, "initScreens: ending");
   }
 
@@ -126,6 +130,38 @@ public class Screen extends Region implements IScreen, EventObserver {
       new Region(s.x, s.y, 64, 64).exists(patch, 0);
     } catch (Throwable e) {
       log(logLevel, "initScreens: warm-up skipped: %s", e.getMessage());
+    }
+  }
+
+  /**
+   * Times one exact search of a 32 x 32 template that cannot be on screen, over the whole primary screen,
+   * capture included. A wait then looks only around an image's last known position for that long before
+   * it scans the whole region again. Skipped when {@link Settings#WaitFullSearchInterval} is set by the script.
+   */
+  private static void measureFullSearch() {
+    if (Settings.WaitFullSearchInterval >= 0) {
+      return;
+    }
+    Mat where = null;
+    Mat what = null;
+    Mat result = null;
+    try {
+      long start = System.nanoTime();
+      where = Commons.makeMat(screens[primaryScreen].capture().getImage());
+      what = new Mat(32, 32, where.type());
+      Core.randu(what, 0, 256);
+      result = new Mat();
+      Imgproc.matchTemplate(where, what, result, Imgproc.TM_CCOEFF_NORMED);
+      Core.minMaxLoc(result);
+      double seconds = (System.nanoTime() - start) / 1e9;
+      Region.setMeasuredFullSearch(seconds);
+      log(logLevel, "initScreens: full search measured: %d msec", (long) (seconds * 1000));
+    } catch (Throwable e) {
+      log(logLevel, "initScreens: full search not measured: %s", e.getMessage());
+    } finally {
+      if (where != null) where.release();
+      if (what != null) what.release();
+      if (result != null) result.release();
     }
   }
 
