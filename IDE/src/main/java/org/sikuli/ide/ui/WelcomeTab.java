@@ -23,7 +23,8 @@ import static org.sikuli.support.ide.SikuliIDEI18N._I;
 /**
  * Welcome panel displayed when no script is open.
  *
- * <p>Layout (top → bottom, all left-aligned in a centered column):
+ * <p>Layout (top → bottom, all left-aligned in a column that sits against the
+ * gecko's zone on the right and grows to the left when a language needs it):
  * <ol>
  *   <li>Eyebrow kicker — VISUAL AUTOMATION · v3.0.3-rc4 in JetBrains Mono cyan</li>
  *   <li>Hero quote — RaiMan's original SikuliX1 description, in Fraunces italic</li>
@@ -82,9 +83,11 @@ public class WelcomeTab extends JPanel {
   }
 
   private void buildUI() {
-    // Centered column of content with a max width for readability
+    // Column of content: 580 px for readability, wider only when the current
+    // language needs more room for a row of buttons. It grows to the left:
+    // its right edge stops where the gecko's zone begins (see buildContent).
     JPanel column = new JPanel(new MigLayout(
-        "wrap 1, insets 28 36 20 36, gap 0", "[grow, fill, 580!]", ""));
+        "wrap 1, insets 28 36 20 36, gap 0", "[grow, fill, 580::]", ""));
     column.setOpaque(false);
 
     // ── Eyebrow ──
@@ -141,17 +144,21 @@ public class WelcomeTab extends JPanel {
     // ── Primary CTAs ──
     // Leading glyph stays in code (visual rhythm, locale-independent).
     // Only the action label is translated.
+    // The shortcut hints name the platform's key: the accelerators themselves
+    // are built on getMenuShortcutKeyMaskEx() in SikulixIDE, so Cmd+N already
+    // works on a Mac; only this text said Ctrl there.
+    String mod = Commons.runningMac() ? "Cmd" : "Ctrl";
     JPanel primaryCtas = new JPanel(new MigLayout("insets 0, gap 10", "[]10[]push"));
     primaryCtas.setOpaque(false);
-    primaryCtas.add(new HeroButton("+  " + _I("welcomeBtnNewScript"), "Ctrl+N", true, onNew));
-    primaryCtas.add(new HeroButton(_I("welcomeBtnOpenScript"), "Ctrl+O", false, onOpen));
+    primaryCtas.add(new HeroButton("+  " + _I("welcomeBtnNewScript"), mod + "+N", true, onNew));
+    primaryCtas.add(new HeroButton(_I("welcomeBtnOpenScript"), mod + "+O", false, onOpen));
     column.add(primaryCtas, "gapbottom 10");
 
     // ── Workspace buttons, same ghost style as "Open script" ──
     JPanel secondary = new JPanel(new MigLayout("insets 0, gap 10", "[]10[]push"));
     secondary.setOpaque(false);
-    secondary.add(new HeroButton(_I("welcomeBtnNewWorkspace"), "Ctrl+Shift+N", false, onNewWorkspace));
-    secondary.add(new HeroButton(_I("welcomeBtnOpenWorkspace"), "Ctrl+Shift+O", false, onOpenWorkspace));
+    secondary.add(new HeroButton(_I("welcomeBtnNewWorkspace"), mod + "+Shift+N", false, onNewWorkspace));
+    secondary.add(new HeroButton(_I("welcomeBtnOpenWorkspace"), mod + "+Shift+O", false, onOpenWorkspace));
     column.add(secondary, "gapbottom 18");
 
     // ── Footer ──
@@ -170,11 +177,16 @@ public class WelcomeTab extends JPanel {
     footer.add(footerLink(_I("welcomeFooterReportTranslation"), buildReportTranslationUrl()));
     footer.add(footerLink("github.com/oculix-org", "https://github.com/oculix-org/Oculix"));
 
-    // The column sits centred, horizontally and vertically, while there is
-    // room; once the window is shorter than the column, the middle scrolls.
-    ScrollableContent content = new ScrollableContent(new MigLayout("fillx, wrap 1", "[center]", "push[]push"));
+    // The column sits vertically centred while there is room; once the window
+    // is shorter than the column, the middle scrolls. Horizontally it is
+    // pushed against the gecko's zone on the right, so a wider column (long
+    // language) grows to the left and never slides under the mascot.
+    int geckoZone = geckoZoneWidth(currentLocaleTag());
+    ScrollableContent content = new ScrollableContent(new MigLayout("fillx, wrap 2",
+        "[grow, right][" + geckoZone + "!]", "push[]push"));
     content.setOpaque(false);
-    content.add(column);
+    content.add(column, "right");
+    content.add(Box.createHorizontalStrut(geckoZone));
     JScrollPane scroll = new JScrollPane(content);
     scroll.setBorder(null);
     scroll.setOpaque(false);
@@ -337,10 +349,28 @@ public class WelcomeTab extends JPanel {
     }
   }
 
+  /** The gecko's height on the Welcome tab, whatever the window's height. */
+  private static final int GECKO_HEIGHT = 360;
+  /** Breathing room on each side of the gecko inside its zone. */
+  private static final int GECKO_GUTTER = 24;
+
   /**
-   * Composes the locale's gecko on the right edge of the panel at 40% alpha:
-   * present without competing with the hero text. Cached at panel size and
-   * locale, regenerated on resize or language change.
+   * Width of the zone reserved for the locale's gecko on the right of the
+   * content: the mascot at {@link #GECKO_HEIGHT} plus a gutter on each side.
+   * The text column stops where this zone begins, so neither ever covers the
+   * other. Zero when the locale has no gecko at all.
+   */
+  private static int geckoZoneWidth(String localeTag) {
+    java.awt.image.BufferedImage geckoSource = geckoFor(localeTag);
+    if (geckoSource == null) return 0;
+    int targetW = (int) (geckoSource.getWidth() * ((double) GECKO_HEIGHT / geckoSource.getHeight()));
+    return targetW + 2 * GECKO_GUTTER;
+  }
+
+  /**
+   * Composes the locale's gecko in its zone on the right edge of the panel at
+   * 40% alpha: present without competing with the hero text. Cached at panel
+   * size and locale, regenerated on resize or language change.
    */
   private java.awt.image.BufferedImage renderGecko(int w, int h, String localeTag) {
     java.awt.image.BufferedImage geckoSource = geckoFor(localeTag);
@@ -352,21 +382,15 @@ public class WelcomeTab extends JPanel {
     g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-    // Target ~58% of panel height, capped at 520px so it doesn't scream on
-    // big screens. Positioned slightly past the centered text column so it
-    // reads as part of the same composition rather than glued to the edge.
-    // Gecko fixed at 360 px — independent of WelcomeTab height. The previous
-    // `h * 0.58` made the gecko grow when the SplitPane gave the WelcomeTab
-    // more vertical room (e.g. footer-friendly 70/30 ratios), which then
-    // overlapped the text column. Fixed size keeps the mascot stable
-    // regardless of the IDE's vertical split, matching the visual baseline
-    // at the previous 60/40 split.
-    int targetH = 360;
+    // Gecko fixed at GECKO_HEIGHT, independent of the WelcomeTab's height: a
+    // size tied to `h` grew the mascot whenever the split gave Welcome more
+    // room, until it overlapped the text. It sits centred in the zone that
+    // buildUI reserved for it on the right, which the text column never
+    // enters (RaiMan's Welcome notes, Nov 2026).
+    int targetH = GECKO_HEIGHT;
     double scale = (double) targetH / geckoSource.getHeight();
     int targetW = (int) (geckoSource.getWidth() * scale);
-    // Centered column is 580px wide; place the gecko's center near 78% of
-    // panel width so its left edge sits right after the text block.
-    int x = (int) (w * 0.78) - targetW / 2;
+    int x = w - targetW - GECKO_GUTTER;
     int y = (h - targetH) / 2;
 
     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.40f));
@@ -462,7 +486,10 @@ public class WelcomeTab extends JPanel {
     private boolean hover;
 
     HeroButton(String label, String shortcut, boolean primary, ActionListener action) {
-      super(new MigLayout("insets 10 16 10 16, gap 12", "[]push[]"));
+      // "24:push": at least 24 px between label and shortcut, more when the
+      // row stretches the button. A bare "push" has a minimum of zero, which
+      // glued the two together on the longest button of a row.
+      super(new MigLayout("insets 10 16 10 16", "[]24:push[]"));
       this.primary = primary;
       setOpaque(false);
       setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
