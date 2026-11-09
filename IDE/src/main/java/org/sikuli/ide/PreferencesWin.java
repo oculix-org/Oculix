@@ -715,7 +715,7 @@ public class PreferencesWin extends JFrame {
     String[] SUPPORT_LOCALES = {
         "it", "es", "pt_BR", "ar", "fr", "ru", "bg", "he", "sv", "ca", "ja", "tr",
         "da", "ko", "uk", "de", "nl", "zh_CN", "en_US", "en_GB", "pl", "zh_TW", "ta_IN",
-        "zh_HK", "zh_MO", "zh_SG"
+        "zh_HK", "zh_MO", "zh_SG", "la_VA"
     };
     Locale[] sortedLocales = new Locale[SUPPORT_LOCALES.length];
     int count = 0;
