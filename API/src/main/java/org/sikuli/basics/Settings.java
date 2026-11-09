@@ -36,6 +36,12 @@ public class Settings {
   public static boolean ThrowException = true; // throw FindFailed exception
   public static float AutoWaitTimeout = 3f; // in seconds
   public static float WaitScanRate = 3f; // frames per second
+  /**
+   * Seconds a repeated search (wait, exists with a timeout) looks only around the image's last known position
+   * before it scans the whole region again. Negative (the default): the duration of one full-screen search,
+   * measured when the screens are set up, or 0.3 when it could not be measured.
+   */
+  public static double WaitFullSearchInterval = -1;
   /** Seconds a running script thread may stay on the same stack frame, runnable or blocked, before the IDE tray icon reports it as stuck. */
   public static int TrayStuckSeconds = 30;
   public static float ObserveScanRate = 3f; // frames per second
