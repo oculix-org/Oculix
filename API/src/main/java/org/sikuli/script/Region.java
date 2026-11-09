@@ -3744,7 +3744,30 @@ public class Region extends Element {
     if (repeating != null) {
       findTimeout = repeating.getFindTimeOut();
     }
-    if (repeating != null && repeating._finder != null) {
+    Finder around = null;
+    if (repeating != null && repeating.lastSeenFirst() && img != null && img.isValid()
+        && !(ptn instanceof String && ((String) ptn).startsWith("\t"))) {
+      long passStart = (new Date()).getTime();
+      repeating.startMillis(passStart);
+      around = stoppable(doCheckLastSeenAndCreateFinder(null, img, findTimeout,
+          ptn instanceof Pattern ? (Pattern) ptn : null, true), repeating);
+      if (around == null) {
+        if (!repeating.fullSearchDue()) {
+          return null;
+        }
+      } else {
+        lastFindTime = repeating.startMillis(passStart);
+        lastSearchTime = passStart;
+      }
+    }
+    if (around != null) {
+      finder = around;
+      if (repeating._finder != null) {
+        repeating._finder.destroy();
+      }
+      repeating._finder = around;
+      repeating._image = img;
+    } else if (repeating != null && repeating._finder != null) {
       finder = repeating._finder;
       // v5 (#444): captureSelf() routes through PrintWindow when applicable.
       // Old line: simg = getScreen().capture(this);
@@ -3871,7 +3894,32 @@ public class Region extends Element {
   }
 
   private Finder checkLastSeenAndCreateFinder(Image img, double findTimeout, Pattern ptn) {
-    return doCheckLastSeenAndCreateFinder(null, img, findTimeout, ptn);
+    return doCheckLastSeenAndCreateFinder(null, img, findTimeout, ptn, false);
+  }
+
+  private static volatile double measuredFullSearch = -1;
+
+  /**
+   * Records how long one full-screen search took when the screens were set up.
+   *
+   * @param seconds the measured duration, in seconds
+   */
+  static void setMeasuredFullSearch(double seconds) {
+    measuredFullSearch = seconds;
+  }
+
+  /**
+   * Seconds a repeated search looks only around the last known position before it scans the whole region:
+   * {@link Settings#WaitFullSearchInterval} when the script sets it, otherwise the measured full-screen
+   * search, otherwise 0.3.
+   *
+   * @return the interval, in seconds
+   */
+  static double fullSearchInterval() {
+    if (Settings.WaitFullSearchInterval >= 0) {
+      return Settings.WaitFullSearchInterval;
+    }
+    return measuredFullSearch > 0 ? measuredFullSearch : 0.3;
   }
 
   /**
@@ -3889,7 +3937,19 @@ public class Region extends Element {
     return wanted > score ? null : score;
   }
 
-  private Finder doCheckLastSeenAndCreateFinder(ScreenImage base, Image img, double findTimeout, Pattern ptn) {
+  /**
+   * Searches around the last known position of {@code img}, then prepares the full search when it is not there.
+   *
+   * @param base        capture to search in, or {@code null} to capture now
+   * @param img         the image searched for
+   * @param findTimeout timeout of the calling search, in seconds
+   * @param ptn         the Pattern given by the caller, or {@code null} for a plain image
+   * @param aroundOnly  {@code true} to stop after the zone around the last position
+   * @return a Finder holding the match found around the last position, a Finder ready for the full search,
+   *         or {@code null} when {@code aroundOnly} is set and the zone around the last position has no match
+   */
+  private Finder doCheckLastSeenAndCreateFinder(ScreenImage base, Image img, double findTimeout, Pattern ptn,
+                                                boolean aroundOnly) {
     // #353: the position is known (PNG -> lastSeen at load). Do NOT capture the full
     // screen to locate it — capture ONLY the small ROI around it (the PoC's approach,
     // source of the ~x6.5 win; wait() inherits it on every poll). The full-screen
@@ -3939,6 +3999,9 @@ public class Region extends Element {
           // Expansion didn't fit (edge of region) — fall through to full search.
           log(logLevel, "checkLastSeen: skipping (scaled cache %dx%d cannot expand to fit template %dx%d in region)",
               r.w, r.h, imgSize.width, imgSize.height);
+          if (aroundOnly) {
+            return null;
+          }
           if (base == null) {
             // v5 (#444): captureSelf routes through PrintWindow when applicable.
             // Old line: base = getScreen().capture(this);
@@ -3973,6 +4036,9 @@ public class Region extends Element {
         }
         log(logLevel, "checkLastSeen: not there");
       }
+    }
+    if (aroundOnly) {
+      return null;
     }
     // #353: fallback full-screen search — capture now if we deferred it above.
     if (base == null) {
@@ -4179,6 +4245,50 @@ public class Region extends Element {
     boolean ifSuccessful() {
       return _match != null;
     }
+
+    private long startMillis = 0;
+    private long lastFullSearchMillis = 0;
+
+    /**
+     * The time this search started, recorded on its first pass.
+     *
+     * @param now the current time in milliseconds
+     * @return the time of the first pass, in milliseconds
+     */
+    long startMillis(long now) {
+      if (startMillis == 0) {
+        startMillis = now;
+      }
+      return startMillis;
+    }
+
+    /**
+     * Tells whether each pass of this search looks around the image's last known position before anything else.
+     *
+     * @return true for a search that waits for its target to appear
+     */
+    boolean lastSeenFirst() {
+      return true;
+    }
+
+    /**
+     * Tells whether this pass may scan the whole region: {@link #fullSearchInterval()} seconds have passed
+     * since the search started or since its last full scan, or the timeout ends before the next pass.
+     *
+     * @return true when the full scan may run now, which then counts as the last full scan
+     */
+    boolean fullSearchDue() {
+      long now = (new Date()).getTime();
+      long start = startMillis(now);
+      long since = now - (lastFullSearchMillis == 0 ? start : lastFullSearchMillis);
+      long left = start + (long) (getFindTimeOut() * 1000) - now;
+      long scan = (long) (1000.0 / waitScanRate);
+      if (since >= (long) (fullSearchInterval() * 1000) || left <= scan) {
+        lastFullSearchMillis = now;
+        return true;
+      }
+      return false;
+    }
   }
 
   private class RepeatableVanish extends RepeatableFind {
@@ -4190,6 +4300,11 @@ public class Region extends Element {
     @Override
     boolean ifSuccessful() {
       return _match == null;
+    }
+
+    @Override
+    boolean lastSeenFirst() {
+      return false;
     }
   }
 
@@ -4390,7 +4505,7 @@ public class Region extends Element {
       } else {
         img = Image.create((String) target);
         if (img.isValid()) {
-          finder = doCheckLastSeenAndCreateFinder(base, img, 0.0, null);
+          finder = doCheckLastSeenAndCreateFinder(base, img, 0.0, null, false);
           if (!finder.hasNext()) {
             runFinder(finder, img);
           }
@@ -4410,7 +4525,7 @@ public class Region extends Element {
     } else if (target instanceof Pattern) {
       if (((Pattern) target).isValid()) {
         img = ((Pattern) target).getImage();
-        finder = doCheckLastSeenAndCreateFinder(base, img, 0.0, (Pattern) target);
+        finder = doCheckLastSeenAndCreateFinder(base, img, 0.0, (Pattern) target, false);
         if (!finder.hasNext()) {
           runFinder(finder, target);
         }
@@ -4420,7 +4535,7 @@ public class Region extends Element {
     } else if (target instanceof Image) {
       if (((Image) target).isValid()) {
         img = ((Image) target);
-        finder = doCheckLastSeenAndCreateFinder(base, img, 0.0, null);
+        finder = doCheckLastSeenAndCreateFinder(base, img, 0.0, null, false);
         if (!finder.hasNext()) {
           runFinder(finder, img);
         }
