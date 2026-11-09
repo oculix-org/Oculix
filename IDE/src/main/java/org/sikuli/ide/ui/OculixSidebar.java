@@ -53,9 +53,6 @@ public class OculixSidebar extends JPanel {
   private ThemePillSwitch pillSwitch;
   private boolean isDark = PreferencesUser.THEME_DARK.equals(PreferencesUser.get().getIdeTheme());
 
-  // Version label
-  private JLabel versionLabel;
-
   // Hero script card (composite component for the project info panel)
   private HeroScriptCard heroCardRef;
   private JLabel projectName;
@@ -359,12 +356,7 @@ public class OculixSidebar extends JPanel {
       if (themeAction != null) themeAction.actionPerformed(e);
     });
     footerPanel.add(pillSwitch, "align center");
-
-    versionLabel = new JLabel("v" + version);
-    versionLabel.setFont(OculixFonts.mono(10));
-    versionLabel.setHorizontalAlignment(SwingConstants.CENTER);
-    versionLabel.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
-    footerPanel.add(versionLabel);
+    // No version label here: the status bar already shows "OculiX x.y.z".
   }
 
   private Runnable onLocaleChanged;
@@ -444,7 +436,6 @@ public class OculixSidebar extends JPanel {
     for (Component c : footerPanel.getComponents()) {
       if (c instanceof SidebarItem) ((SidebarItem) c).setCollapsed(collapsed);
     }
-    versionLabel.setVisible(!collapsed);
     revalidate();
     repaint();
   }
@@ -754,24 +745,31 @@ public class OculixSidebar extends JPanel {
 
       int w = getWidth();
       int h = getHeight();
-      int arc = h;
       int half = w / 2;
+      // Outline drawn 1 px inside the bounds: at a fractional display scale
+      // (125 %, 150 %, 175 %) the component's first device row is clipped
+      // whenever its y position does not land on a whole device pixel, and
+      // an outline drawn on row 0 lost its top edge (3 window heights out of
+      // 4 at 125 %). Inset by one pixel, only background is ever clipped.
+      int inset = 1;
+      int ih = h - 2 * inset - 1;
+      int arc = ih;
 
       // Outer pill
       g2.setColor(OculixColors.withAlpha(OculixColors.OX_INK_500, 200));
       g2.setStroke(new BasicStroke(1f));
-      g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+      g2.drawRoundRect(inset, inset, w - 2 * inset - 1, ih, arc, arc);
 
       // Active segment background
       g2.setColor(OculixColors.withAlpha(OculixColors.OX_CYAN_500, 60));
       if (dark) {
-        g2.fillRoundRect(0, 0, half, h - 1, arc, arc);
+        g2.fillRoundRect(inset, inset, half - inset, ih, arc, arc);
         g2.setColor(OculixColors.OX_CYAN_500);
-        g2.drawRoundRect(0, 0, half, h - 1, arc, arc);
+        g2.drawRoundRect(inset, inset, half - inset, ih, arc, arc);
       } else {
-        g2.fillRoundRect(half, 0, w - half - 1, h - 1, arc, arc);
+        g2.fillRoundRect(half, inset, w - half - inset - 1, ih, arc, arc);
         g2.setColor(OculixColors.OX_CYAN_500);
-        g2.drawRoundRect(half, 0, w - half - 1, h - 1, arc, arc);
+        g2.drawRoundRect(half, inset, w - half - inset - 1, ih, arc, arc);
       }
 
       // Labels
@@ -838,14 +836,15 @@ public class OculixSidebar extends JPanel {
         new java.util.Locale("ta", "IN"),
         new java.util.Locale("hi"),
         new java.util.Locale("bn"),
-        new java.util.Locale("te")
+        new java.util.Locale("te"),
+        new java.util.Locale("la", "VA")
     );
 
     /** The regions of the picker, i18n key of the region to the locale codes it holds. */
     private static final java.util.LinkedHashMap<String, String[]> REGIONS = new java.util.LinkedHashMap<>();
     static {
       REGIONS.put("languageRegionLatinEurope", new String[]{
-          "en", "en_US", "en_GB", "fr", "de", "es", "it", "nl", "pt", "pt_BR", "sv", "da", "ca"});
+          "en", "en_US", "en_GB", "fr", "de", "es", "it", "nl", "pt", "pt_BR", "sv", "da", "ca", "la_VA"});
       REGIONS.put("languageRegionSlavicEurope", new String[]{"pl", "ru", "uk", "bg", "tr"});
       REGIONS.put("languageRegionMiddleEast", new String[]{"he", "ar"});
       REGIONS.put("languageRegionEastAsia", new String[]{
@@ -981,7 +980,12 @@ public class OculixSidebar extends JPanel {
 
       int w = getWidth();
       int h = getHeight();
-      int arc = h;
+      // Same 1 px inset as ThemePillSwitch: at a fractional display scale the
+      // first device row can be clipped, and the top edge went with it.
+      int inset = 1;
+      int iw = w - 2 * inset - 1;
+      int ih = h - 2 * inset - 1;
+      int arc = ih;
 
       // Outer pill — brand-cyan accent on hover, ink-500 otherwise.
       // Mirrors ThemePillSwitch's hover affordance.
@@ -989,13 +993,13 @@ public class OculixSidebar extends JPanel {
           ? OculixColors.OX_CYAN_500
           : OculixColors.withAlpha(OculixColors.OX_INK_500, 200));
       g2.setStroke(new BasicStroke(1f));
-      g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+      g2.drawRoundRect(inset, inset, iw, ih, arc, arc);
 
       // Subtle hover fill so the pill reads as "interactive" without
       // shouting like a primary CTA.
       if (hover) {
         g2.setColor(OculixColors.withAlpha(OculixColors.OX_CYAN_500, 30));
-        g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+        g2.fillRoundRect(inset, inset, iw, ih, arc, arc);
       }
 
       // Compose: SVG globe icon + locale code (uppercase, ASCII-safe).
