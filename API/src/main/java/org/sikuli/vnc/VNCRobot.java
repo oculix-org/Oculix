@@ -431,7 +431,9 @@ class VNCRobot implements IRobot {
       case VK_HELP:
         return org.sikuli.vnc.XKeySym.XK_Help;
       case VK_META:
-        return org.sikuli.vnc.XKeySym.XK_Meta_L;
+        // #496: META/CMD/WIN is the Super key, the one macOS Screen Sharing delivers as Command.
+        // XK_Meta_L arrived as Option on macOS and as Alt on Xtigervnc. Same keysym as VK_WINDOWS.
+        return org.sikuli.vnc.XKeySym.XK_Super_L;
       case VK_KP_UP:
         return org.sikuli.vnc.XKeySym.XK_KP_Up;
       case VK_KP_DOWN:
