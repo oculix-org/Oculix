@@ -2655,7 +2655,17 @@ public class Commons {
     return result;
   }
 
+  /**
+   * The four planes A, B, G, R of the image, as {@code TYPE_4BYTE_ABGR} lays them out.
+   * <p>
+   * #492: only a compact {@code TYPE_4BYTE_ABGR} raster can be read as 4 bytes per pixel.
+   * Anything else ({@code TYPE_CUSTOM} above all, which has no fixed layout: a VNC frame is
+   * int-backed) is copied into {@code TYPE_4BYTE_ABGR} first instead of being cast.
+   */
   public static List<Mat> getMatList(BufferedImage bImg) {
+    if (bImg.getType() != BufferedImage.TYPE_4BYTE_ABGR || !hasCompactRaster(bImg)) {
+      bImg = toAbgr(bImg);
+    }
     byte[] data = ((DataBufferByte) bImg.getRaster().getDataBuffer()).getData();
     Mat aMat = new Mat(bImg.getHeight(), bImg.getWidth(), CvType.CV_8UC4);
     aMat.put(0, 0, data);
@@ -2695,6 +2705,45 @@ public class Commons {
            == r.getWidth() * r.getHeight() * r.getNumDataElements();
   }
 
+  /**
+   * The types makeMat reads directly. Every other type, {@code TYPE_CUSTOM} included, has no
+   * layout makeMat can rely on and is drawn into a known type first (#492).
+   */
+  private static boolean hasFastPath(int type) {
+    switch (type) {
+      case BufferedImage.TYPE_INT_RGB:
+      case BufferedImage.TYPE_3BYTE_BGR:
+      case BufferedImage.TYPE_4BYTE_ABGR:
+      case BufferedImage.TYPE_BYTE_GRAY:
+      case BufferedImage.TYPE_BYTE_INDEXED:
+      case BufferedImage.TYPE_BYTE_BINARY:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * A TYPE_4BYTE_ABGR copy of any image. The pixels are read with getRGB, which the image's own
+   * ColorModel turns into non-premultiplied sRGB ARGB, and written as A, B, G, R bytes. There is
+   * no Java2D compositing on the way, which for custom colour models goes through premultiplied
+   * alpha and loses the colour of fully transparent pixels.
+   */
+  private static BufferedImage toAbgr(BufferedImage src) {
+    int w = src.getWidth(), h = src.getHeight();
+    int[] argb = src.getRGB(0, 0, w, h, null, 0, w);
+    BufferedImage dst = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
+    byte[] abgr = ((DataBufferByte) dst.getRaster().getDataBuffer()).getData();
+    for (int i = 0, j = 0; i < argb.length; i++) {
+      int p = argb[i];
+      abgr[j++] = (byte) (p >>> 24);
+      abgr[j++] = (byte) p;
+      abgr[j++] = (byte) (p >>> 8);
+      abgr[j++] = (byte) (p >>> 16);
+    }
+    return dst;
+  }
+
   private static BufferedImage compactCopy(BufferedImage bImg) {
     BufferedImage copy = new BufferedImage(bImg.getWidth(), bImg.getHeight(), bImg.getType());
     Graphics2D g = copy.createGraphics();
@@ -2704,9 +2753,25 @@ public class Commons {
   }
 
   public static Mat makeMat(BufferedImage bImg, boolean asBGR) {
-    // Only the typed branches below read the DataBuffer raw; TYPE_CUSTOM goes
-    // through getMatList and is left untouched here (out of this fix's scope).
-    if (bImg.getType() != BufferedImage.TYPE_CUSTOM && !hasCompactRaster(bImg)) {
+    // #492: a type without a fast path (TYPE_CUSTOM, TYPE_INT_ARGB, TYPE_USHORT_565_RGB, ...)
+    // has no layout the branches below can read. It is copied into TYPE_4BYTE_ABGR (colours and
+    // alpha copied exactly, see toAbgr) and asBGR is honoured: BGRA when the caller
+    // wants alpha (the mask callers pass false), BGR with the alpha plane dropped otherwise.
+    if (!hasFastPath(bImg.getType())) {
+      List<Mat> mats = getMatList(toAbgr(bImg));
+      Size size = mats.get(0).size();
+      Mat alpha = mats.remove(0);
+      if (asBGR) {
+        Mat mBGR = getNewMat(size, 3, -1);
+        Core.merge(mats, mBGR);
+        return mBGR;
+      }
+      mats.add(alpha);
+      Mat mBGRA = getNewMat(size, 4, -1);
+      Core.merge(mats, mBGRA);
+      return mBGRA;
+    }
+    if (!hasCompactRaster(bImg)) {
       bImg = compactCopy(bImg);
     }
     if (bImg.getType() == BufferedImage.TYPE_INT_RGB) {
@@ -2741,21 +2806,15 @@ public class Commons {
       Mat aMatBGR = new Mat(bImg.getHeight(), bImg.getWidth(), CvType.CV_8UC3);
       aMatBGR.put(0, 0, data);
       return aMatBGR;
-    } else if (bImg.getType() == BufferedImage.TYPE_4BYTE_ABGR
-        || bImg.getType() == BufferedImage.TYPE_CUSTOM) {
+    } else if (bImg.getType() == BufferedImage.TYPE_4BYTE_ABGR) {
+      // A TYPE_4BYTE_ABGR input keeps its alpha as BGRA, as before. Since #492 this branch is
+      // also how a converted image comes out when asBGR is false.
       List<Mat> mats = getMatList(bImg);
       Size size = mats.get(0).size();
-      if (!asBGR || bImg.getType() == BufferedImage.TYPE_4BYTE_ABGR) {
-        Mat mBGRA = getNewMat(size, 4, -1);
-        mats.add(mats.remove(0));
-        Core.merge(mats, mBGRA);
-        return mBGRA;
-      } else {
-        Mat mBGR = getNewMat(size, 3, -1);
-        mats.remove(0);
-        Core.merge(mats, mBGR);
-        return mBGR;
-      }
+      Mat mBGRA = getNewMat(size, 4, -1);
+      mats.add(mats.remove(0));
+      Core.merge(mats, mBGRA);
+      return mBGRA;
     } else if (bImg.getType() == BufferedImage.TYPE_BYTE_GRAY) {
       byte[] data = ((DataBufferByte) bImg.getRaster().getDataBuffer()).getData();
       Mat aMat = new Mat(bImg.getHeight(), bImg.getWidth(), CvType.CV_8UC1);
