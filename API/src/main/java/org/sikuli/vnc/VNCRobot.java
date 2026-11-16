@@ -7,6 +7,7 @@ import org.sikuli.basics.Settings;
 import org.sikuli.script.*;
 import org.sikuli.support.devices.IRobot;
 import org.sikuli.support.devices.IScreen;
+import org.sikuli.support.devices.KeyboardLayout;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -123,7 +124,9 @@ class VNCRobot implements IRobot {
   @Override
   public void typeChar(char character, KeyMode mode) {
     if (character >= '\ue000' && character < '\ue050') {
-      typeKey(Key.toJavaKeyCode(character)[0], mode);
+      // keyToXlib reads Java key codes. Key.toJavaKeyCode would follow the local keyboard layout,
+      // which on Windows gives Windows virtual-key codes (VK_DELETE 0x2E = Java's VK_PERIOD): #497.
+      typeKey(KeyboardLayout.toAwtKeyCode(character)[0], mode);
     } else {
       typeCode(charToXlib(character), mode);
     }
