@@ -68,4 +68,54 @@ class VNCRobotWindowsKeyCodesTest {
   void altGr_sendsISO_Level3_Shift() throws Exception {
     assertPressRelease("Key.ALTGR", typeAndRecord(Key.ALTGR), XKeySym.XK_ISO_Level3_Shift);
   }
+
+  // write() takes its key names through Key.toJavaKeyCodeFromText, a second path to the same
+  // layout table. On a Windows client "#ENTER." was VK_RETURN 0x0D, which has no Java key code,
+  // and write() threw "Cannot type keycode 13".
+  @Test
+  @Timeout(value = 60, unit = TimeUnit.SECONDS)
+  void writeEnter_sendsXK_Return() throws Exception {
+    try (FakeRfbServer server = new FakeRfbServer()) {
+      VNCScreen screen = server.connect();
+      try {
+        screen.write("#ENTER.");
+        List<FakeRfbServer.Event> keys = server.awaitKeyEvents(2, 10_000);
+        assertNull(server.failure(), "fake server failed");
+        assertPressRelease("write(\"#ENTER.\")", keys, XKeySym.XK_Return);
+      } finally {
+        screen.stop();
+      }
+    }
+  }
+
+  // "#M+" was VK_LWIN 0x5B on a Windows client, read as Java's VK_OPEN_BRACKET: "[". The modifier
+  // write() sends must be the one type() sends for KeyModifier.META, whichever keysym that is.
+  @Test
+  @Timeout(value = 60, unit = TimeUnit.SECONDS)
+  void writeMetaModifier_matchesTypeWithKeyModifierMeta() throws Exception {
+    List<FakeRfbServer.Event> viaType;
+    List<FakeRfbServer.Event> viaWrite;
+    try (FakeRfbServer server = new FakeRfbServer()) {
+      VNCScreen screen = server.connect();
+      try {
+        screen.type("a", org.sikuli.script.KeyModifier.META);
+        viaType = server.awaitKeyEvents(4, 10_000);
+        assertNull(server.failure(), "fake server failed");
+      } finally {
+        screen.stop();
+      }
+    }
+    try (FakeRfbServer server = new FakeRfbServer()) {
+      VNCScreen screen = server.connect();
+      try {
+        screen.write("#M+a#M-");
+        viaWrite = server.awaitKeyEvents(4, 10_000);
+        assertNull(server.failure(), "fake server failed");
+      } finally {
+        screen.stop();
+      }
+    }
+    assertEquals(4, viaType.size(), "type(\"a\", META): " + viaType);
+    assertEquals(viaType.toString(), viaWrite.toString(), "write(\"#M+a#M-\") against type(\"a\", KeyModifier.META)");
+  }
 }

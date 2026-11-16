@@ -123,6 +123,12 @@ class VNCRobot implements IRobot {
   }
 
   @Override
+  public int keyCodeFromText(String token) {
+    // write() key names, in the Java key codes keyToXlib reads, on every client OS (#497).
+    return Key.toAwtKeyCodeFromText(token);
+  }
+
+  @Override
   public void typeChar(char character, KeyMode mode) {
     if (character >= '\ue000' && character < '\ue050') {
       // keyToXlib reads Java key codes. Key.toJavaKeyCode would follow the local keyboard layout,

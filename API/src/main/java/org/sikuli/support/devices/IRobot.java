@@ -3,6 +3,7 @@
  */
 package org.sikuli.support.devices;
 
+import org.sikuli.script.Key;
 import org.sikuli.script.Location;
 import org.sikuli.script.ScreenImage;
 
@@ -26,6 +27,16 @@ public interface IRobot {
    void releaseModifiers(int modifiers);
    void typeChar(char character, KeyMode mode);
    void typeKey(int key);
+
+   /**
+    * The key code for a write() key name (such as "#ENTER."), in the code set this robot's
+    * typeKey/keyDown/keyUp expect; -1 if the name is unknown. The default follows the local keyboard
+    * layout, as Key.toJavaKeyCodeFromText does.
+    */
+   default int keyCodeFromText(String token) {
+      return Key.toJavaKeyCodeFromText(token);
+   }
+
    void typeStarts();
    void typeEnds();
    void mouseMove(int x, int y);
