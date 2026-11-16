@@ -768,6 +768,22 @@ public class KeyboardLayout {
     return keyCodes;
   }
 
+  /**
+   * The Java ({@link KeyEvent}) key codes for a character, from the built-in en-US table, whatever
+   * the local OS and keyboard layout. {@link #toJavaKeyCode} follows the local Windows layout and
+   * returns Windows virtual-key codes there, which the desktop robot needs; a robot that works in
+   * Java key codes on every OS, such as the VNC robot, uses this one instead (#497).
+   */
+  public static int[] toAwtKeyCode(char c) {
+    int[] keyCodes = DEFAULT_KEYBOARD_LAYOUT.get(c);
+
+    if (keyCodes == null) {
+      throw new IllegalArgumentException("Key: Not supported character: " + c);
+    }
+
+    return keyCodes;
+  }
+
   public static Character toChar(NativeKeyEvent event, Character[] modifiers) {
 
     Map<Character, int[]> layout = getCurrentLayout();
