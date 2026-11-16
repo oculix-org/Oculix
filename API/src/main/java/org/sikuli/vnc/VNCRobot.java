@@ -371,7 +371,9 @@ class VNCRobot implements IRobot {
       case VK_DIVIDE:
         return org.sikuli.vnc.XKeySym.XK_KP_Divide;
       case VK_DELETE:
-        return org.sikuli.vnc.XKeySym.XK_KP_Delete;
+        // #495: the Delete key. XK_KP_Delete is the keypad key that shares the decimal point:
+        // QNX typed "." for it and macOS Screen Sharing delivered nothing.
+        return org.sikuli.vnc.XKeySym.XK_Delete;
       case VK_NUM_LOCK:
         return org.sikuli.vnc.XKeySym.XK_Num_Lock;
       case VK_SCROLL_LOCK:
