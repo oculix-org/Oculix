@@ -11,6 +11,7 @@ import java.awt.event.KeyEvent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
 import org.sikuli.natives.WinUtil;
@@ -400,44 +401,54 @@ public class Key {
   };
 
 
-  private static Map<String, Integer> keyTexts = new HashMap<String, Integer>();
+  private static Map<String, Integer> keyTexts;
+  // The same names with Java (KeyEvent) codes on every OS, for robots that need those (VNC, #497).
+  private static Map<String, Integer> awtKeyTexts;
   private static Map<Integer, String> keys = new HashMap<Integer, String>();
 
-  static {
-    //<editor-fold defaultstate="collapsed" desc="create the keyname map used with write()">
+  // The keyname map used with write(), with the codes the given lookup returns for each key.
+  private static Map<String, Integer> buildKeyTexts(Function<Character, int[]> codes) {
+    Map<String, Integer> keyTexts = new HashMap<String, Integer>();
     String sKey;
     keyMaxLength = 0;
     for (char c = cMin; c < cMax; c++) {
       sKey = toJavaKeyCodeText(c);
       if (!sKey.equals(""+c)) {
-        keyTexts.put(sKey, toJavaKeyCode(c)[0]);
+        keyTexts.put(sKey, codes.apply(c)[0]);
         keyMaxLength = sKey.length() > keyMaxLength ? sKey.length() : keyMaxLength;
       }
     }
-    keyTexts.put("#ENTER.", toJavaKeyCode('\n')[0]);
-    keyTexts.put("#N.", toJavaKeyCode('\n')[0]);
-    keyTexts.put("#BACK.", toJavaKeyCode('\b')[0]);
-    keyTexts.put("#B.", toJavaKeyCode('\b')[0]);
-    keyTexts.put("#TAB.", toJavaKeyCode('\t')[0]);
-    keyTexts.put("#T.", toJavaKeyCode('\t')[0]);
-    keyTexts.put("#X.", toJavaKeyCode(C_NEXT)[0]);
-    keyTexts.put("#ESC.", toJavaKeyCode(C_ESC)[0]);
-    keyTexts.put("#U.", toJavaKeyCode(C_UP)[0]);
-    keyTexts.put("#D.", toJavaKeyCode(C_DOWN)[0]);
-    keyTexts.put("#L.", toJavaKeyCode(C_LEFT)[0]);
-    keyTexts.put("#R.", toJavaKeyCode(C_RIGHT)[0]);
-    keyTexts.put("#S.", toJavaKeyCode(C_SHIFT)[0]);
-    keyTexts.put("#S+", toJavaKeyCode(C_SHIFT)[0]);
-    keyTexts.put("#S-", toJavaKeyCode(C_SHIFT)[0]);
-    keyTexts.put("#A.", toJavaKeyCode(C_ALT)[0]);
-    keyTexts.put("#A+", toJavaKeyCode(C_ALT)[0]);
-    keyTexts.put("#A-", toJavaKeyCode(C_ALT)[0]);
-    keyTexts.put("#C.", toJavaKeyCode(C_CTRL)[0]);
-    keyTexts.put("#C+", toJavaKeyCode(C_CTRL)[0]);
-    keyTexts.put("#C-", toJavaKeyCode(C_CTRL)[0]);
-    keyTexts.put("#M.", toJavaKeyCode(C_META)[0]);
-    keyTexts.put("#M+", toJavaKeyCode(C_META)[0]);
-    keyTexts.put("#M-", toJavaKeyCode(C_META)[0]);
+    keyTexts.put("#ENTER.", codes.apply('\n')[0]);
+    keyTexts.put("#N.", codes.apply('\n')[0]);
+    keyTexts.put("#BACK.", codes.apply('\b')[0]);
+    keyTexts.put("#B.", codes.apply('\b')[0]);
+    keyTexts.put("#TAB.", codes.apply('\t')[0]);
+    keyTexts.put("#T.", codes.apply('\t')[0]);
+    keyTexts.put("#X.", codes.apply(C_NEXT)[0]);
+    keyTexts.put("#ESC.", codes.apply(C_ESC)[0]);
+    keyTexts.put("#U.", codes.apply(C_UP)[0]);
+    keyTexts.put("#D.", codes.apply(C_DOWN)[0]);
+    keyTexts.put("#L.", codes.apply(C_LEFT)[0]);
+    keyTexts.put("#R.", codes.apply(C_RIGHT)[0]);
+    keyTexts.put("#S.", codes.apply(C_SHIFT)[0]);
+    keyTexts.put("#S+", codes.apply(C_SHIFT)[0]);
+    keyTexts.put("#S-", codes.apply(C_SHIFT)[0]);
+    keyTexts.put("#A.", codes.apply(C_ALT)[0]);
+    keyTexts.put("#A+", codes.apply(C_ALT)[0]);
+    keyTexts.put("#A-", codes.apply(C_ALT)[0]);
+    keyTexts.put("#C.", codes.apply(C_CTRL)[0]);
+    keyTexts.put("#C+", codes.apply(C_CTRL)[0]);
+    keyTexts.put("#C-", codes.apply(C_CTRL)[0]);
+    keyTexts.put("#M.", codes.apply(C_META)[0]);
+    keyTexts.put("#M+", codes.apply(C_META)[0]);
+    keyTexts.put("#M-", codes.apply(C_META)[0]);
+    return keyTexts;
+  }
+
+  static {
+    //<editor-fold defaultstate="collapsed" desc="create the keyname map used with write()">
+    keyTexts = buildKeyTexts(Key::toJavaKeyCode);
+    awtKeyTexts = buildKeyTexts(KeyboardLayout::toAwtKeyCode);
     for (String k : keyTexts.keySet()) {
       if (Debug.getDebugLevel() > 3) {
         Debug.log(4, "Key: %s is: %s", k, KeyEvent.getKeyText(keyTexts.get(k)));
@@ -495,6 +506,15 @@ public class Key {
     } else {
       return keyTexts.get(key).intValue();
     }
+  }
+
+  /**
+   * Like {@link #toJavaKeyCodeFromText}, but always with Java ({@link KeyEvent}) key codes, whatever
+   * the local OS and keyboard layout (#497).
+   */
+  public static int toAwtKeyCodeFromText(String key) {
+    Integer code = awtKeyTexts.get(key);
+    return code == null ? -1 : code.intValue();
   }
 
   public static void dump() {

@@ -5601,7 +5601,7 @@ public class Region extends Element {
         } else {
           token = tokenSave;
         }
-        if (-1 < (key = Key.toJavaKeyCodeFromText(token))) {
+        if (-1 < (key = robot.keyCodeFromText(token))) {
           if (repeat > 0) {
             log(logLevel + 1, "write: %s Repeating: %d", token, repeat);
           } else {
@@ -5628,7 +5628,7 @@ public class Region extends Element {
       if (!modifier.isEmpty()) {
         log(logLevel + 1, "write: modifier + " + modifier);
         for (int n = 0; n < modifier.length(); n++) {
-          robot.keyDown(Key.toJavaKeyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
+          robot.keyDown(robot.keyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
         }
       }
       if (key > -1) {
@@ -5639,7 +5639,7 @@ public class Region extends Element {
       if (!modifier.isEmpty()) {
         log(logLevel + 1, "write: modifier - " + modifier);
         for (int n = 0; n < modifier.length(); n++) {
-          robot.keyUp(Key.toJavaKeyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
+          robot.keyUp(robot.keyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
         }
       }
       robot.delay(pause);
