@@ -9,6 +9,7 @@ import org.sikuli.support.devices.IRobot;
 import org.sikuli.support.devices.IScreen;
 
 import java.awt.*;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -593,19 +594,29 @@ class VNCRobot implements IRobot {
     }
   }
 
+  /**
+   * #493: the RFB button bits for a button spec. Both constant families callers use are
+   * accepted, as the desktop robot accepts them: {@code Mouse.*} (InputEvent.BUTTONn_MASK) and
+   * {@code Button.*} (InputEvent.BUTTONn_DOWN_MASK). The two families do not overlap.
+   */
+  private static int vncButtons(int buttons) {
+    int vnc = 0;
+    if ((buttons & (Mouse.LEFT | InputEvent.BUTTON1_DOWN_MASK)) != 0) vnc |= VNC_POINTER_EVENT_BUTTON_1;
+    if ((buttons & (Mouse.MIDDLE | InputEvent.BUTTON2_DOWN_MASK)) != 0) vnc |= VNC_POINTER_EVENT_BUTTON_2;
+    if ((buttons & (Mouse.RIGHT | InputEvent.BUTTON3_DOWN_MASK)) != 0) vnc |= VNC_POINTER_EVENT_BUTTON_3;
+    return vnc;
+  }
+
   @Override
   public void mouseDown(int buttons) {
-    if ((buttons & Mouse.LEFT) != 0) mouseButtons |= VNC_POINTER_EVENT_BUTTON_1;
-    if ((buttons & Mouse.MIDDLE) != 0) mouseButtons |= VNC_POINTER_EVENT_BUTTON_2;
-    if ((buttons & Mouse.RIGHT) != 0) mouseButtons |= VNC_POINTER_EVENT_BUTTON_3;
+    mouseButtons |= vncButtons(buttons);
     mouseMove(mouseX, mouseY);
   }
 
   @Override
   public int mouseUp(int buttons) {
-    if ((buttons & Mouse.LEFT) != 0) mouseButtons &= ~VNC_POINTER_EVENT_BUTTON_1;
-    if ((buttons & Mouse.MIDDLE) != 0) mouseButtons &= ~VNC_POINTER_EVENT_BUTTON_2;
-    if ((buttons & Mouse.RIGHT) != 0) mouseButtons &= ~VNC_POINTER_EVENT_BUTTON_3;
+    // 0 releases every held button, as Region.mouseUp() documents and the desktop robot does.
+    mouseButtons &= buttons == 0 ? 0 : ~vncButtons(buttons);
     mouseMove(mouseX, mouseY);
 
     int remainingButtons = 0;
