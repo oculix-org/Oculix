@@ -13,7 +13,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * #496: META (= CMD = WIN as KeyModifier, and Key.META as a key) must go out as XK_Super_L
@@ -61,9 +60,6 @@ class VNCRobotMetaKeyTest {
 
   @Test
   void metaKey_alone_isSuperL() throws Exception {
-    // A Windows client takes Key.* through the Windows VK layout and sends 0x005b ("["): that is
-    // #497, a separate defect. The modifier paths are unaffected. Remove when #497 is fixed.
-    assumeFalse(System.getProperty("os.name").startsWith("Windows"), "Windows client: Oculix#497");
     assertEquals(Arrays.asList("+0xffeb", "-0xffeb"), keysOf(s -> s.type(Key.META), 2));
   }
 
