@@ -3,8 +3,11 @@
  */
 package org.sikuli.script;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.sikuli.support.devices.MouseDevice;
+
+import java.awt.GraphicsEnvironment;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,6 +22,7 @@ class MousePreflightSmokeTest {
 
   @Test
   void screen_init_runs_mouse_preflight_without_hanging() {
+    Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "needs a screen");
     long t0 = System.currentTimeMillis();
     new Screen();
     long elapsed = System.currentTimeMillis() - t0;
