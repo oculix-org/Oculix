@@ -84,7 +84,7 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-bom</artifactId>
-        <version>4.1.133.Final</version>
+        <version>4.2.20.Final</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -93,24 +93,24 @@
       <dependency>
         <groupId>org.bouncycastle</groupId>
         <artifactId>bcprov-jdk18on</artifactId>
-        <version>1.84</version>
+        <version>1.87</version>
       </dependency>
       <dependency>
         <groupId>org.bouncycastle</groupId>
         <artifactId>bcpkix-jdk18on</artifactId>
-        <version>1.84</version>
+        <version>1.87</version>
       </dependency>
       <dependency>
         <groupId>org.bouncycastle</groupId>
         <artifactId>bcutil-jdk18on</artifactId>
-        <version>1.84</version>
+        <version>1.87</version>
       </dependency>
 
       <!-- plexus-utils: 1 GHSA killed (transitive from maven-core in build-extensions, provided scope) -->
       <dependency>
         <groupId>org.codehaus.plexus</groupId>
         <artifactId>plexus-utils</artifactId>
-        <version>3.6.1</version>
+        <version>4.2.0</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -145,12 +145,12 @@
         <plugin>
           <groupId>org.sonatype.central</groupId>
           <artifactId>central-publishing-maven-plugin</artifactId>
-          <version>0.10.0</version>
+          <version>0.12.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-site-plugin</artifactId>
-          <version>3.21.0</version>
+          <version>3.22.0</version>
           <configuration>
             <generateReports>true</generateReports>
             <inputEncoding>UTF-8</inputEncoding>
@@ -175,7 +175,7 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>flatten-maven-plugin</artifactId>
-          <version>1.7.0</version>
+          <version>1.9.0</version>
           <configuration>
             <!-- resolveCiFriendliesOnly = only rewrite ${revision}/${sha1}/${changelist}
                  to their concrete values; keep everything else (dependencyManagement,
@@ -220,7 +220,7 @@
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
-        <version>4.10.3.0</version>
+        <version>4.10.5.0</version>
         <configuration>
           <includeFilterFile>${session.executionRootDirectory}/spotbugs-security-include.xml</includeFilterFile>
           <effort>Max</effort>
@@ -249,7 +249,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-report-plugin</artifactId>
-        <version>3.6.0-M1</version>
+        <version>3.6.1</version>
       </plugin>
     </plugins>
   </reporting>
