@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license
+  ~
+  ~ Multi-module site descriptor. Skin: wcm-io fork of Reflow (Bootstrap-based,
+  ~ maintained continuation of Andrius Velykis' original). `mvn site site:stage`
+  ~ from the reactor root stages all module reports under target/staging.
+  -->
+<project xmlns="http://maven.apache.org/DECORATION/1.7.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/DECORATION/1.7.0 http://maven.apache.org/xsd/decoration-1.7.0.xsd"
+         name="OculiX">
+
+  <skin>
+    <groupId>io.wcm.maven.skins</groupId>
+    <artifactId>reflow-maven-skin</artifactId>
+    <version>1.3.4</version>
+  </skin>
+
+  <custom>
+    <reflowSkin>
+      <theme>bootswatch-flatly</theme>
+      <highlightJs>true</highlightJs>
+      <highlightJsTheme>github</highlightJsTheme>
+      <brand>
+        <name>OculiX</name>
+        <href>https://github.com/oculix-org/Oculix</href>
+      </brand>
+      <slogan>If you can see it, you can automate it.</slogan>
+      <titleTemplate>%2$s | %1$s</titleTemplate>
+      <toc>sidebar</toc>
+      <tocTopMax>6</tocTopMax>
+      <topNav>Modules|reports</topNav>
+      <bottomNav>
+        <column>Modules</column>
+        <column>Reports|reports</column>
+      </bottomNav>
+      <bottomDescription>
+        OculiX — auditable visual automation for the JVM.
+      </bottomDescription>
+      <pages>
+        <index project="oculix">
+          <shortTitle>Home</shortTitle>
+          <sections>
+            <carousel/>
+            <body/>
+            <sidebar/>
+          </sections>
+        </index>
+      </pages>
+    </reflowSkin>
+  </custom>
+
+  <body>
+    <breadcrumbs>
+      <item name="OculiX" href="/index.html"/>
+    </breadcrumbs>
+
+    <!-- inherit="top" propagates each menu to every child module's sidebar
+         automatically — no per-module site.xml duplication required.
+         <menu ref="reports"/> is context-aware: it fills itself with the
+         current module's own report list on each page. So on the parent
+         you see the parent's reports, on oculixapi you see API's 78
+         surefire tests, etc. -->
+    <menu name="OculiX" inherit="top">
+      <item name="Home" href="index.html"/>
+    </menu>
+
+    <menu name="Modules" inherit="top">
+      <item name="OculiX API"                 href="oculixapi/index.html"/>
+      <item name="OculiX IDE"                 href="oculixide/index.html"/>
+      <item name="OculiX MCP Server"          href="oculixmcp/index.html"/>
+      <item name="OculiX Reporter"            href="oculixreporter/index.html"/>
+      <item name="OculiX Build Extensions"    href="oculix-build-extensions/index.html"/>
+    </menu>
+
+    <menu ref="reports" inherit="top"/>
+  </body>
+</project>

@@ -109,6 +109,7 @@ class RecorderAppScope {
     JTextField tfUser = new JTextField(20);
     JPasswordField tfPass = new JPasswordField(20);
     JTextField tfPort = new JTextField("5900", 8);
+    JPasswordField tfVncPass = new JPasswordField(20);
 
     panel.add(new JLabel(_I("recorderAppScopePromptHost")));
     panel.add(tfHost);
@@ -118,61 +119,44 @@ class RecorderAppScope {
     panel.add(tfPass);
     panel.add(new JLabel(_I("recorderAppScopePromptVncPort")));
     panel.add(tfPort);
+    panel.add(new JLabel(_I("recorderAppScopePromptVncPassword")));
+    panel.add(tfVncPass);
 
     int result = JOptionPane.showConfirmDialog(parent, panel,
-        "Remote VNC Connection", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        _I("recorderAppScopeRemoteVncTitle"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
     if (result != JOptionPane.OK_OPTION) return;
 
-    String host = tfHost.getText().trim();
-    String user = tfUser.getText().trim();
-    String password = new String(tfPass.getPassword());
-    String port = tfPort.getText().trim();
+    final String host = tfHost.getText().trim();
+    final String user = tfUser.getText().trim();
+    final String password = new String(tfPass.getPassword());
+    final String port = tfPort.getText().trim();
+    final String vncPassword = tfVncPass.getPassword().length == 0 ? null : new String(tfVncPass.getPassword());
 
     if (host.isEmpty() || user.isEmpty()) {
-      RecorderNotifications.error("Host and user are required.");
+      RecorderNotifications.error(_I("recorderAppScopeHostUserRequired"));
+      return;
+    }
+    if (!port.matches("\\d{1,5}")) {
+      RecorderNotifications.error(_I("recorderAppScopeVncPortInvalid"));
       return;
     }
 
-    System.err.println("[VNC-DEBUG] Host=" + host + " User=" + user + " Port=" + port);
-    System.err.println("[VNC-DEBUG] Creating wait dialog...");
-
     JDialog waitDialog = new JDialog(parent, _I("recorderAppScopePreflightTitle"), false);
-    waitDialog.setSize(280, 80);
+    waitDialog.setSize(320, 80);
     waitDialog.setLocationRelativeTo(parent);
     waitDialog.setLayout(new java.awt.BorderLayout());
-    JLabel waitLabel = new JLabel("  \u23F3 " + _I("recorderAppScopeStartingWsl"), SwingConstants.CENTER);
+    JLabel waitLabel = new JLabel("  \u23F3 " + _I("recorderAppScopePreflightStarting"), SwingConstants.CENTER);
     waitLabel.setForeground(javax.swing.UIManager.getColor("Label.foreground"));
     waitLabel.setFont(javax.swing.UIManager.getFont("defaultFont"));
     waitDialog.add(waitLabel, java.awt.BorderLayout.CENTER);
     waitDialog.setVisible(true);
-    System.err.println("[VNC-DEBUG] Wait dialog visible, starting SwingWorker...");
-
-    final String fHost = host;
-    final String fUser = user;
-    final String fPassword = password;
-    final String fPort = port;
 
     new javax.swing.SwingWorker<List<RemotePreflightCheck.CheckResult>, String>() {
       @Override
       protected List<RemotePreflightCheck.CheckResult> doInBackground() {
-        java.util.List<RemotePreflightCheck.CheckResult> results = new java.util.ArrayList<>();
-        System.err.println("[VNC-DEBUG] Worker started - checking sshpass...");
-        publish("Starting WSL environment...");
-        results.add(RemotePreflightCheck.checkSshpass());
-        System.err.println("[VNC-DEBUG] sshpass: " + results.get(results.size()-1).message);
-        publish("Checking X Server...");
-        results.add(RemotePreflightCheck.checkXServer());
-        System.err.println("[VNC-DEBUG] xserver: " + results.get(results.size()-1).message);
-        publish("Checking VNC viewer...");
-        results.add(RemotePreflightCheck.checkVncViewer());
-        System.err.println("[VNC-DEBUG] vncviewer: " + results.get(results.size()-1).message);
-        publish("Checking SSH fingerprint for " + fHost + "...");
-        results.add(RemotePreflightCheck.checkFingerprint(fHost));
-        System.err.println("[VNC-DEBUG] fingerprint: " + results.get(results.size()-1).message);
-        publish("Pre-flight complete.");
-        System.err.println("[VNC-DEBUG] All checks done.");
-        return results;
+        publish(_I("recorderAppScopePreflightStarting"));
+        return RemotePreflightCheck.runAll(host, user, password);
       }
 
       @Override
@@ -184,30 +168,25 @@ class RecorderAppScope {
       protected void done() {
         waitDialog.dispose();
         try {
-          List<RemotePreflightCheck.CheckResult> checks = get(60, java.util.concurrent.TimeUnit.SECONDS);
+          List<RemotePreflightCheck.CheckResult> checks = get(90, java.util.concurrent.TimeUnit.SECONDS);
 
-          boolean allPassed = RemotePreflightCheck.allPassed(checks);
-          if (!allPassed) {
-            StringBuilder msg = new StringBuilder("Pre-flight checks:\n\n");
+          if (!RemotePreflightCheck.allPassed(checks)) {
+            StringBuilder msg = new StringBuilder(_I("recorderAppScopePreflightChecks"));
             for (RemotePreflightCheck.CheckResult check : checks) {
               msg.append(check.passed ? "  \u2713  " : "  \u2717  ");
               msg.append(check.name).append(": ").append(check.message).append("\n");
             }
-            msg.append("\nFix issues and retry, or continue anyway?");
+            msg.append(_I("recorderAppScopePreflightFooter"));
 
-            String[] options = {"Fix all", "Continue anyway", "Cancel"};
+            String[] options = {_I("recorderAppScopeOptionFixAll"),
+                _I("recorderAppScopeOptionContinueAnyway"), _I("recorderAppScopeOptionCancel")};
             int choice = JOptionPane.showOptionDialog(parent, msg.toString(),
-                "Pre-flight Results",
+                _I("recorderAppScopePreflightResultsTitle"),
                 JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE,
                 null, options, options[0]);
 
             if (choice == 0) {
-              for (RemotePreflightCheck.CheckResult check : checks) {
-                if (!check.passed && check.autoFix != null) {
-                  check.autoFix.run();
-                }
-              }
-              RecorderNotifications.success("Auto-fix applied. Try launching again.");
+              applyFixes(checks);
               return;
             }
             if (choice == 2 || choice < 0) return;
@@ -216,7 +195,7 @@ class RecorderAppScope {
           waitLabel.setText("  \u23F3 " + _I("recorderAppScopeLaunchingVnc"));
           waitDialog.setVisible(true);
 
-          AppLauncher.launchRemoteVNC(fHost, fUser, fPassword, fPort);
+          AppLauncher.launchRemoteVNC(host, user, password, port);
 
           waitDialog.dispose();
           remoteMode = true;
@@ -227,18 +206,48 @@ class RecorderAppScope {
           btnCloseApp.setEnabled(true);
           chkScopeToApp.setEnabled(true);
 
-          codeGen.addLine("# VNC Remote connection to " + fHost);
-          codeGen.addLine("vncSession = VNCScreen.start(\"" + fHost + "\", " + fPort
-              + ", \"<SSH_PASSWORD>\", 1920, 1080)");
-          RecorderNotifications.success("VNC connected to " + fHost);
+          codeGen.generateRemoteVnc(host, user, port, vncPassword);
+          RecorderNotifications.success(_I("recorderAppScopeNotifyVncConnected") + " " + host);
 
         } catch (java.util.concurrent.TimeoutException ex) {
           waitDialog.dispose();
-          RecorderNotifications.error("Pre-flight timed out after 60 seconds. Is WSL installed?");
+          RecorderNotifications.error(_I("recorderAppScopePreflightTimeout"));
         } catch (Exception ex) {
           waitDialog.dispose();
-          RecorderNotifications.error("Remote launch failed: " + ex.getMessage());
-          ex.printStackTrace();
+          RecorderNotifications.error(_I("recorderAppScopeNotifyRemoteFailed") + " " + ex.getMessage());
+        }
+      }
+    }.execute();
+  }
+
+  /**
+   * Runs every automatic fix off the event thread, then reports which ones passed and
+   * which ones did not, instead of claiming success without looking.
+   */
+  private void applyFixes(List<RemotePreflightCheck.CheckResult> checks) {
+    new javax.swing.SwingWorker<String, Void>() {
+      @Override
+      protected String doInBackground() {
+        StringBuilder report = new StringBuilder();
+        for (RemotePreflightCheck.CheckResult check : checks) {
+          if (check.passed) continue;
+          String outcome;
+          if (check.autoFix == null) {
+            outcome = _I("recorderAppScopeFixManual");
+          } else {
+            outcome = check.fix() ? _I("recorderAppScopeFixDone") : _I("recorderAppScopeFixFailed");
+          }
+          report.append(check.name).append(": ").append(outcome).append("\n");
+        }
+        return report.toString();
+      }
+
+      @Override
+      protected void done() {
+        try {
+          RecorderNotifications.info(_I("recorderAppScopeNotifyFixReport") + "\n" + get());
+        } catch (Exception ex) {
+          RecorderNotifications.error(_I("recorderAppScopeNotifyRemoteFailed") + " " + ex.getMessage());
         }
       }
     }.execute();

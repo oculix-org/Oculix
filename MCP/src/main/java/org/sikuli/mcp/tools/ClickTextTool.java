@@ -27,6 +27,17 @@ import org.sikuli.script.Screen;
  */
 public final class ClickTextTool implements Tool {
 
+  /**
+   * Whether the result repeats the searched text. The dispatcher hands the tool the
+   * real value behind a vault token, so in confidential mode repeating it would send
+   * that value back to the LLM.
+   */
+  private final boolean echoText;
+
+  public ClickTextTool() { this(true); }
+
+  public ClickTextTool(boolean echoText) { this.echoText = echoText; }
+
   @Override public String name()        { return "oculix_click_text"; }
   @Override public String description() {
     return "Find a text on screen via OCR and click the center of its bounding box. "
@@ -67,11 +78,11 @@ public final class ClickTextTool implements Tool {
     try {
       m = region.findText(text);
     } catch (FindFailed ff) {
-      return Tool.textResult(new JSONObject()
+      JSONObject notFound = new JSONObject()
           .put("clicked", false)
-          .put("found", false)
-          .put("text", text)
-          .toString());
+          .put("found", false);
+      if (echoText) notFound.put("text", text);
+      return Tool.textResult(notFound.toString());
     }
 
     int rc;
@@ -88,12 +99,12 @@ public final class ClickTextTool implements Tool {
         break;
     }
 
-    return Tool.textResult(new JSONObject()
+    JSONObject clicked = new JSONObject()
         .put("clicked", rc == 1)
         .put("found", true)
-        .put("text", text)
         .put("x", m.x).put("y", m.y).put("width", m.w).put("height", m.h)
-        .put("button", button)
-        .toString());
+        .put("button", button);
+    if (echoText) clicked.put("text", text);
+    return Tool.textResult(clicked.toString());
   }
 }

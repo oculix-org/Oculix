@@ -78,11 +78,9 @@ public class PatternValidator {
       return new ValidationResult(0, 0, 0.7, Warning.NONE);
     }
 
-    // If multiple matches, suggest higher similarity
+    // Several matches: warn only, the similarity stays the script's choice.
     if (matchCount > 1) {
-      double suggested = Math.min(bestScore + 0.05, 0.99);
-      return new ValidationResult(matchCount, bestScore,
-          Math.round(suggested * 100.0) / 100.0, Warning.AMBIGUOUS);
+      return new ValidationResult(matchCount, bestScore, 0.7, Warning.AMBIGUOUS);
     }
 
     // Check color dependency: compare match in grayscale

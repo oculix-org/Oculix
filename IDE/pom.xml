@@ -8,9 +8,14 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.oculix-org</groupId>
+  <parent>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculix</artifactId>
+    <version>${revision}</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
   <artifactId>oculixide</artifactId>
-  <version>4.0.0</version>
 
   <name>OculiX IDE</name>
   <description>Visual automation IDE - edit and run OculiX scripts</description>
@@ -47,7 +52,6 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
-    <legerix.version>5.5.0-8</legerix.version>
   </properties>
 
   <dependencies>
@@ -259,15 +263,6 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
-                <manifestSections>
-                  <manifestSection>
-                    <name>io/github/julienmerconsulting/legerix/</name>
-                    <manifestEntries>
-                      <Implementation-Title>Legerix</Implementation-Title>
-                      <Implementation-Version>${legerix.version}</Implementation-Version>
-                    </manifestEntries>
-                  </manifestSection>
-                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeide-lux.xml</descriptor>
@@ -297,7 +292,6 @@
           <plugin>
             <groupId>org.sonatype.central</groupId>
             <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.10.0</version>
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>
@@ -370,6 +364,32 @@
         <configuration>
           <release>17</release>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>jython-precompile-lib</id>
+            <phase>process-classes</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>java</executable>
+              <arguments>
+                <argument>-classpath</argument>
+                <classpath/>
+                <argument>org.python.util.jython</argument>
+                <argument>-m</argument>
+                <argument>compileall</argument>
+                <argument>-q</argument>
+                <argument>${project.build.outputDirectory}/Lib</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

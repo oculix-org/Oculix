@@ -25,7 +25,7 @@ public class PatternPaneNaming extends JPanel {
 
   //	EditorPatternButton _imgBtn;
   JTextField _txtPath, _txtFileExt;
-  JComboBox _txtFilename;
+  JComboBox<String> _txtFilename;
   String _oldFilename;
   ImageIcon icon;
 
@@ -156,14 +156,14 @@ public class PatternPaneNaming extends JPanel {
   }
 }
 
-class AutoCompleteCombo extends JComboBox {
+class AutoCompleteCombo extends JComboBox<String> {
 
   private static final String me = "PatternPaneNaming: ";
   final static int TXT_FILENAME_LENGTH = 20;
   public int caretPos = 0;
   public JTextField editor = null;
 
-  public AutoCompleteCombo(final Object items[]) {
+  public AutoCompleteCombo(final String[] items) {
     super(items);
     this.setEditable(true);
     setHook();
@@ -182,7 +182,7 @@ class AutoCompleteCombo extends JComboBox {
   @Override
   public void setSelectedIndex(int ind) {
     super.setSelectedIndex(ind);
-    editor.setText(getItemAt(ind).toString());
+    editor.setText(getItemAt(ind));
     editor.setSelectionEnd(caretPos + editor.getText().length());
     editor.moveCaretPosition(caretPos);
   }
@@ -208,7 +208,7 @@ class AutoCompleteCombo extends JComboBox {
           }
           int n = getItemCount();
           for (int i = 0; i < n; i++) {
-            int ind = ((String) getItemAt(i)).indexOf(text);
+            int ind = getItemAt(i).indexOf(text);
             if (ind == 0) {
               setSelectedIndex(i);
               return;

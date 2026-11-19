@@ -25,7 +25,7 @@ public class PatternPaneNaming extends JPanel {
 
 	EditorPatternButton _imgBtn;
 	JTextField _txtPath, _txtFileExt;
-	JComboBox _txtFilename;
+	JComboBox<String> _txtFilename;
 	String _oldFilename;
 
 	static String _I(String key, Object... args) {
@@ -130,11 +130,20 @@ public class PatternPaneNaming extends JPanel {
 
 	public static String getFilenameFromImage(BufferedImage img) {
 		String text = new org.sikuli.script.Image(img).text();
-		text = text.replaceAll("\\W", "");
-		if (text.length() > MAX_OCR_TEXT_LENGTH) {
-			return text.substring(0, MAX_OCR_TEXT_LENGTH);
+		if (text == null || text.isBlank()) return "";
+		String[] words = text.trim().split("\\s+");
+		if (words.length != 1) return "";      // 0 or 2+ words → caller falls back to timestamp
+		// Strip accents (NFD decomposition + drop combining marks), then keep only word chars
+		String single = java.text.Normalizer.normalize(words[0], java.text.Normalizer.Form.NFD)
+				.replaceAll("\\p{M}+", "")
+				.replaceAll("\\W", "");
+		if (single.isEmpty()) return "";
+		// Lowercase (filename convention) — Locale.ROOT for consistent cross-locale behavior
+		single = single.toLowerCase(java.util.Locale.ROOT);
+		if (single.length() > MAX_OCR_TEXT_LENGTH) {
+			return single.substring(0, MAX_OCR_TEXT_LENGTH);
 		}
-		return text;
+		return single;
 	}
 
 	public String getAbsolutePath() {
@@ -148,14 +157,14 @@ public class PatternPaneNaming extends JPanel {
 	}
 }
 
-class AutoCompleteCombo extends JComboBox {
+class AutoCompleteCombo extends JComboBox<String> {
 
 	private static final String me = "PatternPaneNaming: ";
 	final static int TXT_FILENAME_LENGTH = 20;
 	public int caretPos = 0;
 	public JTextField editor = null;
 
-	public AutoCompleteCombo(final Object items[]) {
+	public AutoCompleteCombo(final String[] items) {
 		super(items);
 		this.setEditable(true);
 		setHook();
@@ -174,7 +183,7 @@ class AutoCompleteCombo extends JComboBox {
 	@Override
 	public void setSelectedIndex(int ind) {
 		super.setSelectedIndex(ind);
-		editor.setText(getItemAt(ind).toString());
+		editor.setText(getItemAt(ind));
 		editor.setSelectionEnd(caretPos + editor.getText().length());
 		editor.moveCaretPosition(caretPos);
 	}
@@ -200,7 +209,7 @@ class AutoCompleteCombo extends JComboBox {
 					}
 					int n = getItemCount();
 					for (int i = 0; i < n; i++) {
-						int ind = ((String) getItemAt(i)).indexOf(text);
+						int ind = getItemAt(i).indexOf(text);
 						if (ind == 0) {
 							setSelectedIndex(i);
 							return;

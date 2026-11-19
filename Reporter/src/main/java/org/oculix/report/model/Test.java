@@ -42,7 +42,15 @@ public final class Test {
     }
 
     public Test withError(String message, String stackTrace) {
-        this.outcome = Outcome.ERROR;
+        return withOutcome(Outcome.ERROR, message, stackTrace);
+    }
+
+    /**
+     * Records the verdict the test framework gave: failed, error, or skipped
+     * with its reason. Unlike {@link #addStep(Step)}, the framework's word wins.
+     */
+    public Test withOutcome(Outcome outcome, String message, String stackTrace) {
+        this.outcome = outcome;
         this.errorMessage = message == null ? "" : message;
         this.stackTrace = stackTrace == null ? "" : stackTrace;
         return this;

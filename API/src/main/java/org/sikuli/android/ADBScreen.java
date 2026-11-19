@@ -332,4 +332,104 @@ public class ADBScreen extends Region implements EventObserver, IScreen {
   public Object action(String action, Object... args) {
     return null;
   }
+
+  //<editor-fold desc="048 Mobile actions (Android)">
+  /**
+   * Taps the device where the target is found on this screen, then waits {@link #waitAfterAction}.
+   *
+   * @param <PFRML> Pattern, String, Image, Match, Region or Location
+   * @param target  what to tap
+   * @throws FindFailed image not found
+   */
+  public <PFRML> void aTap(PFRML target) throws FindFailed {
+    if (device == null) {
+      return;
+    }
+    Location loc = getLocationFromTarget(target);
+    if (loc != null) {
+      device.tap(loc.x, loc.y);
+      waitAfterAction();
+    }
+  }
+
+  /**
+   * Types the text on the device, through adb shell input.
+   *
+   * @param text the text to type
+   */
+  public void aInput(String text) {
+    if (device != null) {
+      device.input(text);
+    }
+  }
+
+  /**
+   * Sends an Android key event to the device, such as {@link ADBDevice#KEY_HOME}.
+   *
+   * @param key the Android key code
+   */
+  public void aKey(int key) {
+    if (device != null) {
+      device.inputKeyEvent(key);
+    }
+  }
+
+  /**
+   * Swipes on the device from where the first target is found to where the second is found, then
+   * waits {@link #waitAfterAction}.
+   *
+   * @param <PFRML> Pattern, String, Image, Match, Region or Location
+   * @param from    start of the swipe
+   * @param to      end of the swipe
+   * @throws FindFailed image not found
+   */
+  public <PFRML> void aSwipe(PFRML from, PFRML to) throws FindFailed {
+    if (device == null) {
+      return;
+    }
+    Location locFrom = getLocationFromTarget(from);
+    Location locTo = getLocationFromTarget(to);
+    if (locFrom != null && locTo != null) {
+      device.swipe(locFrom.x, locFrom.y, locTo.x, locTo.y);
+      waitAfterAction();
+    }
+  }
+
+  /** Swipes up along the middle of the screen, from one fifth above the bottom to one fifth below the top. */
+  public void aSwipeUp() {
+    int midX = w / 2;
+    int swipeStep = h / 5;
+    swipeQuietly(new Location(midX, h - swipeStep), new Location(midX, swipeStep));
+  }
+
+  /** Swipes down along the middle of the screen, the reverse of {@link #aSwipeUp()}. */
+  public void aSwipeDown() {
+    int midX = w / 2;
+    int swipeStep = h / 5;
+    swipeQuietly(new Location(midX, swipeStep), new Location(midX, h - swipeStep));
+  }
+
+  /** Swipes left across the middle of the screen, from one fifth before the right edge to one fifth after the left edge. */
+  public void aSwipeLeft() {
+    int midY = h / 2;
+    int swipeStep = w / 5;
+    swipeQuietly(new Location(w - swipeStep, midY), new Location(swipeStep, midY));
+  }
+
+  /** Swipes right across the middle of the screen, the reverse of {@link #aSwipeLeft()}. */
+  public void aSwipeRight() {
+    int midY = h / 2;
+    int swipeStep = w / 5;
+    swipeQuietly(new Location(swipeStep, midY), new Location(w - swipeStep, midY));
+  }
+
+  /** A swipe between two locations; the FindFailed of the generic path cannot happen with locations. */
+  private void swipeQuietly(Location from, Location to) {
+    try {
+      aSwipe(from, to);
+    } catch (FindFailed cannotHappen) {
+      Debug.log(-1, "ADBScreen: swipe %s -> %s: %s", from, to, cannotHappen.getMessage());
+    }
+  }
+  //</editor-fold>
 }

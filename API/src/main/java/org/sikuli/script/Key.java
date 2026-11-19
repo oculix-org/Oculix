@@ -6,10 +6,12 @@ package org.sikuli.script;
 import org.sikuli.basics.HotkeyManager;
 import org.sikuli.basics.HotkeyListener;
 
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
 import org.sikuli.natives.WinUtil;
@@ -267,7 +269,13 @@ public class Key {
 
   //<editor-fold defaultstate="collapsed" desc="KeyNames to UniCode (used in type() with Key.XXX)">
   public static final String SPACE = " ";
-  public static final String ENTER = "\n";
+  // "\r", as in release_2.0.x (the line SikuliX 2.0.5 shipped from). The
+  // Recorder work of 2019 flipped it to "\n" on master and it was never
+  // reconciled. On a local Robot both map to VK_ENTER (KeyboardLayout), so
+  // nobody noticed; over VNC, VNCRobot.charToXlib sends '\n' as XK_Linefeed
+  // and '\r' as XK_Return, and a 3270 terminal treats Linefeed as "move to
+  // the next line", not as Enter. Keep Keys.ENTER (hotkey package) in step.
+  public static final String ENTER = "\r";
   public static final String BACKSPACE = "\b";
   public static final String TAB = "\t";
   public static final String ESC = "\u001b";
@@ -393,44 +401,54 @@ public class Key {
   };
 
 
-  private static Map<String, Integer> keyTexts = new HashMap<String, Integer>();
+  private static Map<String, Integer> keyTexts;
+  // The same names with Java (KeyEvent) codes on every OS, for robots that need those (VNC, #497).
+  private static Map<String, Integer> awtKeyTexts;
   private static Map<Integer, String> keys = new HashMap<Integer, String>();
 
-  static {
-    //<editor-fold defaultstate="collapsed" desc="create the keyname map used with write()">
+  // The keyname map used with write(), with the codes the given lookup returns for each key.
+  private static Map<String, Integer> buildKeyTexts(Function<Character, int[]> codes) {
+    Map<String, Integer> keyTexts = new HashMap<String, Integer>();
     String sKey;
     keyMaxLength = 0;
     for (char c = cMin; c < cMax; c++) {
       sKey = toJavaKeyCodeText(c);
       if (!sKey.equals(""+c)) {
-        keyTexts.put(sKey, toJavaKeyCode(c)[0]);
+        keyTexts.put(sKey, codes.apply(c)[0]);
         keyMaxLength = sKey.length() > keyMaxLength ? sKey.length() : keyMaxLength;
       }
     }
-    keyTexts.put("#ENTER.", toJavaKeyCode('\n')[0]);
-    keyTexts.put("#N.", toJavaKeyCode('\n')[0]);
-    keyTexts.put("#BACK.", toJavaKeyCode('\b')[0]);
-    keyTexts.put("#B.", toJavaKeyCode('\b')[0]);
-    keyTexts.put("#TAB.", toJavaKeyCode('\t')[0]);
-    keyTexts.put("#T.", toJavaKeyCode('\t')[0]);
-    keyTexts.put("#X.", toJavaKeyCode(C_NEXT)[0]);
-    keyTexts.put("#ESC.", toJavaKeyCode(C_ESC)[0]);
-    keyTexts.put("#U.", toJavaKeyCode(C_UP)[0]);
-    keyTexts.put("#D.", toJavaKeyCode(C_DOWN)[0]);
-    keyTexts.put("#L.", toJavaKeyCode(C_LEFT)[0]);
-    keyTexts.put("#R.", toJavaKeyCode(C_RIGHT)[0]);
-    keyTexts.put("#S.", toJavaKeyCode(C_SHIFT)[0]);
-    keyTexts.put("#S+", toJavaKeyCode(C_SHIFT)[0]);
-    keyTexts.put("#S-", toJavaKeyCode(C_SHIFT)[0]);
-    keyTexts.put("#A.", toJavaKeyCode(C_ALT)[0]);
-    keyTexts.put("#A+", toJavaKeyCode(C_ALT)[0]);
-    keyTexts.put("#A-", toJavaKeyCode(C_ALT)[0]);
-    keyTexts.put("#C.", toJavaKeyCode(C_CTRL)[0]);
-    keyTexts.put("#C+", toJavaKeyCode(C_CTRL)[0]);
-    keyTexts.put("#C-", toJavaKeyCode(C_CTRL)[0]);
-    keyTexts.put("#M.", toJavaKeyCode(C_META)[0]);
-    keyTexts.put("#M+", toJavaKeyCode(C_META)[0]);
-    keyTexts.put("#M-", toJavaKeyCode(C_META)[0]);
+    keyTexts.put("#ENTER.", codes.apply('\n')[0]);
+    keyTexts.put("#N.", codes.apply('\n')[0]);
+    keyTexts.put("#BACK.", codes.apply('\b')[0]);
+    keyTexts.put("#B.", codes.apply('\b')[0]);
+    keyTexts.put("#TAB.", codes.apply('\t')[0]);
+    keyTexts.put("#T.", codes.apply('\t')[0]);
+    keyTexts.put("#X.", codes.apply(C_NEXT)[0]);
+    keyTexts.put("#ESC.", codes.apply(C_ESC)[0]);
+    keyTexts.put("#U.", codes.apply(C_UP)[0]);
+    keyTexts.put("#D.", codes.apply(C_DOWN)[0]);
+    keyTexts.put("#L.", codes.apply(C_LEFT)[0]);
+    keyTexts.put("#R.", codes.apply(C_RIGHT)[0]);
+    keyTexts.put("#S.", codes.apply(C_SHIFT)[0]);
+    keyTexts.put("#S+", codes.apply(C_SHIFT)[0]);
+    keyTexts.put("#S-", codes.apply(C_SHIFT)[0]);
+    keyTexts.put("#A.", codes.apply(C_ALT)[0]);
+    keyTexts.put("#A+", codes.apply(C_ALT)[0]);
+    keyTexts.put("#A-", codes.apply(C_ALT)[0]);
+    keyTexts.put("#C.", codes.apply(C_CTRL)[0]);
+    keyTexts.put("#C+", codes.apply(C_CTRL)[0]);
+    keyTexts.put("#C-", codes.apply(C_CTRL)[0]);
+    keyTexts.put("#M.", codes.apply(C_META)[0]);
+    keyTexts.put("#M+", codes.apply(C_META)[0]);
+    keyTexts.put("#M-", codes.apply(C_META)[0]);
+    return keyTexts;
+  }
+
+  static {
+    //<editor-fold defaultstate="collapsed" desc="create the keyname map used with write()">
+    keyTexts = buildKeyTexts(Key::toJavaKeyCode);
+    awtKeyTexts = buildKeyTexts(KeyboardLayout::toAwtKeyCode);
     for (String k : keyTexts.keySet()) {
       if (Debug.getDebugLevel() > 3) {
         Debug.log(4, "Key: %s is: %s", k, KeyEvent.getKeyText(keyTexts.get(k)));
@@ -488,6 +506,15 @@ public class Key {
     } else {
       return keyTexts.get(key).intValue();
     }
+  }
+
+  /**
+   * Like {@link #toJavaKeyCodeFromText}, but always with Java ({@link KeyEvent}) key codes, whatever
+   * the local OS and keyboard layout (#497).
+   */
+  public static int toAwtKeyCodeFromText(String key) {
+    Integer code = awtKeyTexts.get(key);
+    return code == null ? -1 : code.intValue();
   }
 
   public static void dump() {
@@ -846,7 +873,7 @@ public class Key {
    * @return readable key text
    */
   public static String convertKeyToText(int code, int mod) {
-    String txtMod = KeyEvent.getKeyModifiersText(mod);
+    String txtMod = KeyEvent.getKeyModifiersText(toLegacyModifiers(mod));
     String txtCode = KeyEvent.getKeyText(code);
     String ret;
     if (code == KeyEvent.VK_ALT || code == KeyEvent.VK_CONTROL || code == KeyEvent.VK_SHIFT) {
@@ -855,6 +882,38 @@ public class Key {
       ret = txtMod + " " + txtCode;
     }
     return ret;
+  }
+
+  /**
+   * Normalizes a modifier mask to the legacy {@code InputEvent.*_MASK} convention.
+   *
+   * <p>{@code KeyEvent.getKeyModifiersText()} only understands the legacy bits, but a
+   * stored hotkey modifier may be in the extended {@code *_DOWN_MASK} convention —
+   * preferences migrated from SikuliX 2.0.x hold {@code 320} for Shift+Cmd, see #449.
+   * Passing that through unmapped yields an empty modifier string, so a perfectly good
+   * Shift+Cmd+C binding renders as a bare "C" and looks alarmingly like the #449 bug.
+   *
+   * <p>The two conventions occupy disjoint bits (1/2/4/8/32 vs 64/128/256/512/8192),
+   * so accepting either cannot produce a false positive.
+   */
+  private static int toLegacyModifiers(int mod) {
+    int legacy = 0;
+    if ((mod & InputEvent.SHIFT_MASK) != 0 || (mod & InputEvent.SHIFT_DOWN_MASK) != 0) {
+      legacy |= InputEvent.SHIFT_MASK;
+    }
+    if ((mod & InputEvent.CTRL_MASK) != 0 || (mod & InputEvent.CTRL_DOWN_MASK) != 0) {
+      legacy |= InputEvent.CTRL_MASK;
+    }
+    if ((mod & InputEvent.META_MASK) != 0 || (mod & InputEvent.META_DOWN_MASK) != 0) {
+      legacy |= InputEvent.META_MASK;
+    }
+    if ((mod & InputEvent.ALT_MASK) != 0 || (mod & InputEvent.ALT_DOWN_MASK) != 0) {
+      legacy |= InputEvent.ALT_MASK;
+    }
+    if ((mod & InputEvent.ALT_GRAPH_MASK) != 0 || (mod & InputEvent.ALT_GRAPH_DOWN_MASK) != 0) {
+      legacy |= InputEvent.ALT_GRAPH_MASK;
+    }
+    return legacy;
   }
 
 //  static class ShowKeyBoardSetupWindow extends Thread {

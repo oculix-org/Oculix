@@ -8,9 +8,14 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.oculix-org</groupId>
+  <parent>
+    <groupId>io.github.oculix-org</groupId>
+    <artifactId>oculix</artifactId>
+    <version>${revision}</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
   <artifactId>oculixapi</artifactId>
-  <version>4.0.0</version>
 
   <packaging>jar</packaging>
 
@@ -52,9 +57,9 @@
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
 -->
-    <apertix.opencv.version>4.10.0-3</apertix.opencv.version>
-    <legerix.version>5.5.0-8</legerix.version>
-    <versiontess4j>5.18.0</versiontess4j>
+    <apertix.opencv.version>4.14.0-0</apertix.opencv.version>
+    <legerix.version>5.5.2-2</legerix.version>
+    <octachorix.version>1.0.0</octachorix.version>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd_HH:mm</maven.build.timestamp.format>
     <!--suppress UnresolvedMavenProperty -->
@@ -82,23 +87,27 @@
     <dependency>
       <groupId>io.github.oculix-org</groupId>
       <artifactId>tigervnc-java-oculix</artifactId>
-      <version>2.0.1</version>
+      <version>2.0.4</version>
       <!--License GPLv2-->
       <!-- TigerVNC Java viewer as a separate GPL artifact.
            Provides com.tigervnc.* (RFB protocol) and com.sikulix.vnc.*
            (VNCClient wrappers used by org.sikuli.vnc.VNCScreen).
-           Transitively pulls jsch, jzlib, and jaxb-api.
+           Transitively pulls jsch (com.github.mwiede:jsch, drop-in fork of
+           com.jcraft:jsch — Terrapin fix + ed25519 + rsa-sha2-256/512),
+           jzlib, and jaxb-api.
            https://github.com/oculix-org/tigervnc-java-oculix -->
     </dependency>
     <dependency>
-      <groupId>io.github.julienmerconsulting.apertix</groupId>
-      <artifactId>opencv</artifactId>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>apertix</artifactId>
       <version>${apertix.opencv.version}</version>
-      <!-- https://github.com/julienmerconsulting/Apertix
-           4.10.0-3 ships dual Linux native builds: modern (glibc >= 2.38) at
-           linux-{x86-64,aarch64}/ and legacy (manylinux_2_28, glibc >= 2.28)
-           at linux-{x86-64,aarch64}-legacy/. Selection is done at runtime
-           in Commons.loadOpenCV() based on detected glibc version. -->
+      <!-- https://github.com/oculix-org/Apertix
+           OpenCV 4.14.0 Java bindings with natives for Windows (x86, x86_64),
+           macOS (x86_64, arm64) and Linux. Linux ships dual native builds:
+           modern (glibc >= 2.38) at linux-{x86-64,aarch64}/ and legacy
+           (manylinux_2_28, glibc >= 2.28) at linux-{x86-64,aarch64}-legacy/.
+           Selection is done at runtime in Commons.loadOpenCV() based on
+           detected glibc version. -->
     </dependency>
     <dependency>
       <groupId>commons-cli</groupId>
@@ -109,6 +118,14 @@
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-exec</artifactId>
       <version>1.6.0</version>
+    </dependency>
+    <!-- Used directly (FileUtils, FilenameUtils) by Commons, Image, ScreenImage,
+         Recorder, GenericOsUtil, SikulixFileChooser. Came in transitively
+         through tess4j until Octachorix replaced it; IDE already pins 2.22.0. -->
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.22.0</version>
     </dependency>
     <dependency>
       <groupId>net.java.dev.jna</groupId>
@@ -121,9 +138,23 @@
       <version>0.11.7</version>
     </dependency>
     <dependency>
-      <groupId>net.sourceforge.tess4j</groupId>
-      <artifactId>tess4j</artifactId>
-      <version>${versiontess4j}</version>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>octachorix</artifactId>
+      <version>${octachorix.version}</version>
+      <!--License GPLv3-->
+      <!-- Octachorix replaces tess4j: Tesseract C API binding that loads
+           libtesseract/libleptonica by ABSOLUTE PATH only (no short-name
+           resolution, no JNA version-max heuristic, no system fallback),
+           with a session-oriented API (one TessBaseAPI handle per Scribe,
+           initialised once, reused across reads). The natives and tessdata
+           still come from Legerix below. JNA comes from jna-platform above.
+           https://github.com/oculix-org/Octachorix -->
+      <exclusions>
+        <exclusion>
+          <groupId>net.java.dev.jna</groupId>
+          <artifactId>jna</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -180,41 +211,10 @@
   </dependencies>
 
   <profiles>
-    <!-- complete-jar -->
-    <profile>
-      <id>complete-jar</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-assembly-plugin</artifactId>
-            <version>3.8.0</version>
-            <configuration>
-         <!--     <archive>
-                <manifest>
-                  <mainClass>org.sikuli.script.SX</mainClass>
-                </manifest>
-              </archive>
--->
-              <descriptors>
-                <descriptor>makeapi.xml</descriptor>
-              </descriptors>
-            </configuration>
-            <executions>
-              <execution>
-                <id>make-assembly</id>
-                <phase>package</phase>
-                <goals>
-                  <goal>single</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
+    <!-- The API fat jar is built per OS only (complete-{win,mac,lux}-jar):
+         a single all-platform jar would carry ~250 MB of natives for one
+         platform's use. The generic complete-jar profile and its makeapi.xml
+         descriptor went away with that decision. -->
     <!-- complete-jar Windows only-->
     <profile>
       <id>complete-win-jar</id>
@@ -227,13 +227,6 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-<!--
-              <archive>
-                <manifest>
-                  <mainClass>org.sikuli.script.SX</mainClass>
-                </manifest>
-              </archive>
--->
               <descriptors>
                 <descriptor>makeapi-win.xml</descriptor>
               </descriptors>
@@ -263,13 +256,6 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-<!--
-              <archive>
-                <manifest>
-                  <mainClass>org.sikuli.script.SX</mainClass>
-                </manifest>
-              </archive>
--->
               <descriptors>
                 <descriptor>makeapi-mac.xml</descriptor>
               </descriptors>
@@ -305,15 +291,6 @@
                   <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
 -->
-                <manifestSections>
-                  <manifestSection>
-                    <name>io/github/julienmerconsulting/legerix/</name>
-                    <manifestEntries>
-                      <Implementation-Title>Legerix</Implementation-Title>
-                      <Implementation-Version>${legerix.version}</Implementation-Version>
-                    </manifestEntries>
-                  </manifestSection>
-                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeapi-lux.xml</descriptor>
@@ -426,7 +403,6 @@
           <plugin>
             <groupId>org.sonatype.central</groupId>
             <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.10.0</version>
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>

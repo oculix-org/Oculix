@@ -1,0 +1,16 @@
+org.sikuli.support.runner.JythonRunner
+org.sikuli.support.runner.PythonRunner
+org.sikuli.support.runner.RobotRunner
+org.sikuli.support.runner.JRubyRunner
+org.sikuli.support.runner.TextRunner
+org.sikuli.support.runner.PowershellRunner
+org.sikuli.support.runner.AppleScriptRunner
+org.sikuli.support.runner.ProcessRunner
+org.sikuli.support.runner.SikulixRunner
+org.sikuli.support.runner.SKLRunner
+org.sikuli.support.runner.ZipRunner
+org.sikuli.support.runner.JarRunner
+org.sikuli.support.runner.JarExeRunner
+org.sikuli.support.runner.NetworkRunner
+org.sikuli.support.runner.SilkulixGitTestRunner
+org.sikuli.support.runner.InvalidRunner

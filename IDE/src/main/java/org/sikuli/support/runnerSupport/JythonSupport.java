@@ -151,9 +151,9 @@ public class JythonSupport implements IRunnerSupport {
   private static final String libFolderInJar = "LibJython";
 
   //<editor-fold desc="05 Jython reflection">
-  static Class cPyMethod = null;
+  static Class<?> cPyMethod = null;
 
-  static Class cPyException = null;
+  static Class<?> cPyException = null;
   class SXPyException {
 
     Object inst = null;
@@ -184,7 +184,7 @@ public class JythonSupport implements IRunnerSupport {
     }
   }
 
-  static Class cPyInstance = null;
+  static Class<?> cPyInstance = null;
   class SXPyInstance {
 
     Object inst = null;
@@ -227,7 +227,7 @@ public class JythonSupport implements IRunnerSupport {
     }
   }
 
-  static Class cPyFunction = null;
+  static Class<?> cPyFunction = null;
   class SXPyFunction {
 
     public String __name__;
@@ -742,11 +742,11 @@ public class JythonSupport implements IRunnerSupport {
     Object back = null;
     try {
       Method mGetFrame = Class.forName("org.python.core.Py").getMethod("getFrame", new Class[0]);
-      Class cPyFrame = Class.forName("org.python.core.PyFrame");
+      Class<?> cPyFrame = Class.forName("org.python.core.PyFrame");
       Field fLineno = cPyFrame.getField("f_lineno");
       Field fCode = cPyFrame.getField("f_code");
       Field fBack = cPyFrame.getField("f_back");
-      Class cPyBaseCode = Class.forName("org.python.core.PyBaseCode");
+      Class<?> cPyBaseCode = Class.forName("org.python.core.PyBaseCode");
       Field fFilename = cPyBaseCode.getField("co_filename");
       frame = mGetFrame.invoke(Class.forName("org.python.core.Py"), (Object[]) null);
       back = fBack.get(frame);
@@ -808,8 +808,8 @@ public class JythonSupport implements IRunnerSupport {
 //      errorType = PY_JAVA;
 //      err = thr.getCause().toString();
 //    }
-    Class errorClass = throwable.getClass();
-    Class pySyntaxError = null;
+    Class<?> errorClass = throwable.getClass();
+    Class<?> pySyntaxError = null;
     try {
       pySyntaxError = Class.forName("org.python.core.PySyntaxError");
     } catch (ClassNotFoundException e) {
@@ -1032,7 +1032,7 @@ public class JythonSupport implements IRunnerSupport {
   //</editor-fold>
 
   //<editor-fold desc="40 callback">
-  static Class cPyString = null;
+  static Class<?> cPyString = null;
   class PyString {
 
     String aString = "";

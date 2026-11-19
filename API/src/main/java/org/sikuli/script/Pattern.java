@@ -68,11 +68,23 @@ public class Pattern {
     imagePattern = true;
   }
 
+  /**
+   * scale the image by this factor before searching (for a screen scaled differently from the capture)<br>
+   * takes precedence over Settings.AlwaysResize
+   *
+   * @param factor the factor (1 or 0 = no resize)
+   * @return this Pattern
+   */
   public Pattern resize(float factor) {
     resizeFactor = factor;
     return this;
   }
 
+  /**
+   * the resize factor set with {@link #resize(float)}
+   *
+   * @return the factor (0 if none)
+   */
   public float getResize() {
     return resizeFactor;
   }
@@ -151,10 +163,21 @@ public class Pattern {
 
   private boolean isMask = false;
 
+  /**
+   * same as {@link #asMask()}
+   *
+   * @return this Pattern
+   */
   public Pattern mask() {
     return asMask();
   }
 
+  /**
+   * use the image itself as its mask: only its opaque pixels are compared (alpha channel), or only its non-black pixels if it has no alpha channel<br>
+   * an error is logged and nothing changes if the image is fully opaque or has no black pixel
+   *
+   * @return this Pattern
+   */
   public Pattern asMask() {
     if (isValid()) {
       Debug.log(3, "Pattern: asMask: %s", image);
@@ -171,18 +194,43 @@ public class Pattern {
 
   private boolean withMask = false;
 
+  /**
+   * use another image file as mask, see {@link #withMask(Pattern)}
+   *
+   * @param sMask the image file name
+   * @return this Pattern
+   */
   public Pattern mask(String sMask) {
     return withMask(new Pattern(Image.create(sMask)));
   }
 
+  /**
+   * use another image as mask, see {@link #withMask(Pattern)}
+   *
+   * @param iMask the image
+   * @return this Pattern
+   */
   public Pattern mask(Image iMask) {
     return withMask(new Pattern(iMask));
   }
 
+  /**
+   * same as {@link #withMask(Pattern)}
+   *
+   * @param pMask the Pattern whose image is the mask
+   * @return this Pattern
+   */
   public Pattern mask(Pattern pMask) {
     return withMask(pMask);
   }
 
+  /**
+   * use the image of another Pattern as mask: where that image is transparent (or black, if it has no alpha channel) the pixels of this Pattern are ignored when searching<br>
+   * the mask must have exactly the size of this Pattern's image, else an error is logged and nothing changes
+   *
+   * @param pMask the Pattern whose image is the mask
+   * @return this Pattern
+   */
   public Pattern withMask(Pattern pMask) {
     if (isValid()) {
       Mat mask = Commons.getNewMat();
@@ -209,6 +257,11 @@ public class Pattern {
     return this;
   }
 
+  /**
+   * same as {@link #asMask()}
+   *
+   * @return this Pattern
+   */
   public Pattern withMask() {
     return mask();
   }
@@ -281,6 +334,12 @@ public class Pattern {
     return this;
   }
 
+  /**
+   * sets the minimum Similarity to use with findX
+   *
+   * @param sim value 0 to 1
+   * @return the Pattern object itself
+   */
   public Pattern similar(float sim) {
     similarity = sim;
     return this;

@@ -459,19 +459,19 @@ public class SikuliEditorKit extends StyledEditorKit {
           return txt.getDocument().getLength();
         }
 
-        Rectangle curRect = txt.modelToView(pos);
+        Rectangle curRect = txt.modelToView2D(pos).getBounds();
         Rectangle tarEndRect;
         if (tarLine < numLines) {
-          tarEndRect = txt.modelToView(txt.getLineStartOffset(tarLine) - 1);
+          tarEndRect = txt.modelToView2D(txt.getLineStartOffset(tarLine) - 1).getBounds();
         } else {
-          tarEndRect = txt.modelToView(txt.getDocument().getLength() - 1);
+          tarEndRect = txt.modelToView2D(txt.getDocument().getLength() - 1).getBounds();
         }
         Debug.log(9, "curRect: " + curRect + ", tarEnd: " + tarEndRect);
 
         if (curRect.x > tarEndRect.x) {
-          pos = txt.viewToModel(new Point(tarEndRect.x, tarEndRect.y));
+          pos = txt.viewToModel2D(new Point(tarEndRect.x, tarEndRect.y));
         } else {
-          pos = txt.viewToModel(new Point(curRect.x, tarEndRect.y));
+          pos = txt.viewToModel2D(new Point(curRect.x, tarEndRect.y));
         }
       } catch (BadLocationException e) {
         Debug.error(me + "Problem getting next visual position\n%s", e.getMessage());
@@ -522,7 +522,7 @@ public class SikuliEditorKit extends StyledEditorKit {
         if (magicPosition == null
                 && (direction == SwingConstants.NORTH
                 || direction == SwingConstants.SOUTH)) {
-          Rectangle r = textArea.modelToView(dot);
+          Rectangle r = textArea.modelToView2D(dot).getBounds();
           magicPosition = new Point(r.x, r.y);
         }
 

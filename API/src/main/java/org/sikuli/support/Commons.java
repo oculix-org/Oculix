@@ -22,6 +22,7 @@ import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
+import java.awt.image.WritableRaster;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -53,7 +54,7 @@ public class Commons {
   private static String sxBuild;
   private static String sxBuildStamp;
 
-  private static String sxversiontess4j;
+  private static String sxversionoctachorix;
   private static String sxversionapertix;
   private static String sxversionlegerix;
 
@@ -134,6 +135,24 @@ public class Commons {
       startLog(3, "[OculiX] Native library path: " + getNativeLibDir());
     }
 
+    // Linux Wayland-strict runtime warning. java.awt.Robot captures return a
+    // black image (JDK-8269245) and xdotool / Robot input events are silently
+    // dropped (JDK-8280983 / Project Wakefield). Both fail without raising
+    // an exception, which is worse than a crash — the user sees nothing.
+    // Turn the silence into an audible signal. Tracked in #299 (capture) and
+    // #417 (input); root fix planned in Epic #442.
+    if (runningLinux) {
+      String sessionType = System.getenv("XDG_SESSION_TYPE");
+      if ("wayland".equalsIgnoreCase(sessionType)) {
+        startLog(3, "[OculiX] WARNING: XDG_SESSION_TYPE=wayland detected");
+        startLog(3, "[OculiX]   java.awt.Robot screen captures will return a BLACK image");
+        startLog(3, "[OculiX]   xdotool / Robot input events are SILENTLY DROPPED");
+        startLog(3, "[OculiX]   tracked in issues #299 (capture) and #417 (input)");
+        startLog(3, "[OculiX]   workaround: log out and select 'Ubuntu on Xorg' at login");
+        startLog(3, "[OculiX]   (note: Xorg session removed in Ubuntu 25.10+, only 24.04 LTS still ships it)");
+      }
+    }
+
     Properties sxProps = new Properties();
     String svf = "/Settings/sikulixversion.txt";
     try {
@@ -160,7 +179,7 @@ public class Commons {
     sxVersionLong = sxVersion + String.format("-%s", sxBuildStamp);
     sxVersionShort = sxVersion.replace("-SNAPSHOT", "");
 
-    sxversiontess4j = sxProps.getProperty("versiontess4j");
+    sxversionoctachorix = sxProps.getProperty("versionoctachorix");
     sxversionapertix = sxProps.getProperty("versionapertixopencv");
     sxversionlegerix = sxProps.getProperty("versionlegerix");
 
@@ -176,7 +195,6 @@ public class Commons {
     // static-init chain has been triggered yet. Fixes UnsatisfiedLinkError on
     // first new Mat() from non-Finder call paths (e.g. Pattern.patternMask field init).
     loadOpenCV();
-    loadTesseract();
   }
 
   public static void init() {
@@ -260,7 +278,32 @@ public class Commons {
     }
   }
 
+  private static volatile java.util.function.Consumer<String> startLogObserver = null;
+
+  /**
+   * Lets one listener read every start-up line as it is written, before the debug level and the
+   * quiet flag decide whether it is printed; the IDE splash shows them. Null removes the listener.
+   *
+   * @param observer receives the formatted message, without the [DEBUG STARTUP] prefix
+   */
+  public static void observeStartLog(java.util.function.Consumer<String> observer) {
+    startLogObserver = observer;
+  }
+
+  /**
+   * Writes one line of the start-up log: level 3 always, lower levels only with global debug,
+   * nothing when quiet. The line also goes to the observer set by {@link #observeStartLog}.
+   *
+   * @param level 1 or 2 need global debug, 3 is always printed
+   * @param msg   format string
+   * @param args  its arguments
+   */
   public static void startLog(int level, String msg, Object... args) {
+    String line = String.format(msg, args);
+    java.util.function.Consumer<String> observer = startLogObserver;
+    if (observer != null) {
+      observer.accept(line);
+    }
     if (level < 3) {
       if (!Debug.isGlobalDebug()) {
         return;
@@ -269,7 +312,7 @@ public class Commons {
     if (Debug.isBeQuiet()) {
       return;
     }
-    System.out.println(String.format("[DEBUG STARTUP] " + msg, args));
+    System.out.println("[DEBUG STARTUP] " + line);
   }
   //</editor-fold>
 
@@ -581,8 +624,8 @@ public class Commons {
     return sxBuildStamp;
   }
 
-  public static String getSXVersionTess4j() {
-    return sxversiontess4j;
+  public static String getSXVersionOctachorix() {
+    return sxversionoctachorix;
   }
 
   public static String getSXVersionLegerix() {
@@ -1475,51 +1518,90 @@ public class Commons {
   }
 
   private static final String libLegerixClassref = "io.github.julienmerconsulting.legerix.Legerix";
-  // No inline initializers: this field is declared AFTER the static {} block
-  // that calls loadTesseract(), so an explicit `= false` would run later in
-  // <clinit> and clobber the value loadTesseract() set. JLS default (false)
-  // is what we want.
-  private static volatile boolean libTesseractLoaded;
-  private static volatile String libTesseractDataPath;
+  private static volatile boolean libTesseractAttempted = false;
+  private static volatile boolean libTesseractLoaded = false;
+  private static volatile String libTesseractDataPath = null;
+  // Absolute paths of the Legerix-extracted shared libraries. Octachorix
+  // binds by absolute path only (no short-name resolution), so these two are
+  // the whole contract between the native provisioner and the OCR binding.
+  private static volatile String libTesseractLibraryPath = null;
+  private static volatile String libLeptonicaLibraryPath = null;
+  private static volatile String libTesseractFailure = null;
 
   public static boolean isTesseractLoaded() {
+    loadTesseract();
     return libTesseractLoaded;
   }
 
   public static String getTesseractDataPath() {
+    loadTesseract();
     return libTesseractDataPath;
   }
 
+  /** Absolute path of the bundled libtesseract, or null if Legerix did not deliver. */
+  public static String getTesseractLibraryPath() {
+    loadTesseract();
+    return libTesseractLibraryPath;
+  }
+
+  /** Absolute path of the bundled libleptonica, or null if Legerix did not deliver. */
+  public static String getLeptonicaLibraryPath() {
+    loadTesseract();
+    return libLeptonicaLibraryPath;
+  }
+
+  /** Why the bundled Tesseract is unavailable, or null when it is. */
+  public static String getTesseractFailure() {
+    loadTesseract();
+    return libTesseractFailure;
+  }
+
+  /**
+   * Provisions the bundled Tesseract through Legerix on first use. Concurrent callers wait for
+   * that first provisioning to finish; later calls return at once, whatever its outcome.
+   */
   public static void loadTesseract() {
-    if (libTesseractLoaded) {
+    if (libTesseractAttempted) {
       return;
     }
-    boolean nativesLoaded = false;
+    synchronized (Commons.class) {
+      if (libTesseractAttempted) {
+        return;
+      }
+      try {
+        provisionTesseract();
+      } finally {
+        libTesseractAttempted = true;
+      }
+    }
+  }
+
+  private static void provisionTesseract() {
+    File nativesDir = null;
     String version = "?";
     try {
       Class<?> legerix = Class.forName(libLegerixClassref);
       try {
-        legerix.getMethod("loadNatives").invoke(null);
-        nativesLoaded = true;
+        // Legerix extracts the platform natives + tessdata to its cache and
+        // returns the natives directory. It also dlopen()s the pair itself,
+        // which is harmless: Octachorix re-binds the very same files by
+        // absolute path, so the loader hands back the already-mapped image.
+        Object dir = legerix.getMethod("loadNatives").invoke(null);
+        if (dir != null) {
+          nativesDir = new File(dir.toString());
+        }
       } catch (Throwable e) {
-        // Common on Windows when Legerix's bundled tesseract/leptonica DLLs
-        // depend on image/runtime libs that aren't on the system PATH (libpng,
-        // libtiff, libwebp, libcurl, libarchive, ...). The natives won't load,
-        // but we can still recover the bundled tessdata: Legerix extracts it
-        // to the cache dir before the JNA load step, AND we have the same
-        // /tessdata resources in the fat-jar to fall back on. If natives are
-        // unusable, Tess4J's own bundled DLLs (also in the fat-jar) handle the
-        // OCR runtime — we just need the .traineddata files.
         Throwable cause = e.getCause() != null ? e.getCause() : e;
-        startLog(3, "[OculiX] Legerix.loadNatives() failed: "
-            + cause.getClass().getSimpleName() + ": " + cause.getMessage());
+        libTesseractFailure = "Legerix.loadNatives() failed: "
+            + cause.getClass().getSimpleName() + ": " + cause.getMessage();
+        startLog(3, "[OculiX] " + libTesseractFailure);
       }
       try {
         Object v = legerix.getMethod("getTesseractVersion").invoke(null);
         if (v != null) version = v.toString();
       } catch (Throwable ignore) { }
-      // Try to recover the tessdata path even if loadNatives() failed —
-      // Legerix may have populated extractionDir during its setup phase.
+      // Recover the tessdata path even if loadNatives() failed — Legerix may
+      // have populated extractionDir during its setup phase.
       try {
         Object tessdataPath = legerix.getMethod("getTessdataPath").invoke(null);
         if (tessdataPath != null) {
@@ -1529,8 +1611,8 @@ public class Commons {
           }
         }
       } catch (Throwable ignore) { }
-      // Last resort: extract /tessdata/*.traineddata directly from our own
-      // classpath into a stable cache folder.
+      // Last resort for the language data: extract /tessdata/*.traineddata
+      // directly from our own classpath into a stable cache folder.
       if (libTesseractDataPath == null) {
         File extracted = extractBundledTessdata();
         if (extracted != null) {
@@ -1538,24 +1620,60 @@ public class Commons {
         }
       }
     } catch (ClassNotFoundException cnfe) {
-      startLog(3, "[OculiX] " + libLegerixClassref + " not on classpath (Legerix jar missing?) — "
-          + "OCR will fall back to system tesseract if available.");
+      libTesseractFailure = libLegerixClassref + " not on classpath (Legerix jar missing?)";
+      startLog(3, "[OculiX] " + libTesseractFailure + " — OCR unavailable.");
       return;
     }
-    if (nativesLoaded) {
-      libTesseractLoaded = true;
-      startLog(3, "[OculiX] Tesseract loaded via Legerix (Tesseract " + version
-          + ", tessdata=" + libTesseractDataPath + ")");
-    } else if (libTesseractDataPath != null) {
-      // Tess4J ships its own self-contained Tesseract DLLs/dylibs/sos and will
-      // load them lazily via JNA on first new Tesseract1(). We don't flip
-      // libTesseractLoaded — that flag tracks Legerix specifically — but the
-      // tessdata path is enough for TextRecognizer to find the language data.
-      startLog(3, "[OculiX] Legerix natives unavailable — using Tess4J bundled binaries with "
-          + "Legerix-bundled tessdata (" + libTesseractDataPath + ")");
-    } else {
-      startLog(3, "[OculiX] No Tesseract available — OCR will require a system install.");
+    if (nativesDir != null) {
+      File tesseract = findNativeLibrary(nativesDir, "tesseract");
+      File leptonica = findNativeLibrary(nativesDir, "lept");
+      if (tesseract == null || leptonica == null) {
+        libTesseractFailure = "Legerix natives dir has no tesseract/leptonica library: " + nativesDir;
+        startLog(3, "[OculiX] " + libTesseractFailure);
+      } else {
+        libTesseractLibraryPath = tesseract.getAbsolutePath();
+        libLeptonicaLibraryPath = leptonica.getAbsolutePath();
+        libTesseractLoaded = true;
+        libTesseractFailure = null;
+        startLog(3, "[OculiX] Tesseract " + version + " via Legerix, bound by Octachorix: "
+            + libTesseractLibraryPath + " (tessdata=" + libTesseractDataPath + ")");
+      }
     }
+    if (!libTesseractLoaded) {
+      startLog(3, "[OculiX] No bundled Tesseract available — OCR calls will fail: " + libTesseractFailure);
+    }
+  }
+
+  /**
+   * Picks the shared library whose base name starts with {@code stem} (with or
+   * without a {@code lib} prefix) in the Legerix natives directory: on Windows
+   * {@code tesseract55.dll} / {@code leptonica-1.87.0.dll}, on Linux
+   * {@code libtesseract.so.5} / {@code libleptonica.so.6}, on macOS
+   * {@code libtesseract.5.dylib} / {@code libleptonica.6.dylib}. A versioned
+   * name (one carrying a digit) beats an unversioned alias such as
+   * {@code libtesseract.dylib}; among equals the shortest name wins. Empty
+   * files are ignored.
+   */
+  private static File findNativeLibrary(File dir, String stem) {
+    File[] files = dir.listFiles();
+    if (files == null) return null;
+    File best = null;
+    int bestRank = Integer.MAX_VALUE;
+    for (File f : files) {
+      if (!f.isFile() || f.length() == 0) continue;
+      String n = f.getName().toLowerCase(java.util.Locale.ROOT);
+      boolean isLib = n.endsWith(".dll") || n.contains(".so") || n.endsWith(".dylib");
+      if (!isLib) continue;
+      String base = n.startsWith("lib") ? n.substring(3) : n;
+      if (!base.startsWith(stem)) continue;
+      boolean versioned = n.chars().anyMatch(Character::isDigit);
+      int rank = (versioned ? 0 : 1_000) + n.length();
+      if (rank < bestRank) {
+        bestRank = rank;
+        best = f;
+      }
+    }
+    return best;
   }
 
   private static boolean hasAnyTraineddata(File dir) {
@@ -1637,7 +1755,7 @@ public class Commons {
       }
       String pid = String.valueOf(ProcessHandle.current().pid());
       Path tempDir = Files.createTempDirectory("oculix-opencv-" + pid + "-");
-      File tempLib = tempDir.resolve("libopencv_java4100.so").toFile();
+      File tempLib = tempDir.resolve(fileName).toFile();
       tempDir.toFile().deleteOnExit();  // 2nd: delete folder
       tempLib.deleteOnExit();           // 1st: delete file
       Debug.log("Creating OpenCV temp lib: %s", tempLib.toString());
@@ -2537,7 +2655,17 @@ public class Commons {
     return result;
   }
 
+  /**
+   * The four planes A, B, G, R of the image, as {@code TYPE_4BYTE_ABGR} lays them out.
+   * <p>
+   * #492: only a compact {@code TYPE_4BYTE_ABGR} raster can be read as 4 bytes per pixel.
+   * Anything else ({@code TYPE_CUSTOM} above all, which has no fixed layout: a VNC frame is
+   * int-backed) is copied into {@code TYPE_4BYTE_ABGR} first instead of being cast.
+   */
   public static List<Mat> getMatList(BufferedImage bImg) {
+    if (bImg.getType() != BufferedImage.TYPE_4BYTE_ABGR || !hasCompactRaster(bImg)) {
+      bImg = toAbgr(bImg);
+    }
     byte[] data = ((DataBufferByte) bImg.getRaster().getDataBuffer()).getData();
     Mat aMat = new Mat(bImg.getHeight(), bImg.getWidth(), CvType.CV_8UC4);
     aMat.put(0, 0, data);
@@ -2558,7 +2686,94 @@ public class Commons {
     return makeMat(bImg, true);
   }
 
+  /**
+   * #444: a view produced by {@link BufferedImage#getSubimage} shares its
+   * parent's DataBuffer and only differs by a raster offset. The raw
+   * {@code getDataBuffer().getData()} reads below ignore that offset and
+   * consume the PARENT from index 0 — so a bottom-of-window ROI quietly
+   * turns into the top-of-window band of the same width. That is how a
+   * status bar came back reading as a title bar. Compact rasters (the
+   * everyday case) are left strictly on the fast path.
+   */
+  private static boolean hasCompactRaster(BufferedImage bImg) {
+    WritableRaster r = bImg.getRaster();
+    return r.getSampleModelTranslateX() == 0
+        && r.getSampleModelTranslateY() == 0
+        && r.getMinX() == 0
+        && r.getMinY() == 0
+        && r.getDataBuffer().getSize()
+           == r.getWidth() * r.getHeight() * r.getNumDataElements();
+  }
+
+  /**
+   * The types makeMat reads directly. Every other type, {@code TYPE_CUSTOM} included, has no
+   * layout makeMat can rely on and is drawn into a known type first (#492).
+   */
+  private static boolean hasFastPath(int type) {
+    switch (type) {
+      case BufferedImage.TYPE_INT_RGB:
+      case BufferedImage.TYPE_3BYTE_BGR:
+      case BufferedImage.TYPE_4BYTE_ABGR:
+      case BufferedImage.TYPE_BYTE_GRAY:
+      case BufferedImage.TYPE_BYTE_INDEXED:
+      case BufferedImage.TYPE_BYTE_BINARY:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * A TYPE_4BYTE_ABGR copy of any image. The pixels are read with getRGB, which the image's own
+   * ColorModel turns into non-premultiplied sRGB ARGB, and written as A, B, G, R bytes. There is
+   * no Java2D compositing on the way, which for custom colour models goes through premultiplied
+   * alpha and loses the colour of fully transparent pixels.
+   */
+  private static BufferedImage toAbgr(BufferedImage src) {
+    int w = src.getWidth(), h = src.getHeight();
+    int[] argb = src.getRGB(0, 0, w, h, null, 0, w);
+    BufferedImage dst = new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
+    byte[] abgr = ((DataBufferByte) dst.getRaster().getDataBuffer()).getData();
+    for (int i = 0, j = 0; i < argb.length; i++) {
+      int p = argb[i];
+      abgr[j++] = (byte) (p >>> 24);
+      abgr[j++] = (byte) p;
+      abgr[j++] = (byte) (p >>> 8);
+      abgr[j++] = (byte) (p >>> 16);
+    }
+    return dst;
+  }
+
+  private static BufferedImage compactCopy(BufferedImage bImg) {
+    BufferedImage copy = new BufferedImage(bImg.getWidth(), bImg.getHeight(), bImg.getType());
+    Graphics2D g = copy.createGraphics();
+    g.drawImage(bImg, 0, 0, null);
+    g.dispose();
+    return copy;
+  }
+
   public static Mat makeMat(BufferedImage bImg, boolean asBGR) {
+    // #492: a type without a fast path (TYPE_CUSTOM, TYPE_INT_ARGB, TYPE_USHORT_565_RGB, ...)
+    // has no layout the branches below can read. It is copied into TYPE_4BYTE_ABGR (colours and
+    // alpha copied exactly, see toAbgr) and asBGR is honoured: BGRA when the caller
+    // wants alpha (the mask callers pass false), BGR with the alpha plane dropped otherwise.
+    if (!hasFastPath(bImg.getType())) {
+      List<Mat> mats = getMatList(toAbgr(bImg));
+      Size size = mats.get(0).size();
+      Mat alpha = mats.remove(0);
+      if (asBGR) {
+        Mat mBGR = getNewMat(size, 3, -1);
+        Core.merge(mats, mBGR);
+        return mBGR;
+      }
+      mats.add(alpha);
+      Mat mBGRA = getNewMat(size, 4, -1);
+      Core.merge(mats, mBGRA);
+      return mBGRA;
+    }
+    if (!hasCompactRaster(bImg)) {
+      bImg = compactCopy(bImg);
+    }
     if (bImg.getType() == BufferedImage.TYPE_INT_RGB) {
       int[] data = ((DataBufferInt) bImg.getRaster().getDataBuffer()).getData();
       ByteBuffer byteBuffer = ByteBuffer.allocate(data.length * 4);
@@ -2591,21 +2806,15 @@ public class Commons {
       Mat aMatBGR = new Mat(bImg.getHeight(), bImg.getWidth(), CvType.CV_8UC3);
       aMatBGR.put(0, 0, data);
       return aMatBGR;
-    } else if (bImg.getType() == BufferedImage.TYPE_4BYTE_ABGR
-        || bImg.getType() == BufferedImage.TYPE_CUSTOM) {
+    } else if (bImg.getType() == BufferedImage.TYPE_4BYTE_ABGR) {
+      // A TYPE_4BYTE_ABGR input keeps its alpha as BGRA, as before. Since #492 this branch is
+      // also how a converted image comes out when asBGR is false.
       List<Mat> mats = getMatList(bImg);
       Size size = mats.get(0).size();
-      if (!asBGR || bImg.getType() == BufferedImage.TYPE_4BYTE_ABGR) {
-        Mat mBGRA = getNewMat(size, 4, -1);
-        mats.add(mats.remove(0));
-        Core.merge(mats, mBGRA);
-        return mBGRA;
-      } else {
-        Mat mBGR = getNewMat(size, 3, -1);
-        mats.remove(0);
-        Core.merge(mats, mBGR);
-        return mBGR;
-      }
+      Mat mBGRA = getNewMat(size, 4, -1);
+      mats.add(mats.remove(0));
+      Core.merge(mats, mBGRA);
+      return mBGRA;
     } else if (bImg.getType() == BufferedImage.TYPE_BYTE_GRAY) {
       byte[] data = ((DataBufferByte) bImg.getRaster().getDataBuffer()).getData();
       Mat aMat = new Mat(bImg.getHeight(), bImg.getWidth(), CvType.CV_8UC1);

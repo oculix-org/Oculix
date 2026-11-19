@@ -3,11 +3,15 @@ name: Build and Release (RC)
 # Dedicated workflow for release candidates / pre-releases.
 # Runs only on explicit dispatch or when something is pushed to the
 # release/oculix-rc branch. Guards against running on a stable version
-# (pom.xml version must end in -rc*, -beta*, or -alpha*). Produces all
-# three modules (API, IDE, MCP) for Windows, macOS and Linux, and
-# publishes a GitHub release marked as pre-release with the "latest"
-# pointer left untouched - so users pulling /releases/latest keep
-# getting the last stable, not an RC.
+# (pom.xml version must end in -rc*, -beta*, or -alpha*). Produces the API
+# and IDE fat jars for Windows, macOS and Linux, plus the two
+# platform-independent modules, MCP and Reporter, and publishes a GitHub
+# release marked as pre-release with the "latest" pointer left untouched -
+# so users pulling /releases/latest keep getting the last stable, not an RC.
+#
+# Reporter ships here as a downloadable jar. Its publication to Maven Central
+# is a separate chain entirely, driven by plublish-maven.yml, and neither
+# workflow depends on the other.
 
 on:
   workflow_dispatch:
@@ -18,16 +22,36 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    # #444 workaround: bash with `-o pipefail` so a Maven `BUILD FAILURE`
+    # piped into egrep no longer masks its non-zero exit code and the CI
+    # stays honest. Before this, IDE and MCP build failures on the
+    # ${revision} / flatten-maven-plugin path (introduced in v4.0.0) were
+    # silently absorbed by the egrep pipe, the job kept marching, and the
+    # release job uploaded only the API artifacts as if everything were fine.
+    shell: bash --noprofile --norc -eo pipefail {0}
+
 jobs:
   build-windows:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Install parent POM (flattened) to local repo
+      # #444: since v4.0.0 the root pom uses CI-friendly ${revision} +
+      # flatten-maven-plugin. `mvn -pl API install` no longer installs the
+      # flattened parent pom in ~/.m2, so IDE and MCP subsequently fail to
+      # resolve io.github.oculix-org:oculix:pom:${revision} and Maven caches
+      # a Central-lookup failure. Install the parent explicitly with -N
+      # (non-recursive) so the flatten plugin runs on it and its
+      # .flattened-pom.xml lands in the local repo before any -pl module build.
+      # v3.0.4-rc1 didn't need this because its version was hardcoded (not ${revision}).
+      run: mvn -B install -N -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Install API to local repo
       run: mvn -B -pl API install -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build API fat JAR (Windows)
@@ -37,7 +61,7 @@ jobs:
     - name: Build MCP fat JAR
       run: mvn -B -pl MCP -P mcp-fatjar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: windows-jars
         path: |
@@ -48,12 +72,22 @@ jobs:
   build-macos:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Install parent POM (flattened) to local repo
+      # #444: since v4.0.0 the root pom uses CI-friendly ${revision} +
+      # flatten-maven-plugin. `mvn -pl API install` no longer installs the
+      # flattened parent pom in ~/.m2, so IDE and MCP subsequently fail to
+      # resolve io.github.oculix-org:oculix:pom:${revision} and Maven caches
+      # a Central-lookup failure. Install the parent explicitly with -N
+      # (non-recursive) so the flatten plugin runs on it and its
+      # .flattened-pom.xml lands in the local repo before any -pl module build.
+      # v3.0.4-rc1 didn't need this because its version was hardcoded (not ${revision}).
+      run: mvn -B install -N -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Install API to local repo
       run: mvn -B -pl API install -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build API fat JAR (macOS)
@@ -63,7 +97,7 @@ jobs:
     - name: Build MCP fat JAR
       run: mvn -B -pl MCP -P mcp-fatjar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: macos-jars
         path: |
@@ -74,12 +108,22 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Install parent POM (flattened) to local repo
+      # #444: since v4.0.0 the root pom uses CI-friendly ${revision} +
+      # flatten-maven-plugin. `mvn -pl API install` no longer installs the
+      # flattened parent pom in ~/.m2, so IDE and MCP subsequently fail to
+      # resolve io.github.oculix-org:oculix:pom:${revision} and Maven caches
+      # a Central-lookup failure. Install the parent explicitly with -N
+      # (non-recursive) so the flatten plugin runs on it and its
+      # .flattened-pom.xml lands in the local repo before any -pl module build.
+      # v3.0.4-rc1 didn't need this because its version was hardcoded (not ${revision}).
+      run: mvn -B install -N -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Install API to local repo
       run: mvn -B -pl API install -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Build API fat JAR (Linux)
@@ -89,7 +133,7 @@ jobs:
     - name: Build MCP fat JAR
       run: mvn -B -pl MCP -P mcp-fatjar package -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: linux-jars
         path: |
@@ -97,14 +141,64 @@ jobs:
           IDE/target/*complete-lux*.jar
           MCP/target/oculix-mcp-server.jar
 
-  release:
-    needs: [build-windows, build-macos, build-linux]
+  # Reporter carries no natives, so it is built once instead of in each of the
+  # three OS jobs. It is a thin jar on purpose: oculixapi is `provided` and the
+  # framework integrations are `optional`, so it goes on the classpath next to
+  # the API jar the user already has.
+  build-reporter:
     runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - name: Set up JDK 17
+      uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - name: Install API to local repo
+      run: mvn -B -pl API install -DskipTests | egrep -v "^\[INFO\].*?Download.*?http"
+    # Version read from the module's own pom, after the API is installed so the
+    # model resolves. Never typed in: a hardcoded number here would either fail
+    # the next bump or, worse, name a jar that no release contains.
+    - name: Get Reporter version from its POM
+      id: version
+      run: echo "VERSION=$(mvn -B -q -pl Reporter help:evaluate -Dexpression=project.version -DforceStdout)" >> $GITHUB_OUTPUT
+    # verify, not package: the module has tests and they run headless.
+    - name: Build and verify Reporter
+      run: mvn -B -pl Reporter verify | egrep -v "^\[INFO\].*?Download.*?http"
+    # Staged by exact name rather than uploaded with a glob. The release
+    # profile attaches -sources and -javadoc jars to the same directory, and
+    # while that profile is not active here, a glob that could ever match them
+    # is a trap waiting for the day it is.
+    - name: Stage the one jar we ship
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        JAR="Reporter/target/oculixreporter-${VERSION}.jar"
+        if [ ! -f "$JAR" ]; then
+          echo "::error::Reporter build produced no ${JAR}"
+          ls -l Reporter/target || true
+          exit 1
+        fi
+        mkdir -p reporter-stage
+        cp "$JAR" reporter-stage/
+    - name: Upload artifacts
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: reporter-jar
+        path: reporter-stage/oculixreporter-${{ steps.version.outputs.VERSION }}.jar
+        if-no-files-found: error
+
+  release:
+    needs: [build-windows, build-macos, build-linux, build-reporter]
+    runs-on: ubuntu-latest
+    # contents: write to create the release; id-token and attestations: write to
+    # sign the build provenance of the jars (Sigstore, keyless, through GitHub).
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
     - name: Get version from POM
       id: version
@@ -121,7 +215,7 @@ jobs:
         echo "Pre-release version confirmed: $VERSION"
 
     - name: Download all artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
 
     - name: List downloaded artifacts
       run: find . -name "*.jar" -not -path "./.m2/*" | sort
@@ -145,12 +239,42 @@ jobs:
           echo "::warning::MCP jar not found in any artifact"
         fi
 
+        # Reporter is cross-platform too, and comes from its own single build,
+        # so there is nothing to deduplicate and no rename to do: the version
+        # is already in the file name. It has to be THIS version, and there has
+        # to be exactly one candidate. Taking the first match of a glob is how
+        # a release ends up shipping last month's jar under this month's tag.
+        REPORTER_JAR="reporter-jar/oculixreporter-${VERSION}.jar"
+        REPORTER_COUNT=$(find reporter-jar -name "oculixreporter-*.jar" | wc -l)
+        if [ ! -f "$REPORTER_JAR" ] || [ "$REPORTER_COUNT" -ne 1 ]; then
+          echo "::error::expected exactly one Reporter jar named oculixreporter-${VERSION}.jar, found ${REPORTER_COUNT} candidate(s)"
+          find reporter-jar -type f || true
+          exit 1
+        fi
+        cp "$REPORTER_JAR" release-assets/
+
         cd release-assets
         for f in *-complete-win.jar; do mv "$f" "${f%-complete-win.jar}-windows.jar"; done
         for f in *-complete-mac.jar; do mv "$f" "${f%-complete-mac.jar}-macos.jar"; done
         for f in *-complete-lux.jar; do mv "$f" "${f%-complete-lux.jar}-linux.jar"; done
         echo "=== Release assets ==="
         ls -lh
+
+    # Signed build provenance for every jar we ship: which workflow, which commit,
+    # which runner built it. Anyone can check a downloaded jar with
+    #   gh attestation verify <jar> --repo oculix-org/Oculix
+    - name: Attest build provenance
+      id: attest
+      uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      with:
+        subject-path: release-assets/*.jar
+
+    # The same signed bundle, also attached to the release, so that the
+    # provenance travels with the jars and offline readers can check it.
+    - name: Attach the provenance bundle
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        cp "${{ steps.attest.outputs.bundle-path }}" "release-assets/oculix-${VERSION}.intoto.jsonl"
 
     - name: Extract release notes from CHANGELOG.md
       id: notes
@@ -204,4 +328,4 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         TAG="v${{ steps.version.outputs.VERSION }}"
-        gh release upload "$TAG" release-assets/*.jar --clobber
+        gh release upload "$TAG" release-assets/*.jar release-assets/*.intoto.jsonl --clobber

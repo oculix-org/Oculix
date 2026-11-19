@@ -3,7 +3,6 @@
  */
 package org.sikuli.script;
 
-import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.datatransfer.ClipboardOwner;
 import java.awt.datatransfer.DataFlavor;
@@ -69,6 +68,12 @@ public class App {
 
   private static boolean shouldLog = false;
 
+  /**
+   * write a line to the App log (prefix [AppLog]), only if switched on with {@link #logOn()}
+   *
+   * @param msg the message, with String.format placeholders
+   * @param args the values for the placeholders
+   */
   public static void log(String msg, Object... args) {
     if (shouldLog) {
       Debug.logp("[AppLog] " + msg, args);
@@ -185,6 +190,11 @@ public class App {
 
   private String workDir = "";
 
+  /**
+   * use the folder of the executable as working directory for {@link #open()}
+   *
+   * @return false if no executable is set
+   */
   public boolean setWorkDir() {
     if (cmd.getExecutable().isEmpty()) {
       return false;
@@ -193,6 +203,12 @@ public class App {
     return true;
   }
 
+  /**
+   * set the working directory for {@link #open()}; only an existing absolute folder is taken
+   *
+   * @param workDirPath absolute path of the folder
+   * @return false (the result is not reported)
+   */
   public boolean setWorkDir(String workDirPath) {
     if (workDirPath == null || workDirPath.isEmpty()) {
       return false;
@@ -204,6 +220,11 @@ public class App {
     return false;
   }
 
+  /**
+   * the working directory used by {@link #open()}
+   *
+   * @return the absolute path, or an empty String if none was set
+   */
   public String getWorkDir() {
     return workDir;
   }
@@ -221,14 +242,30 @@ public class App {
   //</editor-fold>
 
   // <editor-fold desc="02 running/valid">
+  /**
+   * check if this App is bound to a process
+   *
+   * @return true if a process id is known
+   */
   public boolean isValid() {
     return process.getPid() > 0;
   }
 
+  /**
+   * check if the process of this App is running
+   *
+   * @return true if running
+   */
   public boolean isRunning() {
     return isRunning(0);
   }
 
+  /**
+   * check if the process of this App is running, retrying once per second for the given time
+   *
+   * @param maxTime seconds to wait at most (0 checks once)
+   * @return true if running
+   */
   public boolean isRunning(int maxTime) {
     do {
       if (process.isRunning()) {
@@ -240,12 +277,22 @@ public class App {
     return false;
   }
 
+  /**
+   * check if the process of this App has at least one window
+   *
+   * @return true if so
+   */
   public boolean hasWindow() {
     return !osUtil.getWindows(process).isEmpty();
   }
   // </editor-fold>
 
   //<editor-fold desc="05 arguments, name, executable, pid">
+  /**
+   * the executable this App was created with
+   *
+   * @return the path or name, or an empty String if none
+   */
   public String getExecutable() {
     if (cmd != null) {
       return cmd.getExecutable();
@@ -256,12 +303,21 @@ public class App {
 
   /**
    * Use setArguments() instead
+   *
+   * @param options the command line arguments
+   * @return this App
    */
   @Deprecated
   public App setUsing(String options) {
     return setArguments(options);
   }
 
+  /**
+   * replace the command line arguments used by {@link #open()}, keeping the executable
+   *
+   * @param arguments the arguments as one String, split on blanks (quotes group words)
+   * @return this App
+   */
   public App setArguments(String arguments) {
     String exe = cmd.getExecutable();
     this.cmd = new CommandLine(exe);
@@ -279,6 +335,7 @@ public class App {
    * convention.
    *
    * @param arguments one element per {@code argv} entry, or {@code null} for none
+   * @return this App
    * @since 3.0.4 — see #230
    */
   public App setArguments(String[] arguments) {
@@ -295,13 +352,20 @@ public class App {
   }
 
   /**
-   * Use getArguments() insead
+   * Use getArguments() instead
+   *
+   * @return the arguments as one String
    */
   @Deprecated
   public String getOptions() {
     return getArguments();
   }
 
+  /**
+   * the command line arguments used by {@link #open()}
+   *
+   * @return the arguments joined by blanks, or an empty String if none
+   */
   public String getArguments() {
     if (cmd != null) {
       return String.join(" ", cmd.getArguments());
@@ -310,6 +374,11 @@ public class App {
     }
   }
 
+  /**
+   * bind this App to an executable and to its first running process, if any
+   *
+   * @param name the executable (a path or a name), a blank value is ignored
+   */
   public void setName(String name) {
     if (StringUtils.isBlank(name)) {
       return;
@@ -334,32 +403,66 @@ public class App {
     return s;
   }
 
+  /**
+   * the name of the process this App is bound to
+   *
+   * @return the process name, or NotRunning if none
+   */
   public String getName() {
     return process.getName();
   }
 
+  /**
+   * the process id of this App
+   *
+   * @return the pid, or -1 if not bound to a process
+   */
   public long getPID() {
     return process.getPid();
   }
 
+  /**
+   * check if the process of this App belongs to a user application (on macOS system processes are excluded, elsewhere always true)
+   *
+   * @return true if so
+   */
   public boolean isUserProcess() {
     return osUtil.isUserProcess(process);
   }
   //</editor-fold>
 
   // <editor-fold desc="10 app list">
+  /**
+   * the App of the process running this script (the JVM itself)
+   *
+   * @return the App
+   */
   public static App getApp() {
     return new App(osUtil.getProcess());
   }
 
+  /**
+   * an App for every running process
+   *
+   * @return the list
+   */
   public static List<App> getApps() {
     return osUtil.getProcesses().stream().map((p) -> new App(p)).collect(Collectors.toList());
   }
 
+  /**
+   * an App for every running process with the given executable name (compared without path and extension, ignoring case)
+   *
+   * @param name the executable name
+   * @return the list (empty if none)
+   */
   public static List<App> getApps(String name) {
     return osUtil.findProcesses(name).stream().map((p) -> new App(p)).collect(Collectors.toList());
   }
 
+  /**
+   * print to the log the running user applications that have a window
+   */
   public static void listApps() {
     new App();
     List<App> appList = getApps();
@@ -376,6 +479,11 @@ public class App {
     logOff();
   }
 
+  /**
+   * print to the log the running user applications with a window whose executable has the given name
+   *
+   * @param name the executable name, see {@link #getApps(String)}
+   */
   public static void listApps(String name) {
     new App();
     List<App> appList = getApps(name);
@@ -444,7 +552,9 @@ public class App {
 
   private boolean openAndWait(int waitTime) {
     if (!isRunning(0)) {
-      process = osUtil.open(cmd.toStrings(), workDir);
+      // Pass waitTime down so WinUtil / MacUtil size their PID-lookup poll
+      // to the same budget the user asked for — no hidden 3 s ceiling.
+      process = osUtil.open(cmd.toStrings(), workDir, waitTime);
 
       if (process != null) {
         do {
@@ -488,6 +598,11 @@ public class App {
     return new App(appName).close();
   }
 
+  /**
+   * check if a {@link #close(int)} on this App is in progress (meant for another thread)
+   *
+   * @return true while closing
+   */
   public boolean isClosing() {
     return isClosing;
   }
@@ -552,10 +667,21 @@ public class App {
 
   }
 
+  /**
+   * close the App by sending the OS close shortcut to its window (Alt+F4, Cmd+Q or Ctrl+Q)
+   *
+   * @return 0 if the process is gone, 1 otherwise
+   */
   public int closeByKey() {
     return closeByKey(0);
   }
 
+  /**
+   * close the App by sending the OS close shortcut to its window (Alt+F4, Cmd+Q or Ctrl+Q), then check that the process is gone
+   *
+   * @param waitTime number of checks after the key is sent (default 10), done without pause
+   * @return 0 if the process is gone, 1 otherwise
+   */
   public int closeByKey(int waitTime) {
     if (!isRunning()) {
       log("App.closeByKey: not running: %s", this);
@@ -617,9 +743,28 @@ public class App {
       return app;
     }
 
+    // Fallback: when no window title matched, try matching by process name.
+    // Aligns the implementation with the docstring "name or (part of) window
+    // title" and covers apps whose window title carries varying data
+    // (e.g. "Manual.pdf - Adobe Acrobat Reader") while a process-name focus
+    // stays stable ("Acrobat"). Refs #342.
+    List<App> apps = getApps(title).stream()
+            .filter(a -> a.isUserProcess() && a.hasWindow())
+            .collect(Collectors.toList());
+    if (apps.size() > index) {
+      App app = apps.get(index);
+      app.focus();
+      return app;
+    }
+
     return new App();
   }
 
+  /**
+   * check if the window that has the keyboard focus belongs to this App
+   *
+   * @return true if so
+   */
   public boolean hasFocus() {
     OsWindow focusedWindow = osUtil.getFocusedWindow();
     return osUtil.getWindows(process).stream().anyMatch((w) -> w.equals(focusedWindow));
@@ -648,8 +793,26 @@ public class App {
   //</editor-fold>
 
   // <editor-fold defaultstate="collapsed" desc="30 window">
+  /**
+   * all windows of this App as Regions, each named with its title and attached to its window for capture
+   *
+   * @return the list (empty if none)
+   */
   public List<Region> getWindows() {
-    return osUtil.getWindows(process).stream().map((w) -> asRegion(w.getBounds(), w.getTitle())).collect(Collectors.toList());
+    // #444: route through Region.forWindow so every returned Region carries
+    // sourceWindow (previous code called asRegion which forgot to attach it,
+    // silently disabling the native spanning highlight/capture route on all
+    // non-focused windows). Preserve historical behaviour of naming the
+    // Region with the window title.
+    return osUtil.getWindows(process).stream()
+        .map((w) -> {
+          Region r = Region.forWindow(w);
+          if (r != null) {
+            r.setName(w.getTitle());
+          }
+          return r;
+        })
+        .collect(Collectors.toList());
   }
 
   /**
@@ -664,6 +827,11 @@ public class App {
     return window(0);
   }
 
+  /**
+   * same as {@link #getWindowTitle()}
+   *
+   * @return the title of the first window, or an empty String
+   */
   public String getTitle() {
     return getWindowTitle();
   }
@@ -678,11 +846,14 @@ public class App {
    * @return the region
    */
   public Region window(int winNum) {
-    List<OsWindow> windows = osUtil.getWindows(process);
-    Region windowRegion = null;
-    Rectangle windowRect = windows.get(winNum).getBounds();
-    if (null != windowRect) {
-      windowRegion = asRegion(windowRect, windows.get(winNum).getTitle());
+    // #444: Region.forWindow builds the whole-window Region in one step —
+    // raw bounds, sourceWindow attached, tracksSourceWindowBounds=true. The
+    // separate asRegion + setSourceWindow dance is gone. Preserve historical
+    // behaviour of naming the Region with the window title.
+    OsWindow win = osUtil.getWindows(process).get(winNum);
+    Region windowRegion = Region.forWindow(win);
+    if (windowRegion != null) {
+      windowRegion.setName(win.getTitle());
     }
     return windowRegion;
   }
@@ -691,6 +862,12 @@ public class App {
     return osUtil.getWindows();
   }
 
+  /**
+   * same as {@link #getWindowTitle(int)}
+   *
+   * @param windowNumber the window, counting from 0
+   * @return the title, or an empty String
+   */
   public String getTitle(int windowNumber) {
     return getWindowTitle(windowNumber);
   }
@@ -704,32 +881,31 @@ public class App {
   public static Region focusedWindow() {
     OsWindow window = osUtil.getFocusedWindow();
     if (window != null) {
-      return asRegion(osUtil.getFocusedWindow().getBounds());
+      // #444: whole-window Region built in one step by Region.forWindow —
+      // raw bounds, sourceWindow attached, tracksSourceWindowBounds=true.
+      // Historical: focusedWindow does NOT name the Region with the title
+      // (only window(int)/getWindows do), so no setName here.
+      return Region.forWindow(window);
     } else {
       return new Region();
     }
   }
 
-  private static Region asRegion(Rectangle r) {
-    return asRegion(r, "");
-  }
-
-  private static Region asRegion(Rectangle r, String title) {
-    if (r != null) {
-      final Region reg = Region.create(r);
-      if (title != null && !title.isEmpty()) {
-        reg.setName(title);
-      }
-      return reg;
-    } else {
-      return null;
-    }
-  }
-
+  /**
+   * the title of the first window of this App
+   *
+   * @return the title, or an empty String if the App has no window
+   */
   public String getWindowTitle() {
     return getWindowTitle(0);
   }
 
+  /**
+   * the title of a window of this App
+   *
+   * @param windowNumber the window, counting from 0 in the order the OS lists them
+   * @return the title, or an empty String if there is no such window
+   */
   public String getWindowTitle(int windowNumber) {
     List<OsWindow> windows = osUtil.getWindows(process);
     return windows.size() > windowNumber ? windows.get(windowNumber).getTitle() : "";
@@ -1137,6 +1313,11 @@ public class App {
 //  }
 //</editor-fold>">
 
+  /**
+   * wait the given time
+   *
+   * @param seconds whole seconds
+   */
   public static void pause(int seconds) {
     try {
       Thread.sleep(seconds * 1000);
@@ -1144,6 +1325,11 @@ public class App {
     }
   }
 
+  /**
+   * wait the given time
+   *
+   * @param seconds seconds, fractions allowed
+   */
   public static void pause(float seconds) {
     try {
       Thread.sleep((int) (seconds * 1000));

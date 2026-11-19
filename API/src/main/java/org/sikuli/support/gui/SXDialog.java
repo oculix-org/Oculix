@@ -150,20 +150,44 @@ public class SXDialog extends JFrame {
 
   public void run() {
     if (isOK()) {
-      if (pos.equals(POSITION.TOP)) {
-        where.x -= finalSize.width / 2;
-      } else if (pos.equals(POSITION.CENTER)) {
-        where.x -= finalSize.width / 2;
-        where.y -= finalSize.height / 2;
-      }
-      popup(where);
-      if (autoClose > 0) {
-        new Thread(() -> {
-          Commons.pause(autoClose * 1000);
-          closeCancel();
-        }).start();
-      }
+      popup(runAt());
+      startAutoClose();
     }
+  }
+
+  /** Where the dialog goes for the current position mode, computed from the anchor without moving it. */
+  Point runAt() {
+    Point at = new Point(where);
+    if (pos.equals(POSITION.TOP)) {
+      at.x -= finalSize.width / 2;
+    } else if (pos.equals(POSITION.CENTER)) {
+      at.x -= finalSize.width / 2;
+      at.y -= finalSize.height / 2;
+    }
+    return at;
+  }
+
+  private javax.swing.Timer autoCloser = null;
+
+  /** Arms the auto-close delay on the event thread, replacing any delay still running. */
+  void startAutoClose() {
+    stopAutoClose();
+    if (autoClose > 0) {
+      autoCloser = new javax.swing.Timer(autoClose * 1000, e -> closeCancel());
+      autoCloser.setRepeats(false);
+      autoCloser.start();
+    }
+  }
+
+  private void stopAutoClose() {
+    if (autoCloser != null) {
+      autoCloser.stop();
+      autoCloser = null;
+    }
+  }
+
+  boolean autoCloseArmed() {
+    return autoCloser != null && autoCloser.isRunning();
   }
 
   public void run(Point whereNow) {
@@ -192,7 +216,7 @@ public class SXDialog extends JFrame {
 
   enum STATE {ON, OFF}
 
-  enum FEATURE {ERROR, CLOSE, BACKTOIDE, LINK, IMAGE, ACTION, OPTION, BUTTON, HTML, PREFIX, TEXT, BOX, BOXH, BOXV, ROW, COL}
+  enum FEATURE {ERROR, CLOSE, BACKTOIDE, LINK, IMAGE, ICON, ACTION, OPTION, BUTTON, HTML, PREFIX, TEXT, BOX, BOXH, BOXV, ROW, COL}
 
   final static String FEATURE_PLAIN = "#plain";
   final static String FEATURE_TEXT = "*text";
@@ -227,7 +251,7 @@ public class SXDialog extends JFrame {
       }
       if (feature.length() <= FEATURE_MAXLEN) {
         feature = feature.toLowerCase();
-        if (!FEATURES.contains(feature)) {
+        if (!(";" + FEATURES).contains(";" + feature + ";")) {
           Commons.trace("possible invalid feature - taken as text: %s", line);
           return FEATURE_PLAIN;
         }
@@ -243,6 +267,15 @@ public class SXDialog extends JFrame {
     option = option.toUpperCase();
     String tok = token.toString();
     return option.equals(tok);
+  }
+
+  /** The feature a validated line name stands for; anything unknown reads as plain text. */
+  static FEATURE featureOf(String feature) {
+    try {
+      return FEATURE.valueOf(feature.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      return FEATURE.TEXT;
+    }
   }
 
   enum TEXT {TEXT, HTML}
@@ -454,6 +487,7 @@ public class SXDialog extends JFrame {
   }
 
   void close() {
+    stopAutoClose();
     setVisible(false);
   }
 
@@ -597,9 +631,10 @@ public class SXDialog extends JFrame {
       }
       if (finalTextLine.endsWith(lineTypeNext)) {
         lineContinue = true;
-        finalTextLine = textLine.substring(0, textLine.length() - 1).strip();
+        finalTextLine = finalTextLine.substring(0, finalTextLine.length() - 1).strip();
         continue;
       }
+      lineContinue = false;
       finalTextLine = evalBoxes(finalTextLine);
       if (finalTextLine.equals("##")) {
         break;
@@ -696,78 +731,100 @@ public class SXDialog extends JFrame {
             }
           }
 
-          if (isFeat(feature, FEATURE.BOX) || isFeat(feature, FEATURE.BOXV) ||
-              isFeat(feature, FEATURE.BOXH) || isFeat(feature, FEATURE.ROW) ||
-              isFeat(feature, FEATURE.COL)) {
-            item = new BoxItem(feature, title);
+          switch (featureOf(feature)) {
+            case BOX:
+            case BOXV:
+            case BOXH:
+            case ROW:
+            case COL:
+              item = new BoxItem(feature, title);
+              break;
 
-          } else if (isFeat(feature, FEATURE.LINK)) {
-            String[] parts = title.split("\\|");
-            String url = parts[0].strip();
-            String urlText = url;
-            if (parts.length > 1) {
-              urlText = parts[0].strip();
-              url = parts[1].strip();
-            }
-            item = new LinkItem(urlText, url);
-
-          } else if (isFeat(feature, FEATURE.IMAGE) && !title.isEmpty()) {
-            if (title.startsWith("__")) {
-              item = new ImageItem((BufferedImage) getOptions().get(title.substring(2)));
-            } else if (new File(title).exists()) {
-              try {
-                item = new ImageItem(new URL("file:" + title));
-              } catch (MalformedURLException e) {
-                item = null;
+            case LINK: {
+              String[] parts = title.split("\\|");
+              String url = parts[0].strip();
+              String urlText = url;
+              if (parts.length > 1) {
+                urlText = parts[0].strip();
+                url = parts[1].strip();
               }
-            } else {
-              item = new ImageItem(this.getClass().getResource(title));
+              item = new LinkItem(urlText, url);
+              break;
             }
 
-          } else if (isFeat(feature, FEATURE.CLOSE)) {
-            if (title.isEmpty()) {
-              title = "CANCEL: ESC or click";
-            }
-            item = new TextItem(title);
-            item.setActive();
+            case IMAGE:
+              if (title.isEmpty()) {
+                break;
+              }
+              if (title.startsWith("__")) {
+                item = new ImageItem((BufferedImage) getOptions().get(title.substring(2)));
+              } else if (new File(title).exists()) {
+                try {
+                  item = new ImageItem(new URL("file:" + title));
+                } catch (MalformedURLException e) {
+                  item = null;
+                }
+              } else {
+                item = new ImageItem(this.getClass().getResource(title));
+              }
+              break;
 
-          } else if (isFeat(feature, FEATURE.BACKTOIDE)) {
-            if (title.isEmpty()) {
-              title = "CANCEL: ESC or click";
-            }
-            item = new TextItem(title);
-            item.setBackToIDE();
+            case ICON:
+              if (!title.isEmpty() && itemOptions.length > 0) {
+                item = new IconItem(this.getClass().getResource(title), itemOptions);
+                options = null;
+              }
+              break;
 
-          } else if (isFeat(feature, FEATURE.ACTION)) {
-            if (itemOptions.length > 0) {
-              item = new ActionItem(title, itemOptions);
-              item.refName(refName);
-            }
+            case CLOSE:
+              item = new TextItem(title.isEmpty() ? "CANCEL: ESC or click" : title);
+              item.setActive();
+              break;
 
-          } else if (isFeat(feature, FEATURE.OPTION)) {
-            if (itemOptions.length > 0) {
-              item = new OptionItem(title, itemOptions);
-            }
+            case BACKTOIDE:
+              item = new TextItem(title.isEmpty() ? "CANCEL: ESC or click" : title);
+              item.setBackToIDE();
+              break;
 
-          } else if (isFeat(feature, FEATURE.BUTTON)) {
-            if (title.isEmpty()) {
-              append(new BoxItem(FEATURE.ROW.name(), "stdbuttons"), lineType);
-              append(new ButtonItem("CANCEL"));
-              append(new ButtonItem("APPLY"));
-              append(new ButtonItem("OK"));
-              append(new TextItem(FEATURE_BOXEND));
+            case ACTION:
+              if (itemOptions.length > 0) {
+                item = new ActionItem(title, itemOptions);
+                item.refName(refName);
+              }
+              break;
+
+            case OPTION:
+              if (itemOptions.length > 0) {
+                item = new OptionItem(title, itemOptions);
+              }
+              break;
+
+            case BUTTON:
+              if (title.isEmpty()) {
+                append(new BoxItem(FEATURE.ROW.name(), "stdbuttons"), lineType);
+                append(new ButtonItem("CANCEL"));
+                append(new ButtonItem("APPLY"));
+                append(new ButtonItem("OK"));
+                append(new TextItem(FEATURE_BOXEND));
+                continue;
+              }
+              item = new ButtonItem(title, itemOptions);
+              break;
+
+            case HTML:
+              isText = TEXT.HTML;
+              break;
+
+            case TEXT:
+              isText = TEXT.TEXT;
+              break;
+
+            case PREFIX:
+              globalPrefix = title;
               continue;
-            }
-            item = new ButtonItem(title, itemOptions);
 
-          } else if (isFeat(feature, FEATURE.HTML)) {
-            isText = TEXT.HTML;
-          } else if (isFeat(feature, FEATURE.TEXT)) {
-            isText = TEXT.TEXT;
-
-          } else if (isFeat(feature, FEATURE.PREFIX)) {
-            globalPrefix = title;
-            continue;
+            default:
+              break;
           }
         }
         if (isText != null) {
@@ -782,6 +839,14 @@ public class SXDialog extends JFrame {
           }
         }
 
+        if (item instanceof ImageItem && ((ImageItem) item).get() == null) {
+          Commons.error("SXDialog: image not found: %s", title);
+          item = null;
+        }
+        if (item == null) {
+          Commons.error("SXDialog: line ignored: %s", orgLine);
+          continue;
+        }
         if (options != null && options.length > 2) {
           applyOptions(item, options);
         }
@@ -862,19 +927,55 @@ public class SXDialog extends JFrame {
     }
   }
 
+  /**
+   * Expands every {name} on the line. A value that brings braces of its own is expanded
+   * in turn, up to ten times; a cycle or the limit leaves the line as written and says so.
+   */
   String replaceVariables(String text) {
-    while (text.contains("{")) {
-      int start = text.indexOf("{");
-      int end = text.indexOf("}");
-      if (start > -1 && end > start) {
-        String before = text.substring(0, start);
-        String after = text.substring(end + 1);
-        int len = end - start;
-        String var = text.substring(start + 1, start + len);
-        text = before + getVariable(var) + after;
+    final String original = text;
+    final List<String> seen = new ArrayList<>();
+    for (int pass = 0; pass < 10; pass++) {
+      int[] replaced = new int[1];
+      String expanded = expandOnce(text, replaced);
+      if (replaced[0] == 0 || !expanded.contains("{")) {
+        return expanded;
       }
+      if (expanded.equals(text) || seen.contains(expanded)) {
+        Commons.error("SXDialog: variable cycle: %s", original);
+        return original;
+      }
+      seen.add(expanded);
+      text = expanded;
     }
-    return text;
+    Commons.error("SXDialog: variable expansion limit (10) reached: %s", original);
+    return original;
+  }
+
+  /** One left-to-right pass over the {name} pairs; a brace without a partner stays as it is. */
+  private String expandOnce(String text, int[] replaced) {
+    StringBuilder out = new StringBuilder();
+    int from = 0;
+    while (true) {
+      int start = text.indexOf("{", from);
+      if (start < 0) {
+        break;
+      }
+      int end = text.indexOf("}", start);
+      if (end < 0) {
+        break;
+      }
+      int inner = text.indexOf("{", start + 1);
+      if (inner > -1 && inner < end) {
+        out.append(text, from, inner);
+        from = inner;
+        continue;
+      }
+      out.append(text, from, start).append(getVariable(text.substring(start + 1, end)));
+      replaced[0]++;
+      from = end + 1;
+    }
+    out.append(text.substring(from));
+    return out.toString();
   }
 
   String getVariable(String var) {
@@ -982,7 +1083,7 @@ public class SXDialog extends JFrame {
       if (itm.isBoxEnd()) {
         if (boxStack.size() > 0) {
           currentBox.adjust();
-          currentBox = boxStack.remove(0);
+          currentBox = boxStack.remove(boxStack.size() - 1);
           currentBox.adjustSize();
         }
         continue;
@@ -999,7 +1100,7 @@ public class SXDialog extends JFrame {
       }
       currentBox.add(itm);
       if (itm.isBox()) {
-        boxStack.add(0, currentBox);
+        boxStack.add(currentBox);
         currentBox = (BoxItem) itm;
         continue;
       }
@@ -1014,7 +1115,9 @@ public class SXDialog extends JFrame {
         itm.addMargin(margin.getLocation());
       }
     }
-    Commons.trace("%s", paneBox.toStringAll());
+    if (Commons.isTrace()) {
+      Commons.trace("%s", paneBox.toStringAll());
+    }
     finalSize.width += margin.x + margin.width;
     finalSize.height += margin.y + margin.height;
 
@@ -1030,6 +1133,22 @@ public class SXDialog extends JFrame {
 
   public BasicItem getItem(String refName) {
     return refNames.get(refName);
+  }
+
+  /** Greys out, or restores, every icon line that runs this command; takes effect at the next reRun(). */
+  public void enable(String command, boolean on) {
+    for (BasicItem itm : dialogLines) {
+      if (itm instanceof IconItem && ((IconItem) itm).command.equals(command)) {
+        ((IconItem) itm).enable(on);
+      }
+    }
+  }
+
+  /** Removes every action or icon line that runs this command; takes effect at the next reRun(). */
+  public void drop(String command) {
+    dialogLines.removeIf(itm ->
+        (itm instanceof IconItem && ((IconItem) itm).command.equals(command))
+            || (itm instanceof ActionItem && command.equals(((ActionItem) itm).command)));
   }
 
   public void setText(String refName, String text) {
@@ -1508,29 +1627,30 @@ public class SXDialog extends JFrame {
     }
 
     void evalItem(BasicItem item) {
+      final Dimension iDim = item.dim();
       if (items.size() == 0) {
         item.pos(pos());
-        dim(item.dim());
+        dim(iDim);
         return;
       }
-      int x, y;
-      final Dimension newDim = new Dimension();
+      final Point bPos = pos();
       final Dimension bDim = dim();
-      final Dimension iDim = item.dim();
+      final Dimension newDim = new Dimension();
+      int x, y;
       if (col) {
-        x = pos().x;
-        y = pos().y + dim().height + spaceAfter;
+        x = bPos.x;
+        y = bPos.y + bDim.height + spaceAfter;
         newDim.width = Math.max(bDim.width, iDim.width);
         newDim.height = bDim.height + iDim.height + spaceAfter;
       } else {
-        x = pos().x + dim().width + spaceAfter;
-        y = pos().y;
+        x = bPos.x + bDim.width + spaceAfter;
+        y = bPos.y;
         newDim.width = bDim.width + iDim.width + spaceAfter;
         newDim.height = Math.max(bDim.height, iDim.height);
       }
       dim(newDim);
       if (item.isLine()) {
-        item.setW(dim().width);
+        item.setW(newDim.width);
       }
       item.pos(x, y);
     }
@@ -1542,9 +1662,10 @@ public class SXDialog extends JFrame {
       if (rect != null) {
         items.add(rect);
       }
+      final Dimension bDim = dim();
       for (BasicItem item : items) {
         if (!item.isBoxEnd() && !item.isBoxBreak()) {
-          item.adjust(col, dim().width, dim().height);
+          item.adjust(col, bDim.width, bDim.height);
         }
       }
     }
@@ -1556,23 +1677,23 @@ public class SXDialog extends JFrame {
       int boxW = 0, boxH = 0;
       for (BasicItem item : items) {
         if (!item.isBoxEnd() && !item.isBoxBreak()) {
-          int outX = item.pos().x;
-          int outY = item.pos().y;
+          final Point iPos = item.pos();
+          final Dimension iDim = item.dim();
           if (col) {
             if (item.isOut()) {
-              boxW = Math.max(boxW, outX + item.dim().width);
-              boxH = Math.max(boxH, item.dim().height + spaceAfter);
+              boxW = Math.max(boxW, iPos.x + iDim.width);
+              boxH = Math.max(boxH, iDim.height + spaceAfter);
             } else {
-              boxW = Math.max(boxW, item.dim().width);
-              boxH += item.dim().height + spaceAfter;
+              boxW = Math.max(boxW, iDim.width);
+              boxH += iDim.height + spaceAfter;
             }
           } else {
             if (item.isOut()) {
-              boxW = Math.max(boxW, item.dim().width);
-              boxH = Math.max(boxH, outY + item.dim().height + spaceAfter);
+              boxW = Math.max(boxW, iDim.width);
+              boxH = Math.max(boxH, iPos.y + iDim.height + spaceAfter);
             } else {
-              boxW += item.dim().width + spaceAfter;
-              boxH = Math.max(boxH, item.dim().height);
+              boxW += iDim.width + spaceAfter;
+              boxH = Math.max(boxH, iDim.height);
             }
           }
         }
@@ -1583,25 +1704,25 @@ public class SXDialog extends JFrame {
         dim(boxW - spaceAfter, boxH);
       }
     }
+
+    /** A box starts a rebuild empty: its children are added again by packBoxes(). */
+    @Override
+    void reset() {
+      super.reset();
+      items.clear();
+      rect = null;
+    }
     //endregion
 
     //region 20 other
     public String toStringAll() {
-      String before = "\n" + super.toString();
-      before += col ? " COL" : " ROW";
-      before += " (" + items.size() + ")";
+      StringBuilder out = new StringBuilder("\n").append(super.toString())
+          .append(col ? " COL" : " ROW").append(" (").append(items.size()).append(")\n");
       String prefix = isPane() ? "" : " - ";
-      String out = "\n";
-      if (items.size() > 0) {
-        for (BasicItem item : items) {
-          out += prefix + (item.isBox() ? ((BoxItem) item).toStringAll() : item) + "\n";
-        }
+      for (BasicItem item : items) {
+        out.append(prefix).append(item.isBox() ? ((BoxItem) item).toStringAll() : item).append("\n");
       }
-      if (out.isEmpty()) {
-        out = " *** empty ***";
-      }
-      out = before + out;
-      return out;
+      return out.toString();
     }
 
     BoxItem(String type, String title) {
@@ -1840,9 +1961,7 @@ public class SXDialog extends JFrame {
     BasicItem create() {
       super.create();
       JLabel lblHtml = (JLabel) comp();
-      Dimension size = dim();
-      title("<html>" + title().replace("|", "<br>"));
-      lblHtml.setText(title());
+      lblHtml.setText("<html>" + title().strip().replace("|", "<br>"));
       dim(lblHtml.getPreferredSize());
       return this;
     }
@@ -1916,31 +2035,36 @@ public class SXDialog extends JFrame {
         if (command.equals("show")) {
           new SXDialog(what).run();
         } else {
-          Point where = getLocationOnScreen();
-          //closeCancel();
-          Class<? extends SXDialog> clazz = SXDialog.this.getClass();
-          String error = "";
-          Exception exception = null;
-          Method method;
-          try {
-            method = clazz.getMethod(command, (Class<?>[]) null);
-            method.invoke(SXDialog.this, (Object[]) null);
-          } catch (NoSuchMethodException noSuchMethodException) {
-            error = "not implemented";
-            exception = noSuchMethodException;
-          } catch (InvocationTargetException invocationTargetException) {
-            invocationTargetException.printStackTrace();
-            error = "Action crashed";
-            exception = invocationTargetException;
-          } catch (IllegalAccessException illegalAccessException) {
-            error = "Action crashed";
-          }
-          if (!error.isEmpty()) {
-            new SXDialog("sxideerror", where, new String[]{error, aAction}).run(e.getLocationOnScreen());
-            Commons.error("ActionItem: %s: %s (%s)", error, aAction, exception);
-          }
+          runCommand(command, aAction, e);
         }
       }
+    }
+  }
+
+  /**
+   * Calls the public no-arg method of this dialog named by the command, as an
+   * action or icon line asks; a missing or crashing method is reported in a popup.
+   */
+  void runCommand(String command, String label, MouseEvent e) {
+    Point where = isShowing() ? getLocationOnScreen() : e.getLocationOnScreen();
+    String error = "";
+    Exception exception = null;
+    try {
+      Method method = getClass().getMethod(command, (Class<?>[]) null);
+      method.invoke(this, (Object[]) null);
+    } catch (NoSuchMethodException noSuchMethodException) {
+      error = "not implemented";
+      exception = noSuchMethodException;
+    } catch (InvocationTargetException invocationTargetException) {
+      invocationTargetException.printStackTrace();
+      error = "Action crashed";
+      exception = invocationTargetException;
+    } catch (IllegalAccessException illegalAccessException) {
+      error = "Action crashed";
+    }
+    if (!error.isEmpty()) {
+      new SXDialog("sxideerror", where, new String[]{error, label}).run(e.getLocationOnScreen());
+      Commons.error("SXDialog: %s: %s (%s)", error, label, exception);
     }
   }
 //endregion
@@ -1948,7 +2072,7 @@ public class SXDialog extends JFrame {
   //region 523 OptionItem
   class OptionItem extends ActionItem {
     String aOption = "";
-    STATE state;
+    STATE state = STATE.OFF;
     STATE startState = STATE.OFF;
     String title;
 
@@ -2054,14 +2178,15 @@ public class SXDialog extends JFrame {
 //endregion
 
   //region 53 ImageItem
+  /** The image fitted to the window's width, or to its height less 50 px when that is the tighter side. */
   public BufferedImage adjustTo(Rectangle where, BufferedImage img) {
-    BufferedImage actualImage = new ImageItem(img).resize((int) where.getWidth()).get();
-    final double scrImageH = actualImage.getHeight();
+    double factor = where.getWidth() / img.getWidth();
     final double whereH = where.getHeight() - 50;
-    if (scrImageH > whereH) {
-      actualImage = new ImageItem(actualImage).resize( whereH / scrImageH).get();
+    if (img.getHeight() * factor > whereH) {
+      factor = whereH / img.getHeight();
     }
-    return actualImage;
+    return new ImageItem(img).resize((int) Math.round(img.getWidth() * factor),
+        (int) Math.round(img.getHeight() * factor)).get();
   }
   class ImageItem extends BasicItem {
     BufferedImage img = null;
@@ -2071,6 +2196,9 @@ public class SXDialog extends JFrame {
     }
 
     ImageItem(URL url) {
+      if (url == null) {
+        return;
+      }
       try {
         img = ImageIO.read(url);
       } catch (IOException e) {
@@ -2169,6 +2297,76 @@ public class SXDialog extends JFrame {
     void mouseClick(MouseEvent e) {
       close();
       Commons.browse(aLink);
+    }
+  }
+//endregion
+
+  //region 532 IconItem
+  /**
+   * An image that runs a method of the dialog when clicked, as an action line
+   * does with a text. Template line: {@code #icon; /path/to/icon.png; method; tooltip}.
+   */
+  class IconItem extends ImageItem {
+    String command;
+    String tip = null;
+    boolean enabled = true;
+
+    IconItem(URL url, String[] options) {
+      super(url);
+      command = options[0].strip();
+      if (options.length > 1) {
+        tip = options[1].strip();
+      }
+      setActive();
+    }
+
+    /** A disabled icon is drawn faded and ignores the mouse. */
+    void enable(boolean on) {
+      enabled = on;
+    }
+
+    @Override
+    boolean active() {
+      return enabled && super.active();
+    }
+
+    BasicItem create() {
+      JLabel lblimg = new JLabel();
+      if (img != null) {
+        lblimg.setIcon(new ImageIcon(enabled ? img : faded()));
+        dim(new Dimension(img.getWidth(), img.getHeight()));
+      }
+      if (tip != null) {
+        lblimg.setToolTipText(tip);
+      }
+      comp(lblimg);
+      return this;
+    }
+
+    private BufferedImage faded() {
+      BufferedImage out = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = out.createGraphics();
+      g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+      g.drawImage(img, 0, 0, null);
+      g.dispose();
+      return out;
+    }
+
+    @Override
+    void mouseClick(MouseEvent e) {
+      runCommand(command, tip == null ? command : tip, e);
+    }
+
+    @Override
+    void mouseEnter(MouseEvent e) {
+      comp().setOpaque(true);
+      comp().setBackground(getSelected());
+    }
+
+    @Override
+    void mouseExit(MouseEvent e) {
+      comp().setOpaque(false);
+      comp().setBackground(getBackground());
     }
   }
 //endregion

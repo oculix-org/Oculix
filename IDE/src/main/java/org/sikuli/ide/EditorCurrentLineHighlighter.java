@@ -25,7 +25,12 @@ public class EditorCurrentLineHighlighter implements CaretListener {
     Color c = highlightColor != null ? highlightColor : DEFAULT_COLOR;
     MyHighlighter h = new MyHighlighter();
     textPane.setHighlighter(h);
-    painter = new DefaultHighlighter.DefaultHighlightPainter(c);
+    painter = new DefaultHighlighter.DefaultHighlightPainter(c) {
+      @Override public Color getColor() {
+        return highlightColor != null ? highlightColor
+            : org.sikuli.ide.theme.OculixUi.color("editor.lineBackground", "TextPane.selectionBackground");
+      }
+    };
   }
 
   @Override

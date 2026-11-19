@@ -6,11 +6,15 @@ package org.sikuli.support;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 /**
- * Cross-platform command execution: local, WSL, PowerShell, SSH.
+ * Cross-platform command execution: local, PowerShell, and the tools the remote
+ * launch relies on (which, apt-get, ssh-keyscan, ssh-keygen), run inside WSL on Windows.
  */
 public class CommandExecutor {
 
@@ -34,19 +38,6 @@ public class CommandExecutor {
   }
 
   /**
-   * Execute a command via WSL (Windows only).
-   */
-  public static Stream<String> execWsl(String command) throws IOException {
-    String fullCmd = "cmd /c wsl.exe bash -c \"" + command.replace("\"", "\\\"") + "\"";
-    Process process = Runtime.getRuntime().exec(fullCmd);
-    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-    return reader.lines().onClose(() -> {
-      try { reader.close(); } catch (IOException ignored) {}
-      process.destroy();
-    });
-  }
-
-  /**
    * Execute a PowerShell command.
    * Uses 'powershell' on Windows, 'pwsh' on Mac/Linux.
    */
@@ -62,48 +53,36 @@ public class CommandExecutor {
   }
 
   /**
-   * Execute a remote command via SSH with sshpass for password auth.
-   * On Windows goes through WSL, on Unix direct bash.
+   * Run a command to completion, as an argument list (never re-parsed by a shell).
+   * On Windows the command runs inside WSL through {@code wsl.exe --exec}.
+   *
+   * @param timeoutSeconds how long to wait before killing the process
+   * @param args           the program and its arguments
+   * @return true if the process ended in time with exit code 0
    */
-  public static String execRemoteSSH(String host, String user, String password,
-                                      String remoteCmd, String sshOptions) throws Exception {
-    String escaped = remoteCmd.replace("'", "'\\''");
-    String sshCmd = String.format("sshpass -p '%s' ssh %s %s@%s '%s'",
-        password, sshOptions != null ? sshOptions : "", user, host, escaped);
-
-    String fullCmd;
+  static boolean runToEnd(int timeoutSeconds, String... args) {
+    List<String> command = new ArrayList<>();
     if (Commons.runningWindows()) {
-      fullCmd = "cmd /c wsl.exe bash -c \"" + sshCmd.replace("\"", "\\\"") + "\"";
-    } else {
-      fullCmd = sshCmd;
+      command.add("C:\\Windows\\System32\\wsl.exe");
+      command.add("--exec");
     }
-
-    Process process = Runtime.getRuntime().exec(
-        Commons.runningWindows()
-            ? new String[]{"cmd", "/c", fullCmd}
-            : new String[]{"bash", "-c", fullCmd});
-
-    StringBuilder output = new StringBuilder();
-    StringBuilder error = new StringBuilder();
-
-    try (BufferedReader out = new BufferedReader(new InputStreamReader(process.getInputStream(), "UTF-8"));
-         BufferedReader err = new BufferedReader(new InputStreamReader(process.getErrorStream(), "UTF-8"))) {
-      String line;
-      while ((line = out.readLine()) != null) output.append(line).append("\n");
-      while ((line = err.readLine()) != null) error.append(line).append("\n");
+    command.addAll(Arrays.asList(args));
+    try {
+      ProcessBuilder builder = new ProcessBuilder(command);
+      builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+      builder.redirectError(ProcessBuilder.Redirect.DISCARD);
+      Process process = builder.start();
+      if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+        process.destroyForcibly();
+        return false;
+      }
+      return process.exitValue() == 0;
+    } catch (IOException e) {
+      return false;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return false;
     }
-
-    boolean finished = process.waitFor(120, TimeUnit.SECONDS);
-    if (!finished) {
-      process.destroyForcibly();
-      throw new RuntimeException("SSH command timed out after 120 seconds");
-    }
-
-    if (output.length() == 0 && error.length() > 0) {
-      throw new RuntimeException("SSH command error: " + error);
-    }
-
-    return output.toString().trim();
   }
 
   /**
@@ -124,24 +103,7 @@ public class CommandExecutor {
    * Check if a command/tool is available on the system (or in WSL on Windows).
    */
   public static boolean isToolAvailable(String toolName) {
-    try {
-      String whichCmd = "which " + toolName;
-      String fullCmd;
-      if (Commons.runningWindows()) {
-        fullCmd = "cmd /c wsl.exe bash -c \"" + whichCmd + "\"";
-      } else {
-        fullCmd = whichCmd;
-      }
-      Process process = Runtime.getRuntime().exec(fullCmd);
-      boolean finished = process.waitFor(15, TimeUnit.SECONDS);
-      if (!finished) {
-        process.destroyForcibly();
-        return false;
-      }
-      return process.exitValue() == 0;
-    } catch (Exception e) {
-      return false;
-    }
+    return runToEnd(15, "which", toolName);
   }
 
   /**
@@ -166,63 +128,34 @@ public class CommandExecutor {
   }
 
   /**
-   * Install a package via apt (WSL on Windows, direct on Linux).
-   * Returns true if install succeeded.
+   * Install a package via apt (WSL on Windows, direct on Linux), with {@code sudo -n}:
+   * when sudo needs a password there is no terminal to type it, so the install fails
+   * instead of hanging. Not available on macOS.
+   *
+   * @return true if apt-get ended with exit code 0
    */
   public static boolean aptInstall(String packageName) {
-    try {
-      String cmd = "sudo apt-get install -y " + packageName;
-      if (Commons.runningWindows()) {
-        execWsl(cmd).close();
-      } else if (Commons.runningLinux()) {
-        execLocal(cmd).close();
-      } else {
-        return false;
-      }
-      return true;
-    } catch (Exception e) {
+    if (Commons.runningMac()) {
       return false;
     }
+    return runToEnd(600, "sudo", "-n", "apt-get", "install", "-y", packageName);
   }
 
   /**
-   * Add a host to SSH known_hosts via ssh-keyscan.
+   * Add a host to {@code ~/.ssh/known_hosts} via ssh-keyscan (WSL on Windows).
+   * The host name is passed as an argument, never through a shell.
+   *
+   * @return true if the keys were written
    */
   public static boolean addSshFingerprint(String host) {
-    try {
-      String cmd = "ssh-keyscan -H " + host + " >> ~/.ssh/known_hosts 2>/dev/null";
-      if (Commons.runningWindows()) {
-        execWsl(cmd).close();
-      } else {
-        execLocal(cmd).close();
-      }
-      return true;
-    } catch (Exception e) {
-      return false;
-    }
+    return runToEnd(30, "sh", "-c",
+        "mkdir -p ~/.ssh && ssh-keyscan -H \"$1\" >> ~/.ssh/known_hosts", "keyscan", host);
   }
 
   /**
-   * Check if a host is in SSH known_hosts.
+   * Check if a host is in {@code ~/.ssh/known_hosts} (WSL on Windows).
    */
   public static boolean isSshHostKnown(String host) {
-    try {
-      String cmd = "ssh-keygen -F " + host;
-      String fullCmd;
-      if (Commons.runningWindows()) {
-        fullCmd = "cmd /c wsl.exe bash -c \"" + cmd + "\"";
-      } else {
-        fullCmd = cmd;
-      }
-      Process process = Runtime.getRuntime().exec(fullCmd);
-      boolean finished = process.waitFor(15, TimeUnit.SECONDS);
-      if (!finished) {
-        process.destroyForcibly();
-        return false;
-      }
-      return process.exitValue() == 0;
-    } catch (Exception e) {
-      return false;
-    }
+    return runToEnd(15, "ssh-keygen", "-F", host);
   }
 }

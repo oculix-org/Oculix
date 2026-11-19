@@ -131,11 +131,11 @@ class SyntaxHighlightLabelView extends LabelView {
   static FontMetrics _fMetrics = null;
   static String tabStr = nSpaces(PreferencesUser.get().getTabWidth());
 
-  private Map<Pattern, Color> patternColors;
-  private static Map<Pattern, Color> patternColorsBasic;
-  private static Map<Pattern, Color> patternColorsPython;
-  private static Map<Pattern, Color> patternColorsRuby;
-  private static Map<Pattern, Color> patternColorsSikuli;
+  private Map<Pattern, String> patternColors;
+  private static Map<Pattern, String> patternColorsBasic;
+  private static Map<Pattern, String> patternColorsPython;
+  private static Map<Pattern, String> patternColorsRuby;
+  private static Map<Pattern, String> patternColorsSikuli;
   private static Font fontParenthesis;
 
   //<editor-fold defaultstate="collapsed" desc="keyword lists">
@@ -245,31 +245,31 @@ class SyntaxHighlightLabelView extends LabelView {
     fontParenthesis = new Font("Osaka-Mono", Font.PLAIN, 30);
 
     // NOTE: the order is important!
-		patternColorsBasic = new HashMap<Pattern, Color>();
-    patternColorsPython = new HashMap<Pattern, Color>();
-    patternColorsRuby = new HashMap<Pattern, Color>();
-    patternColorsSikuli = new HashMap<Pattern, Color>();
-    patternColorsBasic.put(Pattern.compile("(#:.*$)"), new Color(220, 220, 220));
-    patternColorsBasic.put(Pattern.compile("(#.*$)"), new Color(138, 140, 193));
-    patternColorsBasic.put(Pattern.compile("(\"[^\"]*\"?)"), new Color(128, 0, 0));
-    patternColorsBasic.put(Pattern.compile("(\'[^\']*\'?)"), new Color(128, 0, 0));
-    patternColorsBasic.put(Pattern.compile("\\b([0-9]+)\\b"), new Color(128, 64, 0));
+		patternColorsBasic = new HashMap<Pattern, String>();
+    patternColorsPython = new HashMap<Pattern, String>();
+    patternColorsRuby = new HashMap<Pattern, String>();
+    patternColorsSikuli = new HashMap<Pattern, String>();
+    patternColorsBasic.put(Pattern.compile("(#:.*$)"), "syntax.mutedForeground");
+    patternColorsBasic.put(Pattern.compile("(#.*$)"), "syntax.commentForeground");
+    patternColorsBasic.put(Pattern.compile("(\"[^\"]*\"?)"), "syntax.stringForeground");
+    patternColorsBasic.put(Pattern.compile("(\'[^\']*\'?)"), "syntax.stringForeground");
+    patternColorsBasic.put(Pattern.compile("\\b([0-9]+)\\b"), "syntax.numberForeground");
 		patternColorsPython.putAll(patternColorsBasic);
 		patternColorsRuby.putAll(patternColorsBasic);
     for (int i = 0; i < keywordsPython.length; i++) { patternColorsPython.put(Pattern.compile(
-              "\\b(" + keywordsPython[i] + ")\\b"), Color.blue);
+              "\\b(" + keywordsPython[i] + ")\\b"), "syntax.keywordForeground");
     }
     for (int i = 0; i < keywordsRuby.length; i++) { patternColorsRuby.put(Pattern.compile(
-              "\\b(" + keywordsRuby[i] + ")\\b"), Color.blue);
+              "\\b(" + keywordsRuby[i] + ")\\b"), "syntax.keywordForeground");
     }
     for (int i = 0; i < keywordsSikuli.length; i++) { patternColorsSikuli.put(Pattern.compile(
-              "\\b(" + keywordsSikuli[i] + ")\\b"), new Color(63, 127, 127));
+              "\\b(" + keywordsSikuli[i] + ")\\b"), "syntax.functionForeground");
     }
     for (int i = 0; i < keywordsSikuliClass.length; i++) { patternColorsSikuli.put(Pattern.compile(
-              "\\b(" + keywordsSikuliClass[i] + ")\\b"), new Color(215, 41, 56));
+              "\\b(" + keywordsSikuliClass[i] + ")\\b"), "syntax.classForeground");
     }
     for (int i = 0; i < constantsSikuli.length; i++) { patternColorsSikuli.put(Pattern.compile(
-              "\\b(" + constantsSikuli[i] + ")\\b"), new Color(128, 64, 0));
+              "\\b(" + constantsSikuli[i] + ")\\b"), "syntax.numberForeground");
     }
 		patternColorsPython.putAll(patternColorsSikuli);
 		patternColorsRuby.putAll(patternColorsSikuli);
@@ -458,7 +458,7 @@ class SyntaxHighlightLabelView extends LabelView {
       int end = entry.getValue();
 
       if (i <= start) {
-        g2d.setColor(Color.black);
+        g2d.setColor(getContainer().getForeground());
         String str = text.substring(i, start);
         sx = drawString(g2d, str, sx, sy);
       } else {
@@ -476,9 +476,9 @@ class SyntaxHighlightLabelView extends LabelView {
       sx = drawString(g2d, str, sx, sy);
     }
 
-    // Paint possible remaining text black
+    // Unstyled text follows the editor foreground.
     if (i < text.length()) {
-      g2d.setColor(Color.black);
+      g2d.setColor(getContainer().getForeground());
       String str = text.substring(i, text.length());
       drawString(g2d, str, sx, sy);
     }
@@ -518,13 +518,13 @@ class SyntaxHighlightLabelView extends LabelView {
           Map<Integer, Color> colorMap) {
 
     // Match all regexes on this snippet, store positions
-    for (Map.Entry<Pattern, Color> entry : patternColors.entrySet()) {
+    for (Map.Entry<Pattern, String> entry : patternColors.entrySet()) {
 
       Matcher matcher = entry.getKey().matcher(text);
 
       while (matcher.find()) {
         posMap.put(matcher.start(1), matcher.end());
-        colorMap.put(matcher.start(1), entry.getValue());
+        colorMap.put(matcher.start(1), org.sikuli.ide.theme.OculixUi.color(entry.getValue(), "TextPane.foreground"));
       }
     }
   }

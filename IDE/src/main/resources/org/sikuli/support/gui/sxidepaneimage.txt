@@ -3,11 +3,14 @@
 [
 #close; (✖);
 ---5
-#action; Rename; rename
+#icon; /icons/thumb/saveas.png; rename; Rename
 ---3
-#action; Optimize; optimize
+#icon; /icons/thumb/optimize.png; optimize; Optimize
 ---3
-#action; As Pattern; pattern
+#icon; /icons/thumb/aspattern.png; pattern; As Pattern
+#icon; /icons/thumb/aspattern.png; unpattern; As Image
+---3
+#icon; /icons/thumb/editcode.png; code; Edit code
 ]
 ---5
 #image; {image}

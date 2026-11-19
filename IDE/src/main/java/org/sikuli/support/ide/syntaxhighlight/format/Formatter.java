@@ -48,15 +48,9 @@ public abstract class Formatter
 	{
 		try
 		{
-			return (Formatter) Jygments.class.getClassLoader().loadClass( fullName ).newInstance();
+			return (Formatter) Jygments.class.getClassLoader().loadClass( fullName ).getDeclaredConstructor().newInstance();
 		}
-		catch( InstantiationException x )
-		{
-		}
-		catch( IllegalAccessException x )
-		{
-		}
-		catch( ClassNotFoundException x )
+		catch( ReflectiveOperationException x )
 		{
 		}
 

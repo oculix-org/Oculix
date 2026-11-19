@@ -45,44 +45,72 @@ public class RobotFrameworkCodeGenerator implements ICodeGenerator {
 
   @Override
   public String wheel(Pattern pattern, int direction, int steps, String[] modifiers, long stepDelay) {
-    String dir = direction > 0 ? "down" : "up";
-    String code = "    Wheel    " + dir + "    " + steps;
+    String code = (direction > 0 ? "    Wheel Down    " : "    Wheel Up    ") + steps;
     if (pattern != null) {
-      code = "    Wheel    " + pattern(pattern) + "    " + dir + "    " + steps;
+      code += "    " + pattern(pattern);
     }
     return code;
   }
 
   @Override
   public String typeText(String text, String[] modifiers) {
-    return "    Input Text    " + text;
+    if (modifiers.length > 0) {
+      return "    Type With Modifiers    " + text + "    " + String.join("    ", bare(modifiers));
+    }
+    return "    Input Text    ${EMPTY}    " + text;
   }
 
   @Override
   public String typeKey(String key, String[] modifiers) {
-    if (modifiers.length > 0) {
-      return "    Press Special Key    " + key + "    " + String.join("    ", modifiers);
+    String[] held = bare(modifiers);
+    StringBuilder code = new StringBuilder();
+    for (String modifier : held) {
+      code.append("    Key Down    ").append(modifier).append('\n');
     }
-    return "    Press Special Key    " + key;
+    code.append("    Press Special Key    ").append(bare(key));
+    for (int i = held.length - 1; i >= 0; i--) {
+      code.append("\n    Key Up    ").append(held[i]);
+    }
+    return code.toString();
   }
 
   @Override
   public String wait(Pattern pattern, Integer seconds, IRecordedAction matchAction) {
-    String code = "    Wait Until Screen Contain    " + pattern(pattern);
-    if (seconds != null) {
-      code += "    " + seconds;
-    }
-    return code;
+    return "    Wait Until Screen Contain    " + pattern(pattern) + "    "
+        + (seconds != null ? seconds : DEFAULT_WAIT_SECONDS);
   }
 
   @Override
   public String mouseDown(Pattern pattern, String[] buttons) {
-    return "    Mouse Down    " + (pattern != null ? pattern(pattern) : "");
+    return mouse("Mouse Down", pattern, buttons);
   }
 
   @Override
   public String mouseUp(Pattern pattern, String[] buttons) {
-    return "    Mouse Up    " + (pattern != null ? pattern(pattern) : "");
+    return mouse("Mouse Up", pattern, buttons);
+  }
+
+  /** SikuliLibrary takes the timeout as a mandatory argument; 3 s is the SikuliX default auto-wait. */
+  private static final int DEFAULT_WAIT_SECONDS = 3;
+
+  private String mouse(String keyword, Pattern pattern, String[] buttons) {
+    String[] names = buttons.length > 0 ? bare(buttons) : new String[] {"LEFT"};
+    String code = "    " + keyword + "    " + String.join("    ", names);
+    return pattern != null ? "    Mouse Move    " + pattern(pattern) + "\n" + code : code;
+  }
+
+  /** The recorder writes {@code Key.CTRL} or {@code Button.LEFT}; SikuliLibrary wants {@code CTRL}, {@code LEFT}. */
+  private static String bare(String name) {
+    int dot = name.lastIndexOf('.');
+    return dot >= 0 ? name.substring(dot + 1) : name;
+  }
+
+  private static String[] bare(String[] names) {
+    String[] result = new String[names.length];
+    for (int i = 0; i < names.length; i++) {
+      result[i] = bare(names[i]);
+    }
+    return result;
   }
 
   @Override

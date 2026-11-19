@@ -4,10 +4,15 @@
 package org.sikuli.natives;
 
 import java.awt.Rectangle;
+import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.sikuli.natives.mac.jna.CoreGraphics;
 import org.sikuli.natives.mac.jna.ObjC;
@@ -19,6 +24,80 @@ import com.sun.jna.platform.mac.CoreFoundation.CFNumberRef;
 import com.sun.jna.platform.mac.CoreFoundation.CFStringRef;
 
 public class MacUtil extends GenericOsUtil {
+
+  @Override
+  public OsProcess open(String[] cmd, String workDir) {
+    // Back-compat entry: callers who don't know about the wait budget get 3 s.
+    return open(cmd, workDir, 3);
+  }
+
+  @Override
+  public OsProcess open(String[] cmd, String workDir, int waitSeconds) {
+    if (cmd == null || cmd.length == 0 || StringUtils.isBlank(cmd[0])) {
+      return super.open(cmd, workDir);
+    }
+
+    // 'open -a NAME' delegates resolution to LaunchServices (bundle name,
+    // display name, bundle identifier, aliases). It only returns a status,
+    // never the PID of the launched app — same design constraint that
+    // ShellExecuteEx solves on Windows. We compensate by snapshotting the
+    // PIDs already alive under this name BEFORE launch, then waiting for
+    // 'open' to hand off and picking the fresh PID that wasn't in the
+    // snapshot. Deterministic (delta identifies THE new instance), not the
+    // "any process with this name" lottery the previous poll played.
+    Set<Long> priorPids = findProcesses(cmd[0]).stream()
+            .map(OsProcess::getPid)
+            .collect(Collectors.toCollection(HashSet::new));
+
+    String[] wrapped;
+    if (cmd.length == 1) {
+      wrapped = new String[] { "open", "-a", cmd[0] };
+    } else {
+      wrapped = new String[cmd.length + 3];
+      wrapped[0] = "open";
+      wrapped[1] = "-a";
+      wrapped[2] = cmd[0];
+      wrapped[3] = "--args";
+      System.arraycopy(cmd, 1, wrapped, 4, cmd.length - 1);
+    }
+
+    try {
+      ProcessBuilder pb = new ProcessBuilder(wrapped);
+      if (StringUtils.isNotBlank(workDir)) {
+        pb.directory(new File(workDir));
+      }
+      Process openProc = pb.start();
+      int exit = openProc.waitFor();
+      if (exit != 0) {
+        // LaunchServices refused to resolve — genuine miss.
+        return super.open(cmd, workDir);
+      }
+
+      // 'open' returned success, so LaunchServices has spawned the target.
+      // The kernel needs a beat to publish the new PID in ProcessHandle
+      // enumeration. Bounded poll on the DELTA against priorPids.
+      long deadline = System.currentTimeMillis() + Math.max(1, waitSeconds) * 1000L;
+      while (System.currentTimeMillis() < deadline) {
+        for (OsProcess proc : findProcesses(cmd[0])) {
+          if (!priorPids.contains(proc.getPid())) {
+            return proc;
+          }
+        }
+        try {
+          Thread.sleep(50);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
+      }
+    } catch (Exception e) {
+      System.out.println("[error] MacUtil.open (open -a wrapper):\n" + e.getMessage());
+    }
+
+    // Absolute paths that skipped LaunchServices, or the app was
+    // single-instance and reused an existing PID (already in priorPids).
+    return super.open(cmd, workDir);
+  }
 
   // NSApplicationActivationOptions — see Apple docs for NSRunningApplication.
   private static final int NS_ACTIVATE_ALL_WINDOWS          = 1 << 0;

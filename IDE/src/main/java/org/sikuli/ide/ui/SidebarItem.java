@@ -30,7 +30,8 @@ public class SidebarItem extends JButton {
     setToolTipText(text);
     setHorizontalAlignment(SwingConstants.LEFT);
     setIconTextGap(10);
-    setFocusPainted(false);
+    setFocusPainted(true);
+    putClientProperty("FlatLaf.styleClass", "sidebarAction");
     setBorderPainted(false);
     setContentAreaFilled(false);
     setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));

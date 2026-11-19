@@ -44,18 +44,20 @@ class ScriptExplorerScriptInfoTest {
   }
 
   @Test
-  void fromFolder_counts_only_png_extensions() throws Exception {
+  void fromFolder_counts_png_and_jpeg_in_subfolders_too() throws Exception {
     Path tmp = Files.createTempDirectory("oculix-script-info-");
     try {
       Files.createFile(tmp.resolve("a.png"));
-      Files.createFile(tmp.resolve("b.png"));
+      Files.createFile(tmp.resolve("b.PNG"));
       Files.createFile(tmp.resolve("c.txt"));
       Files.createFile(tmp.resolve("d.jpg"));
+      Files.createDirectories(tmp.resolve("shots"));
+      Files.createFile(tmp.resolve("shots").resolve("e.jpeg"));
 
       ScriptExplorer.ScriptInfo info =
           ScriptExplorer.ScriptInfo.fromFolder("test", tmp.toFile(), false);
-      assertEquals(2, info.imageCount,
-          "only .png matches the workspace card counter");
+      assertEquals(4, info.imageCount,
+          "png, jpg and jpeg count, any case, in subfolders too; other files do not");
     } finally {
       // best-effort cleanup
       Files.walk(tmp).map(Path::toFile)
@@ -65,19 +67,27 @@ class ScriptExplorerScriptInfoTest {
   }
 
   @Test
-  void fromFolder_isTemp_true_means_not_saved() {
-    File anywhere = new File(System.getProperty("java.io.tmpdir"));
-    ScriptExplorer.ScriptInfo info =
-        ScriptExplorer.ScriptInfo.fromFolder("untitled", anywhere, true);
-    assertFalse(info.saved, "isTemp=true → saved=false");
+  void fromFolder_isTemp_true_means_not_saved() throws Exception {
+    Path folder = Files.createTempDirectory("oculix-script-temp-");
+    try {
+      ScriptExplorer.ScriptInfo info =
+          ScriptExplorer.ScriptInfo.fromFolder("untitled", folder.toFile(), true);
+      assertFalse(info.saved, "isTemp=true → saved=false");
+    } finally {
+      Files.delete(folder);
+    }
   }
 
   @Test
-  void fromFolder_isTemp_false_means_saved() {
-    File anywhere = new File(System.getProperty("java.io.tmpdir"));
-    ScriptExplorer.ScriptInfo info =
-        ScriptExplorer.ScriptInfo.fromFolder("foo", anywhere, false);
-    assertTrue(info.saved, "isTemp=false → saved=true (persisted to disk)");
+  void fromFolder_isTemp_false_means_saved() throws Exception {
+    Path folder = Files.createTempDirectory("oculix-script-saved-");
+    try {
+      ScriptExplorer.ScriptInfo info =
+          ScriptExplorer.ScriptInfo.fromFolder("foo", folder.toFile(), false);
+      assertTrue(info.saved, "isTemp=false → saved=true (persisted to disk)");
+    } finally {
+      Files.delete(folder);
+    }
   }
 
   @Test
@@ -104,10 +114,14 @@ class ScriptExplorerScriptInfoTest {
   }
 
   @Test
-  void fromFolder_name_is_propagated_verbatim() {
-    File anywhere = new File(System.getProperty("java.io.tmpdir"));
-    ScriptExplorer.ScriptInfo info =
-        ScriptExplorer.ScriptInfo.fromFolder("My Script.sikuli", anywhere, false);
-    assertEquals("My Script.sikuli", info.name);
+  void fromFolder_name_is_propagated_verbatim() throws Exception {
+    Path folder = Files.createTempDirectory("oculix-script-name-");
+    try {
+      ScriptExplorer.ScriptInfo info =
+          ScriptExplorer.ScriptInfo.fromFolder("My Script.sikuli", folder.toFile(), false);
+      assertEquals("My Script.sikuli", info.name);
+    } finally {
+      Files.delete(folder);
+    }
   }
 }

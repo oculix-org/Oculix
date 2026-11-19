@@ -257,7 +257,7 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
     if (_imgFilename == null) {
       return super.toString();
     }
-    String imgName = new File(_imgFilename).getName();
+    String imgName = codeName(_imgFilename);
     StringBuilder mods = new StringBuilder();
     if (_resizeFactor > 0 && _resizeFactor != 1f) {
       mods.append(String.format(Locale.ENGLISH, ".resize(%.2f)", _resizeFactor));
@@ -275,6 +275,30 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
       return "\"" + imgName + "\"";
     }
     return "Pattern(\"" + imgName + "\")" + mods;
+  }
+
+  @Override
+  public boolean isPromotedToPattern() {
+    return toString().startsWith("Pattern(");
+  }
+
+  /** The pane that carries this button knows the script folder the code is relative to. */
+  @Override
+  protected String codeName(String imageFile) {
+    String folder = _pane == null ? null : _pane.getFolderPath();
+    return EditorPane.nameForCode(folder == null ? scriptFolder() : new File(folder), imageFile);
+  }
+
+  @Override
+  public String toEditableCode() {
+    if (_imgFilename == null) {
+      return super.toEditableCode();
+    }
+    String code = editableCode(codeName(_imgFilename), _exact, _similarity, _offset);
+    if (_resizeFactor > 0 && _resizeFactor != 1f) {
+      code = code.replace("\")", "\")" + String.format(Locale.ENGLISH, ".resize(%.2f)", _resizeFactor));
+    }
+    return code;
   }
 
   public void reloadImage() {
@@ -325,6 +349,17 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
     setImage(_imgFilenameSaved);
     setParameters(_exactSaved, _similaritySaved, DEFAULT_NUM_MATCHES);
     setTargetOffset(_offsetSaved);
+  }
+
+  @Override
+  public void asImage() {
+    _exact = false;
+    _similarity = DEFAULT_SIMILARITY;
+    _offset = new Location(0, 0);
+    _resizeFactor = 1f;
+    _mask = null;
+    setButtonText();
+    repaint();
   }
 
   public boolean setExact(boolean exact) {

@@ -11,20 +11,27 @@ import org.sikuli.basics.Debug;
 import org.sikuli.support.Commons;
 import org.sikuli.support.FileManager;
 import org.sikuli.script.ScreenImage;
+import org.sikuli.script.SikuliXception;
 import se.vidstige.jadb.JadbDevice;
 import se.vidstige.jadb.JadbException;
+import se.vidstige.jadb.SliceReader;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,6 +44,12 @@ public class ADBDevice {
 */
 
   private static int lvl = 3;
+
+  /** How long one read may block before the capture checks interruption and its deadline again. */
+  private static final int CAPTURE_READ_SLICE_MILLIS = 200;
+
+  /** Upper bound for a whole raw screencap, from opening the transport to the last pixel row. */
+  public static long captureTimeoutMillis = 30_000;
 
   private static void log(int level, String message, Object... args) {
     Debug.logx(level, "ADBDevice: " + message, args);
@@ -56,6 +69,14 @@ public class ADBDevice {
 
   private static ADBDevice adbDevice = null;
   private String adbExec = "";
+
+  // Persistent adb shell used by high-frequency input commands. JADB creates a
+  // fresh transport for every executeShell() call; keeping one adb shell alive
+  // removes that per-action handshake while preserving command ordering.
+  private Process inputShellProcess = null;
+  private BufferedWriter inputShellWriter = null;
+  private BufferedReader inputShellReader = null;
+  private long inputShellSequence = 0;
 
 
   public static int KEY_HOME = 3;
@@ -143,6 +164,9 @@ public class ADBDevice {
   }
 
   public static void reset() {
+    if (adbDevice != null) {
+      adbDevice.closeInputShell();
+    }
     adbDevice = null;
     ADBClient.reset();
   }
@@ -183,6 +207,23 @@ public class ADBDevice {
     return new ScreenImage(rect, bimg);
   }
 
+  /**
+   * Lightweight PNG capture for visual polling.
+   * Avoids the raw RGBA/OpenCV capture path used by normal OculiX matching.
+   */
+  public BufferedImage capturePngFast() {
+    try (InputStream deviceOut = device.execute("screencap", "-p")) {
+      BufferedImage image = ImageIO.read(deviceOut);
+      if (image == null) {
+        log(-1, "capturePngFast: PNG decoding returned null");
+      }
+      return image;
+    } catch (Exception e) {
+      log(-1, "capturePngFast: %s", e);
+      return null;
+    }
+  }
+
   public BufferedImage captureDeviceScreen() {
     return captureDeviceScreen(0, 0, -1, -1);
   }
@@ -198,34 +239,32 @@ public class ADBDevice {
     return bImage;
   }
 
+  /**
+   * Raw screencap of the device, cropped to the given rectangle (all -1 sizes with x = y = 0 means
+   * the full screen). Throws SikuliXception when the capture cannot deliver a complete image:
+   * interrupted, past {@link #captureTimeoutMillis}, stream ended early, unexpected format.
+   * The interrupt status of the calling thread is left set.
+   */
   public Mat captureDeviceScreenMat(int x, int y, int actW, int actH) {
     // Lazy-load OpenCV — only the screen-capture path needs the native lib.
     // Idempotent: Commons.loadOpenCV() short-circuits if already loaded.
     Commons.loadOpenCV();
     log(lvl, "captureDeviceScreenMat: enter: [%d,%d %dx%d]", x, y, actW, actH);
-    byte[] imagePrefix = new byte[12];
-    byte[] image = new byte[0];
-    boolean isfullScreen = false;
-    if (x == 0 && y == 0 && actW < 0 && actH < 0) {
-      isfullScreen = true;
-    }
-    int currentW;
-    int currentH;
+    boolean isfullScreen = x == 0 && y == 0 && actW < 0 && actH < 0;
     int channels = 4;
-    Mat matImage = new Mat();
-    try (InputStream deviceOut = device.execute("screencap")) {
-      Debug timer = Debug.startTimer();
-      while (deviceOut.available() < 12) ;
-      deviceOut.read(imagePrefix);
+    long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(captureTimeoutMillis);
+    Debug timer = Debug.startTimer();
+    try (InputStream deviceOut = device.executeWithDeadline(CAPTURE_READ_SLICE_MILLIS, deadline, "screencap")) {
+      byte[] imagePrefix = new byte[12];
+      SliceReader.readFully(deviceOut, imagePrefix, deadline);
       if (imagePrefix[8] != 0x01) {
-        log(-1, "captureDeviceScreenMat: image type not RGBA");
-        return null;
+        throw new SikuliXception("ADBDevice: screencap: image type not RGBA");
       }
-      currentW = byte2int(imagePrefix, 0, 4);
-      currentH = byte2int(imagePrefix, 4, 4);
+      int currentW = byte2int(imagePrefix, 0, 4);
+      int currentH = byte2int(imagePrefix, 4, 4);
       if (!((currentW == devW && currentH == devH) || (currentH == devW && currentW == devH))) {
-        log(-1, "captureDeviceScreenMat: width or height differ from device values");
-        return null;
+        throw new SikuliXception(String.format("ADBDevice: screencap: %dx%d differs from device %dx%d",
+            currentW, currentH, devW, devH));
       }
       if (isfullScreen) {
         actW = currentW;
@@ -239,42 +278,17 @@ public class ADBDevice {
         }
       }
       long duration = timer.lap("");
-      int nPixels = actW * actH;
-      image = new byte[nPixels * channels];
+      int rowBytes = currentW * channels;
+      int cropBytes = actW * channels;
+      byte[] row = new byte[rowBytes];
+      byte[] image = new byte[actH * cropBytes];
       int atImage = 0;
-      boolean endOfStream = false;
-      int maxR = y + actH;
-      int maxC = x + actW;
-      byte[] pixel = new byte[channels];
-      int pixelByte = -1;
-      while (true) {
-        for (int npr = 0; npr < maxR; npr++) {
-          for (int npc = 0; npc < currentW; npc++) {
-            //byte[] pixel = deviceOut.readNBytes(4);
-            for (int np = 0; np < channels; np++) {
-              pixelByte = deviceOut.read();
-              if (pixelByte > -1) {
-                pixel[np] = (byte) pixelByte;
-              } else {
-                endOfStream = true;
-              }
-            }
-	    if (!endOfStream) {
-              if (npr >= y && npc >= x && npc < maxC) {
-                image[atImage++] = pixel[0];
-                image[atImage++] = pixel[1];
-                image[atImage++] = pixel[2];
-                image[atImage++] = pixel[3];
-              }
-            } else {
-              break;
-            }
-          }
-          if (endOfStream) {
-            break;
-          }
+      for (int npr = 0; npr < y + actH; npr++) {
+        SliceReader.readFully(deviceOut, row, deadline);
+        if (npr >= y) {
+          System.arraycopy(row, x * channels, image, atImage, cropBytes);
+          atImage += cropBytes;
         }
-        break;
       }
       Mat matOrg = new Mat(actH, actW, CvType.CV_8UC4);
       matOrg.put(0, 0, image);
@@ -285,13 +299,15 @@ public class ADBDevice {
       matsImage.add(matsOrg.get(2));
       matsImage.add(matsOrg.get(1));
       matsImage.add(matsOrg.get(0));
+      Mat matImage = new Mat();
       Core.merge(matsImage, matImage);
       log(lvl, "captureDeviceScreenMat: exit: [%d,%d %dx%d] %d (%d)",
               x, y, actW, actH, duration, timer.end());
-    } catch (Exception e) {
-      log(-1, "captureDeviceScreenMat: [%d,%d %dx%d] %s", x, y, actW, actH, e);
+      return matImage;
+    } catch (IOException | JadbException e) {
+      throw new SikuliXception(String.format("ADBDevice: screencap [%d,%d %dx%d] failed: %s",
+          x, y, actW, actH, e), e);
     }
-    return matImage;
   }
 
   private int byte2int(byte[] bytes, int start, int len) {
@@ -327,6 +343,138 @@ public class ADBDevice {
       log(-1, "execADB: %s (%s)", cmd, e);
     }
     return null;
+  }
+
+  /**
+   * Execute an Android {@code input ...} command through one persistent
+   * {@code adb -s <serial> shell} process. A unique marker is written after
+   * every command and read back before returning, so callers are synchronized
+   * with the end of the Android input command without Thread.sleep().
+   */
+  private synchronized boolean executePersistentInput(String... args) {
+    StringBuilder command = new StringBuilder("input");
+    for (String arg : args) {
+      command.append(' ').append(shellQuote(arg));
+    }
+
+    for (int attempt = 0; attempt < 2; attempt++) {
+      try {
+        ensureInputShell();
+
+        String marker = "__OCULIX_INPUT_DONE_" + (++inputShellSequence) + "__:";
+        inputShellWriter.write(command.toString());
+        inputShellWriter.write("; echo " + marker + "$?");
+        inputShellWriter.newLine();
+        inputShellWriter.flush();
+
+        String line;
+        while ((line = inputShellReader.readLine()) != null) {
+          if (line.startsWith(marker)) {
+            if (!line.equals(marker + "0")) {
+              log(-1, "persistent input command failed: %s -> %s", command, line);
+            }
+            return true;
+          }
+        }
+
+        throw new IOException("persistent adb shell closed before completion marker");
+      } catch (IOException e) {
+        closeInputShell();
+        if (attempt == 1) {
+          log(-1, "persistent adb shell failed: %s", e);
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private void inputCommand(String... args) {
+    if (executePersistentInput(args)) {
+      return;
+    }
+
+    // Safety fallback: JADB path, but consume stdout to EOF so this path is
+    // still synchronous with command completion.
+    exec("input", args);
+  }
+
+  private synchronized void ensureInputShell() throws IOException {
+    if (inputShellProcess != null
+        && inputShellProcess.isAlive()
+        && inputShellWriter != null
+        && inputShellReader != null) {
+      return;
+    }
+
+    closeInputShell();
+
+    if (adbExec == null || adbExec.isEmpty()) {
+      throw new IOException("ADB executable is not configured");
+    }
+
+    List<String> cmd = new ArrayList<String>();
+    cmd.add(adbExec);
+
+    String serial = getDeviceSerial();
+    if (serial != null && !serial.isEmpty()) {
+      cmd.add("-s");
+      cmd.add(serial);
+    }
+
+    cmd.add("shell");
+
+    ProcessBuilder app = new ProcessBuilder(cmd);
+    app.directory(null);
+    app.redirectErrorStream(true);
+
+    inputShellProcess = app.start();
+    inputShellWriter = new BufferedWriter(
+        new OutputStreamWriter(inputShellProcess.getOutputStream(), "UTF-8"));
+    inputShellReader = new BufferedReader(
+        new InputStreamReader(inputShellProcess.getInputStream(), "UTF-8"));
+
+    log(lvl, "persistent adb shell started for %s", serial);
+  }
+
+  private synchronized void closeInputShell() {
+    if (inputShellWriter != null) {
+      try {
+        inputShellWriter.write("exit");
+        inputShellWriter.newLine();
+        inputShellWriter.flush();
+      } catch (IOException ignored) {
+      }
+    }
+
+    if (inputShellProcess != null) {
+      inputShellProcess.destroy();
+    }
+
+    try {
+      if (inputShellWriter != null) {
+        inputShellWriter.close();
+      }
+    } catch (IOException ignored) {
+    }
+
+    try {
+      if (inputShellReader != null) {
+        inputShellReader.close();
+      }
+    } catch (IOException ignored) {
+    }
+
+    inputShellProcess = null;
+    inputShellWriter = null;
+    inputShellReader = null;
+  }
+
+  private static String shellQuote(String value) {
+    if (value == null) {
+      return "''";
+    }
+    return "'" + value.replace("'", "'\"'\"'") + "'";
   }
 
   private Dimension getDisplayDimension() {
@@ -484,19 +632,11 @@ public class ADBDevice {
   }
 
   public void inputKeyEvent(int key) {
-    try {
-      device.executeShell("input", "keyevent", Integer.toString(key));
-    } catch (Exception e) {
-      log(-1, "inputKeyEvent: %d did not work: %s", key, e.getMessage());
-    }
+    inputCommand("keyevent", Integer.toString(key));
   }
 
   public void tap(int x, int y) {
-    try {
-      device.executeShell("input tap", Integer.toString(x), Integer.toString(y));
-    } catch (IOException | JadbException e) {
-      log(-1, "tap: %s", e);
-    }
+    inputCommand("tap", Integer.toString(x), Integer.toString(y));
   }
 
   public void swipe(int x1, int y1, int x2, int y2) {
@@ -507,25 +647,21 @@ public class ADBDevice {
    * Swipe gesture from (x1, y1) to (x2, y2) with optional duration.
    *
    * @param durationMs swipe duration in milliseconds; pass 0 to use the Android
-   *                   default (~150 ms). Typical UI swipes use 200-400 ms.
+   *                   default (~300 ms). Typical UI swipes use 50-300 ms.
    *                   Values above ~500 ms are interpreted as a drag by most
    *                   apps and may be intercepted — use {@link #dragAndDrop}
    *                   for intentional drag gestures.
    */
   public void swipe(int x1, int y1, int x2, int y2, int durationMs) {
-    try {
-      if (durationMs > 0) {
-        device.executeShell("input swipe",
-                Integer.toString(x1), Integer.toString(y1),
-                Integer.toString(x2), Integer.toString(y2),
-                Integer.toString(durationMs));
-      } else {
-        device.executeShell("input swipe",
-                Integer.toString(x1), Integer.toString(y1),
-                Integer.toString(x2), Integer.toString(y2));
-      }
-    } catch (IOException | JadbException e) {
-      log(-1, "swipe: %s", e);
+    if (durationMs > 0) {
+      inputCommand("swipe",
+              Integer.toString(x1), Integer.toString(y1),
+              Integer.toString(x2), Integer.toString(y2),
+              Integer.toString(durationMs));
+    } else {
+      inputCommand("swipe",
+              Integer.toString(x1), Integer.toString(y1),
+              Integer.toString(x2), Integer.toString(y2));
     }
   }
 
@@ -549,19 +685,15 @@ public class ADBDevice {
    *                   Android default. Typical drags use 500-1500 ms.
    */
   public void dragAndDrop(int x1, int y1, int x2, int y2, int durationMs) {
-    try {
-      if (durationMs > 0) {
-        device.executeShell("input draganddrop",
-                Integer.toString(x1), Integer.toString(y1),
-                Integer.toString(x2), Integer.toString(y2),
-                Integer.toString(durationMs));
-      } else {
-        device.executeShell("input draganddrop",
-                Integer.toString(x1), Integer.toString(y1),
-                Integer.toString(x2), Integer.toString(y2));
-      }
-    } catch (IOException | JadbException e) {
-      log(-1, "dragAndDrop: %s", e);
+    if (durationMs > 0) {
+      inputCommand("draganddrop",
+              Integer.toString(x1), Integer.toString(y1),
+              Integer.toString(x2), Integer.toString(y2),
+              Integer.toString(durationMs));
+    } else {
+      inputCommand("draganddrop",
+              Integer.toString(x1), Integer.toString(y1),
+              Integer.toString(x2), Integer.toString(y2));
     }
   }
 

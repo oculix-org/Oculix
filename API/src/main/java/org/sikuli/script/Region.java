@@ -5,9 +5,9 @@ package org.sikuli.script;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
+import org.sikuli.natives.OSUtil.OsWindow;
 import org.sikuli.support.*;
 import org.sikuli.support.Observer;
-import org.sikuli.support.devices.HelpDevice;
 import org.sikuli.support.devices.IRobot;
 import org.sikuli.support.devices.IScreen;
 import org.sikuli.util.Highlight;
@@ -21,6 +21,7 @@ import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -36,10 +37,21 @@ public class Region extends Element {
   public static final String logName = "Region: ";
 
   //<editor-fold desc="000 for Python">
+  /**
+   * INTERNAL: default Region for the Jython layer
+   *
+   * @return a new Screen
+   */
   public static Region getDefaultInstance4py() {
     return new Screen();
   }
 
+  /**
+   * INTERNAL: Region constructor for the Jython layer: Region(x, y, w, h) or Region(Region)
+   *
+   * @param args the script arguments (may be null)
+   * @return the Region, or a new Screen if the arguments are not understood
+   */
   public static Region make4py(ArrayList args) {
     log(3, "make: args: %s", args);
     Region reg = new Screen();
@@ -77,6 +89,7 @@ public class Region extends Element {
    */
   public Region setX(int X) {
     x = X;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -87,6 +100,7 @@ public class Region extends Element {
    */
   public Region setY(int Y) {
     y = Y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -97,6 +111,7 @@ public class Region extends Element {
    */
   public Region setW(int W) {
     w = W > 1 ? W : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -107,8 +122,47 @@ public class Region extends Element {
    */
   public Region setH(int H) {
     h = H > 1 ? H : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
+  }
+
+  /**
+   * #444: a direct mutation of x/y/w/h on a window-backed Region turns it
+   * into a ROI within that window. Two invariants must hold after the
+   * mutation:
+   *
+   * <ol>
+   *   <li>{@link #tracksSourceWindowBounds} flips to false — this Region
+   *       is no longer "the window", it is "a sub-rect of the window".</li>
+   *   <li>If the new bounds are no longer contained in the window, the
+   *       provenance is a lie: capture/highlight would either crop from
+   *       stale pixels or overlay on a HWND the ROI is not in. Detach
+   *       {@link #sourceWindow} via {@link #setSourceWindow(OsWindow)} so
+   *       the classic Screen-device path takes over cleanly.</li>
+   * </ol>
+   *
+   * <p>This aligns setter semantics with the {@link #deriveWithinWindow}
+   * funnel: both refuse a window-backed identity when the rect is not
+   * contained. There is no path left where {@code sourceWindow != null}
+   * yet the rect escapes the window.
+   *
+   * <p>No-op when no window is attached (the field stays false, which is
+   * the initial state on non-window Regions).
+   *
+   * <p>Called by every setter that writes x/y/w/h directly. Callers of the
+   * derivation funnel do not need this — the funnel builds fresh Regions
+   * that already respect the invariant.
+   */
+  private void markAsDerivedWindowRegion() {
+    if (sourceWindow == null) {
+      return;
+    }
+    tracksSourceWindowBounds = false;
+    Rectangle wb = sourceWindow.getBounds();
+    if (wb == null || !wb.contains(getRect())) {
+      setSourceWindow(null);
+    }
   }
   //</editor-fold>
 
@@ -190,6 +244,12 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="3 findFailedHandler">
+  /**
+   * set a handler called on FindFailed in this region (response HANDLE)<br>
+   * the handler gets an {@link ObserveEvent} FINDFAILED and answers with event.setResponse(RETRY, SKIP, ABORT or PROMPT)
+   *
+   * @param handler an {@link ObserverCallBack} or a Jython/JRuby function with one event parameter
+   */
   public void setFindFailedHandler(Object handler) {
     findFailedResponse = FindFailedResponse.HANDLE;
     findFailedHandler = FindFailed.setHandler(handler, ObserveEvent.Type.FINDFAILED);
@@ -317,7 +377,10 @@ public class Region extends Element {
     BufferedImage previousImage = null;
 
     while (System.currentTimeMillis() - startTime < maxWaitMs) {
-      ScreenImage shot = getScreen().capture(this);
+      // v5 (#444): captureSelf() routes through PrintWindow when a source
+      // window is attached, otherwise falls back to getScreen().capture(this).
+      // Old line: ScreenImage shot = getScreen().capture(this);
+      ScreenImage shot = captureSelf(this);
       BufferedImage currentImage = shot == null ? null : shot.getImage();
       if (currentImage == null) {
         try { Thread.sleep(100); } catch (InterruptedException ignored) {}
@@ -478,8 +541,173 @@ public class Region extends Element {
 
   //<editor-fold defaultstate="collapsed" desc="005 Init & special use">
 
+  /**
+   * The OS-level window this Region originates from, if any. Set by
+   * {@link App#focusedWindow()} and {@link App#window()} so that capture
+   * operations on the Region can route to the native window capture path
+   * (Windows: {@code PrintWindow}) instead of the classic Robot-based screen
+   * capture, which suffers from clip-to-one-monitor and mixed-DPI issues
+   * when the window spans monitors or sits partially off-screen (#444).
+   *
+   * <p>Null on Regions that are not tied to an OS window (any Region built
+   * from raw coordinates, from a Pattern match, from {@link Screen#getRegion()},
+   * etc.), which is the majority — those keep the classic capture path.
+   */
+  private OsWindow sourceWindow = null;
+
+  /**
+   * True when this Region's bounds are meant to represent the whole
+   * {@link #sourceWindow} — i.e. capture returns the full window bitmap and
+   * highlight frames the whole HWND. False when this Region is a ROI within
+   * the window (any sub-rect derived from a window-backed Region, or any
+   * mutation via setX/Y/W/H): capture returns the ROI cropped from the full
+   * native bitmap, highlight frames the ROI (physical-space overlay).
+   *
+   * <p>Set to true ONLY by {@link #forWindow(OsWindow)} — the sole path that
+   * asserts the "I am the window" identity. Neither {@link #setSourceWindow}
+   * nor any inheritance funnel establishes it: derivations always carry
+   * {@code tracks=false}. Only the {@link #init(Region)} copy path propagates
+   * the parent's value verbatim.
+   *
+   * <p>Package-private on purpose so tests in {@code org.sikuli.script} can
+   * observe transitions without exposing a public setter.
+   */
+  boolean tracksSourceWindowBounds = false;
+
+  /**
+   * Attach an OS-level source window to this Region. When set, capture calls
+   * on the Region ({@link #getImage()}, {@link #find}, {@link #wait},
+   * {@link #exists}, {@link #text}, etc.) route through the window's native
+   * capture path if the platform supports one. See {@link #captureSelf}.
+   *
+   * <p>A change of the attached {@code OsWindow} — including detach ({@code
+   * setSourceWindow(null)}) and replacement by a different HWND — cannot
+   * silently keep the "I am this whole window" identity; only
+   * {@link #forWindow(OsWindow)} may claim {@link #tracksSourceWindowBounds
+   * tracks=true}, and it does so by writing the field directly rather than
+   * going through this setter.
+   *
+   * @param window the window to attach, or null to detach
+   * @return this Region
+   */
+  public Region setSourceWindow(OsWindow window) {
+    if (!Objects.equals(this.sourceWindow, window)) {
+      tracksSourceWindowBounds = false;
+    }
+    this.sourceWindow = window;
+    return this;
+  }
+
+  /**
+   * the application window attached to this region by {@link #setSourceWindow(OsWindow)} or {@link #forWindow(OsWindow)}
+   *
+   * @return the window, or null if none is attached
+   */
+  public OsWindow getSourceWindow() {
+    return sourceWindow;
+  }
+
+  /**
+   * Internal capture helper — routes to native window capture (Windows:
+   * PrintWindow) when a {@link #sourceWindow} is attached and the platform
+   * supports it, otherwise falls back to the classic Screen-device capture.
+   *
+   * <p>The native path handles what the Robot path cannot:
+   * <ul>
+   *   <li>Windows straddling monitors at different DPI scales</li>
+   *   <li>Windows partially off-screen (Robot returns black on those pixels)</li>
+   *   <li>Windows visually behind another window (Robot captures what is on
+   *       screen, {@code PrintWindow} asks the WM to re-render the target)</li>
+   * </ul>
+   *
+   * <p>When the sub-region requested does not exactly match the window
+   * bounds, the full window bitmap is captured natively and then cropped
+   * to the requested rectangle. The crop is O(1) via
+   * {@link BufferedImage#getSubimage} (shared pixel buffer).
+   */
+  // Package-private so Finder.java can route its own captures through the same
+  // window-aware path (Finder used to call where.getScreen().capture(where)
+  // directly, which bypassed the sourceWindow / PrintWindow route and produced
+  // Match coordinates that were shifted vs the getImage() reference #444).
+  //
+  // captureSelf() is a LIVE primitive: every call photographs the window now.
+  // No timed cache. Callers that need a shared snapshot between two treatments
+  // must carry it explicitly (see the `ScreenImage base` parameter threaded
+  // through Finder paths) — a Region-level TTL cache would silently freeze
+  // waitForStable/wait/exists on stale pixels.
+  ScreenImage captureSelf(int cx, int cy, int cw, int ch) {
+    if (sourceWindow != null) {
+      Rectangle wb = sourceWindow.getBounds();
+      // #444: revalidate ROI containment at native use. The window is a live
+      // OS object — the user can move it between the ROI's construction (when
+      // markAsDerivedWindowRegion checked containment) and this call. If the
+      // ROI now escapes the window, the crop below would either read stale
+      // pixels or truncate silently. Detach the provenance and fall through
+      // to the classic Screen-device path. Whole-window (tracks=true) is
+      // exempt: it captures the whole HWND regardless of on-screen position.
+      if (wb == null
+          || (!tracksSourceWindowBounds && !wb.contains(new Rectangle(cx, cy, cw, ch)))) {
+        setSourceWindow(null);
+        return getScreen().capture(cx, cy, cw, ch);
+      }
+      BufferedImage nativeImg = sourceWindow.captureNative(new Rectangle(0, 0, wb.width, wb.height));
+
+      if (nativeImg != null) {
+        // #444: route by tracksSourceWindowBounds, no more coordinate-based
+        // heuristics. The old "cx == this.x && ... -> full window" shortcut
+        // was true by construction for captureSelf(this)/getImage()/find()
+        // on any window-backed Region — even a genuine ROI — because those
+        // callers pass exactly (this.x, this.y, this.w, this.h). It masked
+        // every derivation as a whole-window request.
+        if (tracksSourceWindowBounds) {
+          // Whole-window path: refresh this Region's bounds to track the
+          // window's current position/size and return the full native image.
+          this.x = wb.x;
+          this.y = wb.y;
+          this.w = wb.width;
+          this.h = wb.height;
+          return new ScreenImage(new Rectangle(wb.x, wb.y, wb.width, wb.height),
+              nativeImg, ScreenImage.LOGICAL_DPI);
+        }
+        // ROI path: crop the requested slice from the full-window bitmap so
+        // Match coordinates stay in the caller's coord space. Used by every
+        // derived window-backed Region (statusBar built from window.getInset,
+        // rows/cells from a raster on the window, findText matches, etc.)
+        // and by checkLastSeen() cropping around the previous match.
+        int localX = Math.max(0, cx - wb.x);
+        int localY = Math.max(0, cy - wb.y);
+        int localW = Math.min(cw, nativeImg.getWidth() - localX);
+        int localH = Math.min(ch, nativeImg.getHeight() - localY);
+        if (localW > 0 && localH > 0) {
+          BufferedImage sub = (localX == 0 && localY == 0
+              && localW == nativeImg.getWidth()
+              && localH == nativeImg.getHeight())
+              ? nativeImg
+              : nativeImg.getSubimage(localX, localY, localW, localH);
+          return new ScreenImage(new Rectangle(cx, cy, cw, ch), sub, ScreenImage.LOGICAL_DPI);
+        }
+      }
+    }
+    // Classic Robot-based capture through the Screen device.
+    return getScreen().capture(cx, cy, cw, ch);
+  }
+
+  ScreenImage captureSelf(Region r) {
+    return captureSelf(r.x, r.y, r.w, r.h);
+  }
+
+  /**
+   * capture the current pixel content of this region<br>
+   * a region attached to an application window is captured from that window, even if covered or spread over screens
+   *
+   * @return a new Image
+   */
   public Image getImage() {
-    return new Image(getScreen().capture(x, y, w, h));
+    // v5 (#444): route through captureSelf() so App.focusedWindow().getImage()
+    // uses PrintWindow when a sourceWindow is attached. Original line kept
+    // commented for historical reference and quick rollback.
+    // return new Image(getScreen().capture(x, y, w, h));
+    return new Image(captureSelf(x, y, w, h));
   }
 
   /**
@@ -493,13 +721,19 @@ public class Region extends Element {
     IScreen screen, screenOn;
     if (iscr != null) {
       if (iscr.isOtherScreen()) {
-        if (x < 0) {
-          w = w + x;
-          x = 0;
-        }
-        if (y < 0) {
-          h = h + y;
-          y = 0;
+        // #444: window-backed Regions never let initScreen touch their bounds.
+        // A window straddling mixed-DPI monitors is a legitimate rectangle
+        // that the classic negative-origin trim would mutilate. Keep the
+        // screen assignment for legacy paths, skip the mutation.
+        if (sourceWindow == null) {
+          if (x < 0) {
+            w = w + x;
+            x = 0;
+          }
+          if (y < 0) {
+            h = h + y;
+            y = 0;
+          }
         }
         this.scr = iscr;
         this.otherScreen = true;
@@ -508,10 +742,15 @@ public class Region extends Element {
       if (iscr.getID() > -1) {
         rect = regionOnScreen(iscr);
         if (rect != null) {
-          x = rect.x;
-          y = rect.y;
-          w = rect.width;
-          h = rect.height;
+          // #444: same rule — bounds preserved on window-backed Regions;
+          // regionOnScreen clips to a single monitor and would mutilate a
+          // straddling window rectangle. Only the screen assignment stays.
+          if (sourceWindow == null) {
+            x = rect.x;
+            y = rect.y;
+            w = rect.width;
+            h = rect.height;
+          }
           this.scr = iscr;
           return;
         }
@@ -547,10 +786,16 @@ public class Region extends Element {
     }
 
     if (screenOn != null) {
-      x = screenRect.x;
-      y = screenRect.y;
-      w = screenRect.width;
-      h = screenRect.height;
+      // #444: same rule — a window-backed Region keeps its true bounds;
+      // only screen detection stays. This is what makes setX/Y/W/H (which
+      // all re-run initScreen(null)) safe on Regions attached to a
+      // straddling window.
+      if (sourceWindow == null) {
+        x = screenRect.x;
+        y = screenRect.y;
+        w = screenRect.width;
+        h = screenRect.height;
+      }
       this.scr = screenOn;
     } else {
       // no screen found
@@ -559,6 +804,103 @@ public class Region extends Element {
     }
   }
 
+  /**
+   * Resolves {@link #scr} from the current bounds WITHOUT clipping x/y/w/h.
+   * Meant for window-backed Regions built by the derivation funnel: the
+   * caller has already set {@link #sourceWindow}, so {@link #initScreen}
+   * will skip every bounds mutation branch (see #444 guards above) and
+   * only assign {@code scr}. Named entry point so callers document intent
+   * rather than calling {@code initScreen(null)} with a comment.
+   */
+  void resolveScreenNoClip() {
+    if (sourceWindow == null) {
+      throw new IllegalStateException(
+          "resolveScreenNoClip called without sourceWindow attached — "
+              + "initScreen(null) would clip the bounds. Use initScreen(null) "
+              + "directly when the caller genuinely wants classic clip semantics.");
+    }
+    initScreen(null);
+  }
+
+  /**
+   * #444: attempt to build a window-backed sub-Region for a rectangle
+   * geometrically derived from THIS Region. Answers exactly one question:
+   * <em>"Can I represent this rectangle with the pixels of my sourceWindow?"</em>
+   *
+   * <ul>
+   *   <li>{@code sourceWindow == null} → returns {@code null}. This Region
+   *       has no window to hand down.</li>
+   *   <li>{@code sourceWindow.getBounds() == null} → returns {@code null}.
+   *       Cannot decide containment.</li>
+   *   <li>the window's bounds do NOT contain {@code desiredRect} → returns
+   *       {@code null}. The rectangle escapes the window, so its pixels
+   *       cannot come from the native window bitmap. Above/below/left/right
+   *       on a whole-window Region typically fall here.</li>
+   *   <li>otherwise → returns a fresh Region with {@code desiredRect}'s
+   *       bounds preserved as-is (no clip, no biggest-intersection rewrite),
+   *       {@link #sourceWindow} attached, {@link #tracksSourceWindowBounds}
+   *       explicitly {@code false} (a ROI is never the whole window), and
+   *       {@code scr} resolved via {@link #resolveScreenNoClip}.</li>
+   * </ul>
+   *
+   * <p>Callers use the null return to decide their fallback: on {@code null},
+   * they run their historical construction path unchanged (typically
+   * {@code Region.create(..., getScreen())}). This funnel deliberately does
+   * NOT own the fallback — every derivation method keeps its exact legacy
+   * behaviour when the window-backed path is refused.
+   *
+   * @param desiredRect the rectangle the caller wants to represent
+   * @return a window-backed Region, or {@code null} if the funnel refuses
+   */
+  private Region deriveWithinWindow(Rectangle desiredRect) {
+    if (sourceWindow == null) {
+      return null;
+    }
+    Rectangle wb = sourceWindow.getBounds();
+    if (wb == null || !wb.contains(desiredRect)) {
+      return null;
+    }
+    Region r = new Region();
+    r.x = desiredRect.x;
+    r.y = desiredRect.y;
+    r.w = desiredRect.width;
+    r.h = desiredRect.height;
+    r.sourceWindow = sourceWindow;
+    r.tracksSourceWindowBounds = false;
+    r.resolveScreenNoClip();
+    return r;
+  }
+
+  /**
+   * #444: attach {@link #sourceWindow} to an EXISTING Region (typically a
+   * {@link Match} built by a Finder) when the target's current bounds fit
+   * inside the window. Companion to {@link #deriveWithinWindow(Rectangle)}
+   * — same contains-check contract, but mutates in place instead of
+   * building a new Region. {@code tracks} is always set to {@code false}
+   * on the target (a Match is a ROI, never the window itself).
+   *
+   * <p>No-op when: this Region has no sourceWindow, the target already
+   * has a sourceWindow (never silently overwrite), the window's bounds
+   * are unavailable, or the target's rect escapes the window.
+   *
+   * @param target the Region to enrich (must not be null)
+   */
+  private void attachSourceWindowIfContained(Region target) {
+    if (this.sourceWindow == null || target.sourceWindow != null) {
+      return;
+    }
+    Rectangle wb = this.sourceWindow.getBounds();
+    if (wb == null || !wb.contains(target.getRect())) {
+      return;
+    }
+    target.sourceWindow = this.sourceWindow;
+    target.tracksSourceWindowBounds = false;
+  }
+
+  /**
+   * re-read the bounds of this region's screen after a monitor or resolution change<br>
+   * desktop screens only, not VNC or Android
+   */
   public void resetScreen() {
     Screen scr = (Screen) getScreen();
     scr.reset();
@@ -768,6 +1110,13 @@ public class Region extends Element {
     h = r.h;
     scr = r.getScreen();
     otherScreen = r.isOtherScreen();
+    // #444: copy Region -> Region is the ONE mechanism that propagates both
+    // sourceWindow AND tracksSourceWindowBounds verbatim. Every OTHER path
+    // that carries provenance (the derivation funnel) forces tracks=false.
+    // A copy of the whole-window Region stays whole-window; a copy of a ROI
+    // stays a ROI — the copy is faithful, not a derivation.
+    sourceWindow = r.sourceWindow;
+    tracksSourceWindowBounds = r.tracksSourceWindowBounds;
     rows = 0;
     autoWaitTimeout = r.autoWaitTimeout;
     findFailedResponse = r.findFailedResponse;
@@ -932,11 +1281,65 @@ public class Region extends Element {
    * @return then new region
    */
   public static Region create(Region r) {
-    Region reg = Region.create(r.x, r.y, r.w, r.h, r.getScreen());
+    Region reg;
+    if (r.sourceWindow != null) {
+      // #444: window-backed parent — go direct, without Region.create(x,y,w,h,scr)
+      // which routes through initScreen(scr) and would clip a straddling
+      // rectangle before we get a chance to copy sourceWindow. The bounds are
+      // preserved as-is; scr is inherited from the parent (no re-resolve
+      // needed for a faithful copy). Same rule as init(Region r): both
+      // sourceWindow AND tracksSourceWindowBounds are propagated verbatim.
+      reg = new Region();
+      reg.x = r.x;
+      reg.y = r.y;
+      reg.w = r.w;
+      reg.h = r.h;
+      reg.scr = r.getScreen();
+      reg.sourceWindow = r.sourceWindow;
+      reg.tracksSourceWindowBounds = r.tracksSourceWindowBounds;
+    } else {
+      reg = Region.create(r.x, r.y, r.w, r.h, r.getScreen());
+    }
     reg.autoWaitTimeout = r.autoWaitTimeout;
     reg.findFailedResponse = r.findFailedResponse;
     reg.throwException = r.throwException;
     return reg;
+  }
+
+  /**
+   * #444: build a window-backed Region from an {@link OsWindow}. Bounds are
+   * the raw {@code window.getBounds()} — no clipping, no biggest-intersection
+   * rewrite. This is the ONLY path that asserts the "I am the whole window"
+   * identity by setting {@link #tracksSourceWindowBounds} to true.
+   *
+   * <p>Deliberately does NOT set the Region's name from the window title:
+   * historical callers have inconsistent behaviour ({@code App.window(int)}
+   * and {@code App.getWindows()} name the Region with the title,
+   * {@code App.focusedWindow()} does not). Preserving that requires the
+   * caller to opt in with {@code r.setName(window.getTitle())}.
+   *
+   * <p>Returns {@code null} if the window is null or reports null bounds.
+   *
+   * @param window the OS-level window; must not be null
+   * @return a Region tied to {@code window}, tracks=true, or null on error
+   */
+  public static Region forWindow(OsWindow window) {
+    if (window == null) {
+      return null;
+    }
+    Rectangle wb = window.getBounds();
+    if (wb == null) {
+      return null;
+    }
+    Region r = new Region();
+    r.x = wb.x;
+    r.y = wb.y;
+    r.w = wb.width;
+    r.h = wb.height;
+    r.sourceWindow = window;
+    r.tracksSourceWindowBounds = true;
+    r.resolveScreenNoClip();
+    return r;
   }
 
   /**
@@ -1032,6 +1435,12 @@ public class Region extends Element {
   protected Match toGlobalCoord(Match m) {
     m.x += x;
     m.y += y;
+    // #444: a Match found inside a window-backed Region lives in the same
+    // window's coordinate space — hand down the sourceWindow so highlight()
+    // and captureSelf on the Match take the native route. tracks stays false
+    // (a Match is a ROI). No-op when this Region has no sourceWindow, or
+    // when the match rect somehow escapes the window (defensive: refuse).
+    attachSourceWindowIfContained(m);
     return m;
   }
   //</editor-fold>
@@ -1118,6 +1527,7 @@ public class Region extends Element {
     Location c = getCenter();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1156,6 +1566,7 @@ public class Region extends Element {
     Location c = getTopRight();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1177,6 +1588,7 @@ public class Region extends Element {
     Location c = getBottomLeft();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1198,6 +1610,7 @@ public class Region extends Element {
     Location c = getBottomRight();
     x = x - c.x + loc.x;
     y = y - c.y + loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1213,6 +1626,7 @@ public class Region extends Element {
   public Region setSize(int W, int H) {
     w = W > 1 ? W : 1;
     h = H > 1 ? H : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1248,6 +1662,7 @@ public class Region extends Element {
     y = Y;
     w = W > 1 ? W : 1;
     h = H > 1 ? H : 1;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1360,6 +1775,7 @@ public class Region extends Element {
   public Region setLocation(Location loc) {
     x = loc.x;
     y = loc.y;
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1396,6 +1812,7 @@ public class Region extends Element {
     if (h < 1) {
       h = 1;
     }
+    markAsDerivedWindowRegion();
     initScreen(null);
     return this;
   }
@@ -1430,6 +1847,14 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="050 save capture to file">
+  /**
+   * capture an area of this region's screen (not the region itself) and save it as PNG<br>
+   * area: nothing or a prompt String (interactive selection), empty String (whole screen), Region, Rectangle, or x, y, w, h<br>
+   * then optional: name (saved in the bundle path) or path, name; without name: temp folder
+   *
+   * @param args area, [path,] [name] as above
+   * @return the absolute path of the saved file
+   */
   public String saveCapture(Object... args) {
     return ((Screen) getScreen()).cmdCapture(args).getStoredAt();
   }
@@ -1479,6 +1904,10 @@ public class Region extends Element {
     return getScreen().getLastScreenImageFromScreen().getFile(path, name);
   }
 
+  /**
+   * store the last image taken on this region's screen as LastScreenImage.png in the OculiX app data folder<br>
+   * does nothing if no capture was made yet
+   */
   public void saveLastScreenImage() {
     ScreenImage simg = getScreen().getLastScreenImageFromScreen();
     if (simg != null) {
@@ -1516,6 +1945,10 @@ public class Region extends Element {
    */
   public Region offset(Object whatever) {
     Offset offset = new Offset(whatever);
+    // #444: attempt window-backed derivation; fall back to the exact legacy
+    // path on refusal (rect outside the window, or no sourceWindow).
+    Region derived = deriveWithinWindow(new Rectangle(x + offset.x, y + offset.y, w, h));
+    if (derived != null) return derived;
     return Region.create(x + offset.x, y + offset.y, w, h, getScreen());
   }
 
@@ -1527,6 +1960,8 @@ public class Region extends Element {
    * @return the new region
    */
   public Region offset(int x, int y) {
+    Region derived = deriveWithinWindow(new Rectangle(this.x + x, this.y + y, w, h));
+    if (derived != null) return derived;
     return Region.create(this.x + x, this.y + y, w, h, getScreen());
   }
 
@@ -1582,6 +2017,8 @@ public class Region extends Element {
   public Region grow(int w, int h) {
     Rectangle r = getRect();
     r.grow(w, h);
+    Region derived = deriveWithinWindow(r);
+    if (derived != null) return derived;
     return Region.create(r.x, r.y, r.width, r.height, getScreen());
   }
 
@@ -1596,6 +2033,8 @@ public class Region extends Element {
    * @return the new region
    */
   public Region grow(int l, int r, int t, int b) {
+    Region derived = deriveWithinWindow(new Rectangle(x - l, y - t, w + l + r, h + t + b));
+    if (derived != null) return derived;
     return Region.create(x - l, y - t, w + l + r, h + t + b, getScreen());
   }
 
@@ -1644,6 +2083,11 @@ public class Region extends Element {
     } else {
       _x = x + w;
     }
+    // #444: negative width keeps the new region INSIDE the parent — funnel
+    // may accept. Positive width extends OUTSIDE — funnel refuses, legacy
+    // takes over. Either way, the fallback is unchanged.
+    Region derived = deriveWithinWindow(new Rectangle(_x, y, Math.abs(width), h));
+    if (derived != null) return derived;
     return Region.create(_x, y, Math.abs(width), h, getScreen());
   }
 
@@ -1689,6 +2133,13 @@ public class Region extends Element {
     } else {
       _x = x - width;
     }
+    // #444: try the funnel on the RAW rect (pre-intersection) — if the parent
+    // is window-backed and the sub-rect stays inside the window, we get a
+    // window-backed derivation without the screen-intersection dance. On
+    // refusal, keep the exact legacy behaviour (intersect with the screen
+    // bounds first, then Region.create with getScreen).
+    Region derived = deriveWithinWindow(new Rectangle(_x, y, Math.abs(width), h));
+    if (derived != null) return derived;
     return Region.create(getScreen().getBounds().intersection(new Rectangle(_x, y, Math.abs(width), h)), getScreen());
   }
 
@@ -1734,6 +2185,10 @@ public class Region extends Element {
     } else {
       _y = y - height;
     }
+    // #444: same rule as left() — funnel on the raw rect; fall back to the
+    // exact legacy screen-intersection path.
+    Region derived = deriveWithinWindow(new Rectangle(x, _y, w, Math.abs(height)));
+    if (derived != null) return derived;
     return Region.create(getScreen().getBounds().intersection(new Rectangle(x, _y, w, Math.abs(height))), getScreen());
   }
 
@@ -1779,6 +2234,10 @@ public class Region extends Element {
     } else {
       _y = y + h;
     }
+    // #444: negative height stays inside — funnel may accept; positive height
+    // extends outside — funnel refuses, legacy takes over.
+    Region derived = deriveWithinWindow(new Rectangle(x, _y, w, Math.abs(height)));
+    if (derived != null) return derived;
     return Region.create(x, _y, w, Math.abs(height), getScreen());
   }
 
@@ -1790,6 +2249,16 @@ public class Region extends Element {
    */
   public Region union(Region ur) {
     Rectangle r = getRect().union(ur.getRect());
+    // #444: two-parent guard on top of the funnel's contains check. Inherit
+    // the window-backed path ONLY if the OTHER parent is not window-bound OR
+    // is bound on the same window. Two parents bound to different HWNDs
+    // would produce a Region that silently claims one of them — dangerous.
+    boolean otherOK = ur.sourceWindow == null
+        || Objects.equals(ur.sourceWindow, this.sourceWindow);
+    if (otherOK) {
+      Region derived = deriveWithinWindow(r);
+      if (derived != null) return derived;
+    }
     return Region.create(r.x, r.y, r.width, r.height, getScreen());
   }
 
@@ -1801,10 +2270,29 @@ public class Region extends Element {
    */
   public Region intersection(Region ir) {
     Rectangle r = getRect().intersection(ir.getRect());
+    // #444: same two-parent guard as union().
+    boolean otherOK = ir.sourceWindow == null
+        || Objects.equals(ir.sourceWindow, this.sourceWindow);
+    if (otherOK) {
+      Region derived = deriveWithinWindow(r);
+      if (derived != null) return derived;
+    }
     return Region.create(r.x, r.y, r.width, r.height, getScreen());
   }
 
+  /**
+   * create a region at (x + inset.x, y + inset.y) with the size of inset<br>
+   * not checked to stay inside this region
+   *
+   * @param inset position relative to this region's top-left corner, and size
+   * @return the new Region
+   */
   public Region getInset(Region inset) {
+    // #444: funnel takes the derived rect; on refusal, keep the exact legacy
+    // path — new Region(int,int,int,int) without an explicit Screen — which
+    // resolves via initScreen(null) inside the ctor.
+    Region derived = deriveWithinWindow(new Rectangle(x + inset.x, y + inset.y, inset.w, inset.h));
+    if (derived != null) return derived;
     return new Region(x + inset.x, y + inset.y, inset.w, inset.h);
   }
 
@@ -1897,8 +2385,17 @@ public class Region extends Element {
   private int rowHd = 0;
   private int colWd = 0;
 
+  /**
+   * get a part of this region selected by one of the constants NORTH, SOUTH_EAST, MIDDLE, MID_VERTICAL, ...
+   *
+   * @param part one of the constants (200 to 999)
+   * @return the new Region, or this region for any other value
+   */
   public Region get(int part) {
-    return Region.create(getRectangle(getRect(), part));
+    Rectangle rect = getRectangle(getRect(), part);
+    Region derived = deriveWithinWindow(rect);
+    if (derived != null) return derived;
+    return Region.create(rect);
   }
 
   protected static Rectangle getRectangle(Rectangle rect, int part) {
@@ -2057,9 +2554,19 @@ public class Region extends Element {
     }
     r = Math.max(0, r);
     r = Math.min(r, rows - 1);
+    Region derived = deriveWithinWindow(new Rectangle(x, y + r * rowH, w, rowH));
+    if (derived != null) return derived;
     return Region.create(x, y + r * rowH, w, rowH);
   }
 
+  /**
+   * divide this region into n rows and get row r, without changing this region's raster<br>
+   * negative counts reverse from the end (last is -1), values outside range are 0 or last
+   *
+   * @param r row number counting from 0
+   * @param n number of rows
+   * @return the row as new region
+   */
   public Region getRow(int r, int n) {
     Region reg = new Region(this);
     reg.setRows(n);
@@ -2083,6 +2590,8 @@ public class Region extends Element {
     }
     c = Math.max(0, c);
     c = Math.min(c, cols - 1);
+    Region derived = deriveWithinWindow(new Rectangle(x + c * colW, y, colW, h));
+    if (derived != null) return derived;
     return Region.create(x + c * colW, y, colW, h);
   }
 
@@ -2127,6 +2636,8 @@ public class Region extends Element {
     r = Math.min(r, rows - 1);
     c = Math.max(0, c);
     c = Math.min(c, cols - 1);
+    Region derived = deriveWithinWindow(new Rectangle(x + c * colW, y + r * rowH, colW, rowH));
+    if (derived != null) return derived;
     return Region.create(x + c * colW, y + r * rowH, colW, rowH);
   }
 //</editor-fold>
@@ -2294,8 +2805,84 @@ public class Region extends Element {
     if (regionHighlight != null) {
       highlightClose();
     }
+    // #444: when this Region is attached to an OS window, draw a single
+    // continuous frame in the physical coordinate space. Route by
+    // tracksSourceWindowBounds:
+    //   tracks == true  -> frame the whole HWND via highlightNative — the
+    //                      original spanning highlight for the whole window
+    //   tracks == false -> frame the ROI via highlightRegionNative — same
+    //                      WS_EX_LAYERED mechanism but positioned on the
+    //                      sub-rect (logical->physical conversion done in
+    //                      the Windows backend, symmetric with captureNative)
+    // Either way, the user-facing call is unchanged (always highlight());
+    // the routing is internal. Falls through to the Swing Highlight below
+    // when there is no source window, or the native overlay declines
+    // (non-Windows / not drawable).
+    // #444: native routing is TIMED only. Persistent highlight (secs <= 0,
+    // used by highlight()/highlightOn()) needs a long-lived overlay window
+    // outliving this method call; the current WS_EX_LAYERED implementation
+    // destroys the overlay in its finally block right after the timed
+    // Thread.sleep, so a persistent call would flash and vanish. The Swing
+    // Highlight below already handles persistent mode via Highlight.doShow(-1)
+    // — keep that path for the toggle API (highlight/highlightOff). Timed
+    // highlight (secs > 0, the #444/Uwe case) keeps the native mixed-DPI
+    // spanning route.
+    if (sourceWindow != null && secs > 0) {
+      // Revalidate ROI containment at native use. The window is a live OS
+      // object; between construction/mutation and this highlight call, the
+      // user may have moved the actual window. If the ROI now escapes the
+      // window bounds, highlightRegionNative would draw an overlay at the
+      // wrong physical position (logicalToPhysical uses MonitorFromWindow
+      // for the HWND, not for the ROI). Detach and fall through to Swing.
+      // Whole-window (tracks=true) is exempt: highlightNative frames the
+      // whole HWND regardless of the Region's stored bounds.
+      Rectangle wb = sourceWindow.getBounds();
+      boolean canUseNative = tracksSourceWindowBounds
+          ? wb != null
+          : wb != null && wb.contains(new Rectangle(x, y, w, h));
+      if (!canUseNative) {
+        setSourceWindow(null);
+      } else {
+        int argb = highlightColorToArgb(color);
+        boolean drawn = tracksSourceWindowBounds
+            ? sourceWindow.highlightNative(argb, secs)
+            : sourceWindow.highlightRegionNative(new Rectangle(x, y, w, h), argb, secs);
+        if (drawn) {
+          return this;
+        }
+      }
+    }
+    // Classic Swing overlay — kept live: it serves every non-window Region
+    // (raw find() matches, coordinate regions) and is the fallback above.
     regionHighlight = new Highlight(this, color).doShow(secs);
     return this;
+  }
+
+  // #444: resolve a highlight colour spec to 0xRRGGBB for the native spanning
+  // overlay. Mirrors the common cases of Highlight.evalColor (null → red,
+  // #hex, #rrrgggbbb, named java.awt.Color) without pulling in the Swing class.
+  private static int highlightColorToArgb(String color) {
+    if (color == null || color.isEmpty()) {
+      color = Settings.DefaultHighlightColor;
+    }
+    if (color == null || color.isEmpty()) {
+      return 0xFF0000;
+    }
+    try {
+      if (color.startsWith("#")) {
+        if (color.length() == 10) { // #rrrgggbbb (9 decimal digits)
+          int r = Integer.parseInt(color.substring(1, 4));
+          int g = Integer.parseInt(color.substring(4, 7));
+          int b = Integer.parseInt(color.substring(7, 10));
+          return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
+        }
+        return java.awt.Color.decode(color).getRGB() & 0xFFFFFF;
+      }
+      java.lang.reflect.Field f = java.awt.Color.class.getField(color.toUpperCase());
+      return ((java.awt.Color) f.get(null)).getRGB() & 0xFFFFFF;
+    } catch (Exception e) {
+      return 0xFF0000;
+    }
   }
   //</editor-fold>
 
@@ -2457,7 +3044,6 @@ public class Region extends Element {
   }
 
   private <PSI> RepeatableFind existsStoppableInit(PSI target) {
-    lastMatch = null;
     RepeatableFind rf = doExistsInit(target);
     rf.resetShouldStop();
     return rf;
@@ -2483,23 +3069,42 @@ public class Region extends Element {
   }
 
   private Match doExists(RepeatableFind rf, double timeout) {
+    return doExists(rf, timeout, false);
+  }
+
+  /**
+   * The search behind exists() and behind every thread of waitAnyList. The match found is kept
+   * in a local until it is returned: a thread never reads it back from a field another thread
+   * can overwrite (#485). Called alone, the match goes to lastMatch; called concurrently, it is
+   * added to lastMatchList and lastMatch is left to the caller that owns the whole search.
+   *
+   * @param rf         the prepared repeatable find
+   * @param timeout    seconds to wait, 0 for one search
+   * @param concurrent true when called from a waitAnyList thread
+   * @return the match, null if not found
+   */
+  private Match doExists(RepeatableFind rf, double timeout, boolean concurrent) {
     Image img = rf._image;
     String targetStr = img.getName();
     if (!(timeout > 0)) {
       log(logLevel, "exists: waiting %.1f secs for %s to appear in %s", timeout, targetStr, this.toStringShort());
     }
     if (rf.repeat(timeout)) {
-      lastMatch = rf.getMatch();
-      //lastMatch.setImage(img);
+      Match found = rf.getMatch();
       if (isOtherScreen()) {
-        lastMatch.setOtherScreen();
+        found.setOtherScreen();
       } else if (img != null) {
-        img.setLastSeen(lastMatch.getRect(), lastMatch.getScore());
+        img.setLastSeen(found.getRect(), found.getScore());
+      }
+      if (concurrent) {
+        lastMatchList.add(found);
+      } else {
+        lastMatch = found;
       }
       if (!(timeout > 0)) {
-        log(logLevel, "exists: %s has appeared (%s)", targetStr, lastMatch);
+        log(logLevel, "exists: %s has appeared (%s)", targetStr, found);
       }
-      return lastMatch;
+      return found;
     }
     if (!(timeout > 0)) {
       log(logLevel, "exists: %s did not appear [%d msec]", targetStr, new Date().getTime() - lastFindTime);
@@ -2553,7 +3158,10 @@ public class Region extends Element {
   }
 
   /**
-   * waits until target vanishes or timeout (in seconds) is passed
+   * waits until target vanishes or timeout (in seconds) is passed.
+   * <p>Each turn is a fresh exists: the lastSeen area first, the whole region only
+   * when the target is not there, so a target that stays costs a few ms per turn,
+   * and a target that moved inside the region is not reported as vanished.</p>
    *
    * @param <PSI>   Pattern, String or Image
    * @param target  Pattern, String or Image
@@ -2570,14 +3178,42 @@ public class Region extends Element {
     }
     if (null != response && response) {
       log(logLevel, "waiting for " + targetStr + " to vanish within %.1f secs", timeout);
-      if (rv.repeat(timeout)) {
-        log(logLevel, "%s vanished", targetStr);
-        return true;
+      long end = new Date().getTime() + (long) (timeout * 1000);
+      long scan = (long) (1000.0 / waitScanRate);
+      while (true) {
+        if (existsSilently(target) == null) {
+          log(logLevel, "%s vanished", targetStr);
+          return true;
+        }
+        long left = end - new Date().getTime();
+        if (left <= 0) {
+          break;
+        }
+        try {
+          Thread.sleep(Math.min(scan, left));
+        } catch (InterruptedException e) {
+          return false;
+        }
       }
       log(logLevel, "%s did not vanish before timeout", targetStr);
       return false;
     }
     return false;
+  }
+
+  // exists(target, 0) without its log lines and without touching lastMatch.
+  private <PSI> Match existsSilently(PSI target) {
+    RepeatableFind rf = doExistsInit(target);
+    if (!rf.repeat(0)) {
+      return null;
+    }
+    Match match = rf.getMatch();
+    if (isOtherScreen()) {
+      match.setOtherScreen();
+    } else if (rf._image != null) {
+      rf._image.setLastSeen(match.getRect(), match.getScore());
+    }
+    return match;
   }
 
   /**
@@ -2635,10 +3271,24 @@ public class Region extends Element {
     return lastMatches;
   }
 
+  /**
+   * same as {@link #findAllList(Object)}
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the matches as a List (empty if none)
+   */
   public <PSI> List<Match> getAll(PSI target) {
     return findAllList(target);
   }
 
+  /**
+   * the smallest region containing all matches of the target
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the union of the matches, or this region if less than 2 matches
+   */
   public <PSI> Region unionAll(PSI target) {
     List<Match> matches = getAll(target);
     if (matches.size() < 2) {
@@ -2655,6 +3305,13 @@ public class Region extends Element {
     return theUnion;
   }
 
+  /**
+   * {@link #findAll(Object)} as a List, without FindFailed
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the matches by decreasing score (empty if none or if the find failed)
+   */
   public <PSI> List<Match> findAllList(PSI target) {
     List<Match> matches = new ArrayList<>();
     try {
@@ -2664,6 +3321,13 @@ public class Region extends Element {
     return matches;
   }
 
+  /**
+   * all matches of the target, sorted row by row from top to bottom and left to right within a row
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the sorted matches, or null if none
+   */
   public <PSI> List<Match> findAllByRow(PSI target) {
     List<Match> mList = getAll(target);
     if (mList.isEmpty()) {
@@ -2691,6 +3355,13 @@ public class Region extends Element {
     return mList;
   }
 
+  /**
+   * all matches of the target, sorted column by column from left to right and top to bottom within a column
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the sorted matches, or null if none
+   */
   public <PSI> List<Match> findAllByColumn(PSI target) {
     Match[] matches = new Match[0];
     List<Match> mList = getAll(target);
@@ -2719,6 +3390,13 @@ public class Region extends Element {
     return mList;
   }
 
+  /**
+   * search all targets at once in one capture and return the match with the highest score<br>
+   * the match's index is the position of its target in the arguments
+   *
+   * @param args Pattern, String or Image, as many as needed
+   * @return the best match, or null if none found or no arguments
+   */
   public Match findBest(Object... args) {
     if (args.length == 0) {
       return null;
@@ -2728,6 +3406,14 @@ public class Region extends Element {
     return findBestList(pList);
   }
 
+  /**
+   * like {@link #findBest(Object...)}, but each target is waited for up to the given time<br>
+   * the search stops as soon as the first target is found or has timed out
+   *
+   * @param time seconds
+   * @param args Pattern, String or Image, as many as needed
+   * @return the best match, or null if none found or no arguments
+   */
   public Match waitBest(double time, Object... args) {
     if (args.length == 0) {
       return null;
@@ -2737,11 +3423,24 @@ public class Region extends Element {
     return waitBestList(time, pList);
   }
 
+  /**
+   * {@link #findBest(Object...)} with the targets given as a List
+   *
+   * @param pList Pattern, String or Image
+   * @return the best match, or null if none found or the list is empty
+   */
   public Match findBestList(List<Object> pList) {
     Debug.log(logLevel, "findBest: enter");
     return findBestListDo(0, pList);
   }
 
+  /**
+   * {@link #waitBest(double, Object...)} with the targets given as a List
+   *
+   * @param time seconds
+   * @param pList Pattern, String or Image
+   * @return the best match, or null if none found or the list is empty
+   */
   public Match waitBestList(double time, List<Object> pList) {
     Debug.log(logLevel, "waitBest: enter");
     return findBestListDo(time, pList);
@@ -2770,6 +3469,13 @@ public class Region extends Element {
     }
   }
 
+  /**
+   * search all targets at once in one capture, each in its own thread<br>
+   * each match's index is the position of its target in the arguments
+   *
+   * @param args Pattern, String or Image, as many as needed
+   * @return the matches of the targets that were found (empty if none)
+   */
   public List<Match> findAny(Object... args) {
     Debug.log(logLevel, "findAny: enter");
     if (args.length == 0) {
@@ -2780,6 +3486,14 @@ public class Region extends Element {
     return findAnyList(pList);
   }
 
+  /**
+   * like {@link #findAny(Object...)}, but each target is waited for up to the given time<br>
+   * the search stops as soon as the first target is found or has timed out
+   *
+   * @param time seconds
+   * @param args Pattern, String or Image, as many as needed
+   * @return the matches found so far (empty if none)
+   */
   public List<Match> waitAny(double time, Object... args) {
     if (args.length == 0) {
       return new ArrayList<Match>();
@@ -2789,11 +3503,24 @@ public class Region extends Element {
     return waitAnyList(time, pList);
   }
 
+  /**
+   * {@link #findAny(Object...)} with the targets given as a List
+   *
+   * @param pList Pattern, String or Image
+   * @return the matches of the targets that were found (empty if none)
+   */
   public List<Match> findAnyList(List<Object> pList) {
     Debug.log(logLevel, "findAny: enter");
     return findAnyListDo(0, pList);
   }
 
+  /**
+   * {@link #waitAny(double, Object...)} with the targets given as a List
+   *
+   * @param time seconds
+   * @param pList Pattern, String or Image
+   * @return the matches found so far (empty if none)
+   */
   public List<Match> waitAnyList(double time, List<Object> pList) {
     Debug.log(logLevel, "waitAny: enter");
     return findAnyListDo(time, pList);
@@ -2807,6 +3534,12 @@ public class Region extends Element {
     return mList;
   }
 
+  /**
+   * the smallest region containing the matches of all targets found by {@link #findAny(Object...)}
+   *
+   * @param targets Pattern, String or Image, at least 2
+   * @return the union of the matches, or this region if less than 2 targets or none found
+   */
   public Region unionAny(Object... targets) {
     if (targets.length < 2) {
       return this;
@@ -2816,6 +3549,12 @@ public class Region extends Element {
     return unionAnyList(pList);
   }
 
+  /**
+   * {@link #unionAny(Object...)} with the targets given as a List
+   *
+   * @param targets Pattern, String or Image, at least 2
+   * @return the union of the matches, or this region if less than 2 targets or none found
+   */
   public Region unionAnyList(List<Object> targets) {
     if (targets.size() < 2) {
       return this;
@@ -2841,26 +3580,70 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="021 find text public methods">
+  /**
+   * wait for the text to appear in this region (OCR), like {@link #wait(Object, double)} for an image
+   *
+   * @param text the text to look for
+   * @param timeout seconds
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitText(String text, double timeout) throws FindFailed {
     return relocate(wait("\t" + text + "\t", timeout));
   }
 
+  /**
+   * wait for the text to appear in this region (OCR) with the autoWaitTimeout
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitText(String text) throws FindFailed {
     return waitText(text, autoWaitTimeout);
   }
 
+  /**
+   * same as {@link #waitText(String, double)}
+   *
+   * @param text the text to look for
+   * @param timeout seconds
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitT(String text, double timeout) throws FindFailed {
     return waitText(text, timeout);
   }
 
+  /**
+   * same as {@link #waitText(String)}
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitT(String text) throws FindFailed {
     return waitT(text, autoWaitTimeout);
   }
 
+  /**
+   * find the text in this region (OCR) with one search, like {@link #find(Object)} for an image
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found
+   */
   public Match findText(String text) throws FindFailed {
     return waitText(text, 0);
   }
 
+  /**
+   * check if the text appears in this region (OCR) within the given time, like {@link #exists(Object, double)}
+   *
+   * @param text the text to look for
+   * @param timeout seconds
+   * @return the match, or null if not found (no FindFailed)
+   */
   public Match existsText(String text, double timeout) {
     Match match = null;
     try {
@@ -2870,14 +3653,32 @@ public class Region extends Element {
     return match;
   }
 
+  /**
+   * check if the text appears in this region (OCR) within the autoWaitTimeout
+   *
+   * @param text the text to look for
+   * @return the match, or null if not found (no FindFailed)
+   */
   public Match existsText(String text) {
     return existsText(text, autoWaitTimeout);
   }
 
+  /**
+   * check with one search if the text is in this region (OCR)
+   *
+   * @param text the text to look for
+   * @return true if found
+   */
   public boolean hasText(String text) {
     return null != existsText(text, 0);
   }
 
+  /**
+   * find all occurrences of the text in this region (OCR)
+   *
+   * @param text the text to look for
+   * @return the matches (empty if none, no FindFailed)
+   */
   public List<Match> findAllText(String text) {
     List<Match> matches = new ArrayList<>();
     try {
@@ -2892,6 +3693,9 @@ public class Region extends Element {
       match.x += this.x;
       match.y += this.y;
       match.setScreen(this.getScreen());
+      // #444: see toGlobalCoord — hand down sourceWindow to matches from
+      // text finds and observers, contained check applied per-match.
+      attachSourceWindowIfContained(match);
     }
     return matches;
   }
@@ -2900,6 +3704,8 @@ public class Region extends Element {
     match.x += this.x;
     match.y += this.y;
     match.setScreen(this.getScreen());
+    // #444: see toGlobalCoord.
+    attachSourceWindowIfContained(match);
     return match;
   }
   //</editor-fold>
@@ -2910,6 +3716,21 @@ public class Region extends Element {
    * Match doFind( Pattern/String/Image ) finds the given pattern on the screen and returns the best match without
    * waiting.
    */
+  /**
+   * Hands the stop flag of a repeated search to its Finder, so that a thread of waitAnyList told
+   * to stop leaves the cascade at the next mode instead of running it to the end.
+   *
+   * @param finder    the Finder about to search
+   * @param repeating the repeat loop owning the search, null for a one-shot find
+   * @return the same Finder
+   */
+  private Finder stoppable(Finder finder, RepeatableFind repeating) {
+    if (finder != null && repeating != null) {
+      finder.setStopFlag(repeating.shouldStop::get);
+    }
+    return finder;
+  }
+
   private <PSI> Match doFind(PSI ptn, Image img, RepeatableFind repeating) {
     Finder finder = null;
     Match match = null;
@@ -2925,9 +3746,12 @@ public class Region extends Element {
     }
     if (repeating != null && repeating._finder != null) {
       finder = repeating._finder;
-      simg = getScreen().capture(this);
+      // v5 (#444): captureSelf() routes through PrintWindow when applicable.
+      // Old line: simg = getScreen().capture(this);
+      simg = captureSelf(this);
       finder.setScreenImage(simg);
       finder.setRepeating();
+      finder.setStopFlag(repeating.shouldStop::get);
       if (Settings.FindProfiling) {
         Debug.logp("[FindProfiling] Region.doFind repeat: %d msec",
             new Date().getTime() - lastSearchTimeRepeat);
@@ -2944,7 +3768,7 @@ public class Region extends Element {
         } else {
           if (img.isValid()) {
             lastSearchTime = (new Date()).getTime();
-            finder = checkLastSeenAndCreateFinder(img, findTimeout, null);
+            finder = stoppable(checkLastSeenAndCreateFinder(img, findTimeout, null), repeating);
             if (!finder.hasNext()) {
               runFinder(finder, img);
             }
@@ -2982,7 +3806,7 @@ public class Region extends Element {
       } else if (ptn instanceof Pattern) {
         if (img.isValid()) {
           lastSearchTime = (new Date()).getTime();
-          finder = checkLastSeenAndCreateFinder(img, findTimeout, (Pattern) ptn);
+          finder = stoppable(checkLastSeenAndCreateFinder(img, findTimeout, (Pattern) ptn), repeating);
           if (!finder.hasNext()) {
             runFinder(finder, ptn);
           }
@@ -2990,7 +3814,7 @@ public class Region extends Element {
       } else if (ptn instanceof Image || ptn instanceof ScreenImage) {
         if (img.isValid()) {
           lastSearchTime = (new Date()).getTime();
-          finder = checkLastSeenAndCreateFinder(img, findTimeout, null);
+          finder = stoppable(checkLastSeenAndCreateFinder(img, findTimeout, null), repeating);
           if (!finder.hasNext()) {
             runFinder(finder, img);
           }
@@ -3050,21 +3874,29 @@ public class Region extends Element {
     return doCheckLastSeenAndCreateFinder(null, img, findTimeout, ptn);
   }
 
+  /**
+   * Similarity to use for a search around the last known position of {@code img},
+   * or {@code null} when the full search must run: no position known, or the
+   * similarity the caller asks for (the Pattern's, {@link Settings#MinSimilarity}
+   * for a plain image) is stricter than the last score minus 0.01.
+   */
+  static Double lastSeenScoreFor(Image img, Pattern ptn) {
+    if (!Settings.CheckLastSeen || img == null || img.getLastSeen() == null) {
+      return null;
+    }
+    double score = img.getLastSeenScore() - 0.01;
+    double wanted = ptn != null ? ptn.getSimilar() : Settings.MinSimilarity;
+    return wanted > score ? null : score;
+  }
+
   private Finder doCheckLastSeenAndCreateFinder(ScreenImage base, Image img, double findTimeout, Pattern ptn) {
     // #353: the position is known (PNG -> lastSeen at load). Do NOT capture the full
     // screen to locate it — capture ONLY the small ROI around it (the PoC's approach,
     // source of the ~x6.5 win; wait() inherits it on every poll). The full-screen
     // capture is deferred to the fallback path (no chunk / moved / not-found).
-    boolean shouldCheckLastSeen = false;
-    double score = 0;
-    if (Settings.CheckLastSeen && null != img.getLastSeen()) {
-      score = img.getLastSeenScore() - 0.01;
-      if (ptn != null) {
-        if (!(ptn.getSimilar() > score)) {
-          shouldCheckLastSeen = true;
-        }
-      }
-    }
+    Double lastSeenScore = lastSeenScoreFor(img, ptn);
+    boolean shouldCheckLastSeen = lastSeenScore != null;
+    double score = shouldCheckLastSeen ? lastSeenScore : 0;
     if (shouldCheckLastSeen) {
       Region r = Region.create(img.getLastSeen());
       // #353: expand the known position x2.5 around its center (clamped to this
@@ -3108,7 +3940,9 @@ public class Region extends Element {
           log(logLevel, "checkLastSeen: skipping (scaled cache %dx%d cannot expand to fit template %dx%d in region)",
               r.w, r.h, imgSize.width, imgSize.height);
           if (base == null) {
-            base = getScreen().capture(this);
+            // v5 (#444): captureSelf routes through PrintWindow when applicable.
+            // Old line: base = getScreen().capture(this);
+            base = captureSelf(this);
           }
           return new Finder(base, this);
         }
@@ -3116,8 +3950,11 @@ public class Region extends Element {
       if (this.contains(r)) {
         // #353: capture ONLY the ROI when no base was provided (single-find path) —
         // ~ROI capture + match, no full-screen BitBlt. Multi-find passes a base.
+        // v5 (#444): captureSelf handles the ROI crop natively when a source
+        // window is attached (crops the full-window bitmap to the ROI).
+        // Old line: getScreen().capture(r.x, r.y, r.w, r.h)
         ScreenImage roiShot = (base != null) ? base.getSub(r.getRect())
-                                             : getScreen().capture(r.x, r.y, r.w, r.h);
+                                             : captureSelf(r.x, r.y, r.w, r.h);
         Finder f = new Finder(roiShot, r);
         if (Debug.shouldHighlight()) {
           if (getScreen().getW() > w + 10 && getScreen().getH() > h + 10) {
@@ -3139,7 +3976,9 @@ public class Region extends Element {
     }
     // #353: fallback full-screen search — capture now if we deferred it above.
     if (base == null) {
-      base = getScreen().capture(this);
+      // v5 (#444): captureSelf routes through PrintWindow when applicable.
+      // Old line: base = getScreen().capture(this);
+      base = captureSelf(this);
     }
     return new Finder(base, this);
   }
@@ -3154,7 +3993,9 @@ public class Region extends Element {
     String someText = "";
     if (repeating != null && repeating._finder != null) {
       finder = repeating._finder;
-      finder.setScreenImage(getScreen().capture(x, y, w, h));
+      // v5 (#444): captureSelf routes through PrintWindow when applicable.
+      // Old line: finder.setScreenImage(getScreen().capture(x, y, w, h));
+      finder.setScreenImage(captureSelf(x, y, w, h));
       finder.setRepeating();
       finder.findAllRepeat();
     } else {
@@ -3166,8 +4007,22 @@ public class Region extends Element {
         } else {
           img = repeating._image;//Image.create((String) ptn);
           if (img.isValid()) {
-            finder = new Finder(getScreen().capture(x, y, w, h), this);
-            finder.findAll(img);
+            // v5 (#444): captureSelf routes through PrintWindow when applicable.
+            // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+            finder = new Finder(captureSelf(x, y, w, h), this);
+            // v5 (#343): if the loaded PNG declares a non-trivially opaque
+            // alpha channel, wrap it into a Pattern with automatic mask so
+            // the matcher respects the declared transparency. Without this,
+            // the transparent zones are flattened to black and the template
+            // matches every dark region at the right spacing (documented on
+            // StackOverflow by akazen in May 2023, present in the code since
+            // the first Sikuli upload circa 2009). The opt-in .mask() route
+            // on user-built Patterns keeps working unchanged.
+            if (img.hasEffectiveAlpha()) {
+              finder.findAll(new Pattern(img).mask());
+            } else {
+              finder.findAll(img);
+            }
           } else if (img.isText()) {
             findingText = true;
             someText = img.getNameGiven();
@@ -3180,14 +4035,26 @@ public class Region extends Element {
       } else if (ptn instanceof Pattern) {
         if (((Pattern) ptn).isValid()) {
           img = ((Pattern) ptn).getImage();
-          finder = new Finder(getScreen().capture(x, y, w, h), this);
+          // v5 (#444): captureSelf routes through PrintWindow when applicable.
+          // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+          finder = new Finder(captureSelf(x, y, w, h), this);
           finder.findAll((Pattern) ptn);
         }
       } else if (ptn instanceof Image) {
         if (((Image) ptn).isValid()) {
           img = ((Image) ptn);
-          finder = new Finder(getScreen().capture(x, y, w, h), this);
-          finder.findAll((Image) ptn);
+          // v5 (#444): captureSelf routes through PrintWindow when applicable.
+          // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+          finder = new Finder(captureSelf(x, y, w, h), this);
+          // v5 (#343): same alpha-aware wrap as the String branch above —
+          // when the Image declares transparency, feed it via a Pattern
+          // with automatic mask instead of the raw Image, which would
+          // otherwise trigger the flattened-alpha false-positive storm.
+          if (img.hasEffectiveAlpha()) {
+            finder.findAll(new Pattern(img).mask());
+          } else {
+            finder.findAll((Image) ptn);
+          }
         }
       } else {
         throw new RuntimeException(String.format("SikuliX: Region: doFind: invalid parameter: %s", ptn));
@@ -3229,6 +4096,15 @@ public class Region extends Element {
     // return FALSE if otherwise
     // throws Exception if any unexpected error occurs
     boolean repeat(double timeout) {
+      RunPulse.searchStarted();
+      try {
+        return repeatUntil(timeout);
+      } finally {
+        RunPulse.searchEnded();
+      }
+    }
+
+    private boolean repeatUntil(double timeout) {
       findTimeout = timeout;
       int MaxTimePerScan = (int) (1000.0 / waitScanRate);
       int timeoutMilli = (int) (timeout * 1000);
@@ -3243,6 +4119,9 @@ public class Region extends Element {
           return true;
         } else if (timeoutMilli < MaxTimePerScan) {
           return false;
+        }
+        if (null != shouldStop && shouldStop.get()) {
+          break;
         }
         long after_find = (new Date()).getTime();
         if (after_find - before_find < MaxTimePerScan) {
@@ -3373,7 +4252,7 @@ public class Region extends Element {
     public void run() {
       if (waitTime > 0) {
         rfArray[subN] = reg.existsStoppableInit(target);
-        mArray[subN] = reg.doExists(rfArray[subN], waitTime);
+        mArray[subN] = reg.doExists(rfArray[subN], waitTime, true);
       } else {
         try {
           mArray[subN] = reg.findInImage(base, target);
@@ -3397,11 +4276,29 @@ public class Region extends Element {
 
     public void shouldStop() {
       if (!hasFinished()) {
-        rfArray[subN].setShouldStop();
+        // #425: race between "sub A finished" and "sub B hasn't reached line 1
+        // of its run() yet" — the slot may still be null when the main thread
+        // fans out shouldStop() on every runner. A sub not yet initialized
+        // simply gets no stop signal; its run() completes normally a moment
+        // later and either lands a match in mArray or exits cleanly.
+        if (rfArray[subN] != null) {
+          rfArray[subN].setShouldStop();
+        }
       }
     }
   }
 
+  /**
+   * One search thread per target on this region. With a timeout (waitAnyList) the call returns
+   * as soon as one thread has found its target; the others are told to stop and leave the cascade
+   * at their next mode, on their own, after the call has returned. Without a timeout (findAnyList)
+   * every thread searches the same capture once and the call waits for all of them. Each thread
+   * adds its match to lastMatchList, a fresh list per call; only this thread sets lastMatch (#485).
+   *
+   * @param time  seconds to wait, 0 for one search on one capture
+   * @param pList the targets: Pattern, String or Image
+   * @return the matches found when the call returned, in target order, with their index set
+   */
   private List<Match> findAnyCollect(double time, List<Object> pList) {
     List<Match> mList = new ArrayList<Match>();
     if (pList == null) {
@@ -3410,14 +4307,17 @@ public class Region extends Element {
     Match[] mArray = new Match[pList.size()];
     RepeatableFind[] rfArray = new RepeatableFind[pList.size()];
     SubFindRun[] theSubs = new SubFindRun[pList.size()];
+    lastMatchList = new CopyOnWriteArrayList<>();
     int nobj = 0;
-    ScreenImage base = getScreen().capture(this);
+    // v5 (#444): captureSelf routes through PrintWindow when applicable.
+    // Old line: ScreenImage base = getScreen().capture(this);
+    ScreenImage base = captureSelf(this);
     for (Object obj : pList) {
       mArray[nobj] = null;
 
       if (obj instanceof Pattern || obj instanceof String || obj instanceof Image) {
         theSubs[nobj] = new SubFindRun(time, mArray, rfArray, nobj, base, obj, this);
-        new Thread(theSubs[nobj]).start();
+        new Thread(theSubs[nobj], "SubFindRun-" + nobj).start();
       }
       nobj++;
     }
@@ -3425,29 +4325,43 @@ public class Region extends Element {
     if (time > 0) {
       boolean any = false;
       while (!any) {
-        any = false;
         for (SubFindRun sub : theSubs) {
-          if (sub.hasFinished()) {
+          if (sub != null && sub.hasFinished()) {
             any = true;
+            break;
+          }
+        }
+        if (!any) {
+          try {
+            Thread.sleep(1);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             break;
           }
         }
       }
       for (SubFindRun sub : theSubs) {
-        sub.shouldStop();
+        if (sub != null) {
+          sub.shouldStop();
+        }
       }
+      Debug.log(logLevel, "waitAnyCollect: first SubFindRun finished, the others stop at their next mode");
     } else {
       boolean all = false;
       while (!all) {
         all = true;
         for (SubFindRun sub : theSubs) {
-          all &= sub.hasFinished();
+          all &= sub == null || sub.hasFinished();
+        }
+        if (!all) {
+          try {
+            Thread.sleep(1);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+          }
         }
       }
-    }
-    if (time > 0)
-      Debug.log(logLevel, "waitAnyCollect: first SubFindRun finished");
-    else {
       Debug.log(logLevel, "findAnyCollect: all SubFindRuns finished");
     }
     nobj = 0;
@@ -3455,10 +4369,13 @@ public class Region extends Element {
       if (match != null) {
         match.setIndex(nobj);
         mList.add(match);
-      } else {
       }
       nobj++;
     }
+    if (!(time > 0)) {
+      lastMatchList = new CopyOnWriteArrayList<>(mList);
+    }
+    lastMatch = mList.isEmpty() ? null : mList.get(0);
     return mList;
   }
 
@@ -3485,7 +4402,9 @@ public class Region extends Element {
       }
       if (findingText) {
         log(logLevel, "findInImage: Switching to TextSearch");
-        finder = new Finder(getScreen().capture(x, y, w, h), this);
+        // v5 (#444): captureSelf routes through PrintWindow when applicable.
+        // Old line: finder = new Finder(getScreen().capture(x, y, w, h), this);
+        finder = new Finder(captureSelf(x, y, w, h), this);
         finder.findText((String) target);
       }
     } else if (target instanceof Pattern) {
@@ -3673,6 +4592,11 @@ public class Region extends Element {
    */
   private Observer regionObserver = null;
 
+  /**
+   * the {@link Observer} of this region, created on first use
+   *
+   * @return the observer
+   */
   public Observer getObserver() {
     if (regionObserver == null) {
       regionObserver = new Observer(this);
@@ -3978,7 +4902,9 @@ public class Region extends Element {
     Observing.addRunningObserver(this);
     while (observing && stop_t > (new Date()).getTime()) {
       long before_find = (new Date()).getTime();
-      ScreenImage simg = getScreen().capture(x, y, w, h);
+      // v5 (#444): captureSelf routes through PrintWindow when applicable.
+      // Old line: ScreenImage simg = getScreen().capture(x, y, w, h);
+      ScreenImage simg = captureSelf(x, y, w, h);
       if (!regionObserver.update(simg)) {
         observing = false;
         break;
@@ -4057,6 +4983,7 @@ public class Region extends Element {
     log(logLevel, "observe: request to stop observer for " + this.toStringShort());
     observing = false;
     observingInBackground = false;
+    Observing.removeRunningObserver(this);
   }
 
   /**
@@ -4071,6 +4998,11 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold defaultstate="collapsed" desc="040 Mouse actions - clicking">
+  /**
+   * the point a mouse action on this region would use: the last match's target if there is one, else the center
+   *
+   * @return the Location
+   */
   public Location checkMatch() {
     if (lastMatch != null) {
       return lastMatch.getTarget();
@@ -4669,7 +5601,7 @@ public class Region extends Element {
         } else {
           token = tokenSave;
         }
-        if (-1 < (key = Key.toJavaKeyCodeFromText(token))) {
+        if (-1 < (key = robot.keyCodeFromText(token))) {
           if (repeat > 0) {
             log(logLevel + 1, "write: %s Repeating: %d", token, repeat);
           } else {
@@ -4696,7 +5628,7 @@ public class Region extends Element {
       if (!modifier.isEmpty()) {
         log(logLevel + 1, "write: modifier + " + modifier);
         for (int n = 0; n < modifier.length(); n++) {
-          robot.keyDown(Key.toJavaKeyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
+          robot.keyDown(robot.keyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
         }
       }
       if (key > -1) {
@@ -4707,7 +5639,7 @@ public class Region extends Element {
       if (!modifier.isEmpty()) {
         log(logLevel + 1, "write: modifier - " + modifier);
         for (int n = 0; n < modifier.length(); n++) {
-          robot.keyUp(Key.toJavaKeyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
+          robot.keyUp(robot.keyCodeFromText(String.format("#%s.", modifier.substring(n, n + 1))));
         }
       }
       robot.delay(pause);
@@ -4958,131 +5890,6 @@ public class Region extends Element {
       return 1;
     }
     return 0;
-  }
-  //</editor-fold>
-
-  //<editor-fold desc="048 Mobile actions (Android)">
-  private boolean isAndroid() {
-    if (isOtherScreen() && HelpDevice.isAndroid(getScreen())) {
-      return true;
-    }
-    return false;
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param <PFRML> Pattern, String, Image, Match, Region or Location
-   * @param target  PFRML
-   * @throws FindFailed image not found
-   */
-  public <PFRML> void aTap(PFRML target) throws FindFailed {
-    if (isAndroid()) {
-      Location loc = getLocationFromTarget(target);
-      if (loc != null) {
-        IScreen adbScreen = getScreen();
-        adbScreen.action("tap", loc.x, loc.y);
-        adbScreen.waitAfterAction();
-      }
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param text text
-   */
-  public void aInput(String text) {
-    if (isAndroid()) {
-      getScreen().action("input", text);
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param key key
-   */
-  public void aKey(int key) {
-    if (isAndroid()) {
-      getScreen().action("inputKeyEvent", key);
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param <PFRML> Pattern, String, Image, Match, Region or Location
-   * @param from    PFRML
-   * @param to      PFRML
-   * @throws FindFailed image not found
-   */
-  public <PFRML> void aSwipe(PFRML from, PFRML to) throws FindFailed {
-    if (isAndroid()) {
-      Location locFrom = getLocationFromTarget(from);
-      Location locTo = getLocationFromTarget(to);
-      if (locFrom != null && locTo != null) {
-        IScreen adbScreen = getScreen();
-        adbScreen.action("swipe", locFrom.x, locFrom.y, locTo.x, locTo.y);
-        adbScreen.waitAfterAction();
-      }
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeUp() {
-    int midX = (int) (w / 2);
-    int swipeStep = (int) (h / 5);
-    try {
-      aSwipe(new Location(midX, h - swipeStep), new Location(midX, swipeStep));
-    } catch (FindFailed findFailed) {
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeDown() {
-    int midX = (int) (w / 2);
-    int swipeStep = (int) (h / 5);
-    try {
-      aSwipe(new Location(midX, swipeStep), new Location(midX, h - swipeStep));
-    } catch (FindFailed findFailed) {
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeLeft() {
-    int midY = (int) (h / 2);
-    int swipeStep = (int) (w / 5);
-    try {
-      aSwipe(new Location(w - swipeStep, midY), new Location(swipeStep, midY));
-    } catch (FindFailed findFailed) {
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeRight() {
-    int midY = (int) (h / 2);
-    int swipeStep = (int) (w / 5);
-    try {
-      aSwipe(new Location(swipeStep, midY), new Location(w - swipeStep, midY));
-    } catch (FindFailed findFailed) {
-    }
   }
   //</editor-fold>
 }

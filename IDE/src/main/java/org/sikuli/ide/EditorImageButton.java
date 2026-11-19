@@ -11,7 +11,6 @@ import org.sikuli.script.Pattern;
 import org.sikuli.support.Commons;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.gui.SXDialogPaneImage;
-import org.sikuli.support.gui.SXDialogPaneImageMenu;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -69,7 +68,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     thumbnail = createThumbnailImage(imgFile, MAXHEIGHT);
     options = new HashMap<>();
     options.put(IButton.FILE, imgFile);
-    options.put(IButton.TEXT, "\"" + imgFile.getName() + "\"");
+    options.put(IButton.TEXT, "\"" + codeName(imgFile.getAbsolutePath()) + "\"");
 
     init();
   }
@@ -79,7 +78,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     options = new HashMap<>();
     File imgFile = pattern.getImage().file();
     options.put(IButton.FILE, imgFile);
-    options.put(IButton.TEXT, "\"" + imgFile.getName() + "\"");
+    options.put(IButton.TEXT, "\"" + codeName(imgFile.getAbsolutePath()) + "\"");
     options.put(IButton.PATT, pattern);
 
     init();
@@ -120,14 +119,21 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   // with a fresh ButtonUI installed under the active LaF. Called by
   // EditorPane.afterThemeChange() to replace every embedded image button
   // after a theme toggle so the Flat ButtonUI defaults don't leave the
-  // thumbnails invisible or un-clickable.
+  // thumbnails invisible or un-clickable. The clone takes the state the
+  // button has now (pattern or image, similarity, exact, offset), which the
+  // menu and Optimize change after the button was built.
   public EditorImageButton cloneForRefresh(EditorPane pane) {
     if (options == null) return null;
-    Object patt = options.get(IButton.PATT);
-    if (patt instanceof Pattern) return new EditorImageButton((Pattern) patt);
     Object file = options.get(IButton.FILE);
-    if (file instanceof File) return new EditorImageButton((File) file);
-    return null;
+    if (!(file instanceof File)) return null;
+    EditorImageButton fresh = new EditorImageButton((File) file);
+    fresh._isPattern = _isPattern;
+    fresh._similar = _similar;
+    fresh._exact = _exact;
+    fresh._offset = _offset == null ? null : new Location(_offset.x, _offset.y);
+    fresh.rebuildText();
+    fresh.setButtonText();
+    return fresh;
   }
 
   @Override
@@ -144,23 +150,11 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return false;
   }
 
-  SXDialogPaneImageMenu popmenu = null;
-
   private void handlePopup(MouseEvent me) {
-    if (closeIfVisible(popmenu)) {
+    if (closeIfVisible(popwin)) {
       return;
     }
-    closeIfVisible(popwin);
-    if (me == null) {
-      handlePreview();
-    } else {
-      Point where = getLocationOnScreen();
-      where.y += MAXHEIGHT + 10;
-
-      popmenu = new SXDialogPaneImageMenu(where,
-          new String[]{"image", "imgBtn"}, options.get(IButton.FILE), this);
-      popmenu.run();
-    }
+    handlePreview();
   }
 
   private SXDialogPaneImage popwin = null;
@@ -266,16 +260,6 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   private Location _offset = null;
 
   /**
-   * Promote this plain image button to a Pattern with a fixed non-default
-   * similarity. Visible feedback: green badge ("85") drawn at the
-   * bottom-right corner. Code-level effect: next File ▸ Save serializes
-   * the surrounding call as {@code Pattern("foo.png").similar(0.85)}
-   * instead of {@code "foo.png"}.
-   *
-   * <p>Idempotent — re-clicking "As Pattern" on an already-promoted button
-   * is a no-op.
-   */
-  /**
    * True once the user has explicitly promoted this image to a Pattern via
    * the right-click menu or via Optimize Apply. Read by
    * {@link org.sikuli.support.gui.SXDialogPaneImageMenu} to hide the
@@ -286,6 +270,17 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return _isPattern;
   }
 
+  /**
+   * Promote this plain image button to a Pattern at the default similarity
+   * {@link #AS_PATTERN_DEFAULT_SIMILAR} (0.7). Visible feedback: green
+   * badge ("70") drawn at the bottom-right corner. Code-level effect: next
+   * File ▸ Save serializes the surrounding call as
+   * {@code Pattern("foo.png")} instead of {@code "foo.png"}, with no
+   * {@code .similar(...)} since the value is the default.
+   *
+   * <p>Idempotent — re-clicking "As Pattern" on an already-promoted button
+   * is a no-op.
+   */
   public void promoteToPattern() {
     if (_isPattern) return;
     _isPattern = true;
@@ -303,7 +298,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   private void rebuildText() {
     if (options == null) options = new HashMap<>();
     if (options.get(IButton.FILE) == null) return;
-    final String name = ((File) options.get(IButton.FILE)).getName();
+    final String name = codeName(((File) options.get(IButton.FILE)).getAbsolutePath());
     if (!_isPattern && (_offset == null || (_offset.x == 0 && _offset.y == 0))) {
       options.put(IButton.TEXT, "\"" + name + "\"");
       return;
@@ -370,6 +365,30 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
       return "";
     }
     return (String) options.get(IButton.TEXT);
+  }
+
+  /**
+   * The code of this image with every value written out, similarity
+   * included even at its default, so that a person can edit it in place.
+   */
+  public String toEditableCode() {
+    if (options == null || options.get(IButton.FILE) == null) {
+      return toString();
+    }
+    return editableCode(codeName(((File) options.get(IButton.FILE)).getAbsolutePath()), _exact, _similar, _offset);
+  }
+
+  static String editableCode(String imgName, boolean exact, double similarity, Location offset) {
+    StringBuilder sb = new StringBuilder("Pattern(\"").append(imgName).append("\")");
+    if (exact) {
+      sb.append(".exact()");
+    } else {
+      sb.append(String.format(java.util.Locale.ENGLISH, ".similar(%.2f)", similarity));
+    }
+    if (offset != null && (offset.x != 0 || offset.y != 0)) {
+      sb.append(".targetOffset(").append(offset.x).append(",").append(offset.y).append(")");
+    }
+    return sb.toString();
   }
 
   public String info() {
@@ -530,6 +549,26 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   public PatternWindow getWindow() {
     return null;
+  }
+
+  /** The opposite of {@link #promoteToPattern()}: the image goes back to its bare file name in the code. */
+  public void asImage() {
+    resetParameters();
+  }
+
+  /**
+   * The image as the code must name it: relative to the folder of the script that carries
+   * it, so an image kept in a subfolder is still found after the code is rewritten.
+   */
+  protected String codeName(String imageFile) {
+    return EditorPane.nameForCode(scriptFolder(), imageFile);
+  }
+
+  /** The folder of the script being edited, or null when it cannot be told. */
+  static File scriptFolder() {
+    SikulixIDE ide = SikulixIDE.get();
+    SikulixIDE.PaneContext context = ide == null ? null : ide.getActiveContext();
+    return context == null ? null : context.getFolder();
   }
 
   /**

@@ -4,6 +4,7 @@
 package org.sikuli.ide;
 
 import javax.swing.*;
+import org.sikuli.ide.theme.OculixFileIcons;
 import javax.swing.event.EventListenerList;
 import javax.swing.plaf.metal.MetalTabbedPaneUI;
 import java.awt.*;
@@ -30,6 +31,7 @@ public class CloseableTabbedPane extends JTabbedPane implements MouseListener,
     if (getUI() instanceof MetalTabbedPaneUI) {
       setUI(new CloseableMetalTabbedPaneUI(SwingUtilities.LEFT));
     }
+    putClientProperty("FlatLaf.styleClass", "editorTabs");
     popMenuTab = new SikuliIDEPopUpMenu("POP_TAB", this);
     if (!popMenuTab.isValidMenu()) {
       popMenuTab = null;
@@ -263,13 +265,19 @@ public class CloseableTabbedPane extends JTabbedPane implements MouseListener,
 
     }
 
+    boolean nativeClose = getUI() instanceof com.formdev.flatlaf.ui.FlatTabbedPaneUI;
+    Icon fileIcon = fileIcon(title, component);
+    Icon tabIcon = nativeClose ? fileIcon : (doPaintCloseIcon ? new CloseTabIcon(fileIcon) : fileIcon);
+    if (component instanceof JComponent) {
+      ((JComponent) component).putClientProperty("JTabbedPane.tabClosable", doPaintCloseIcon);
+    }
     if (position < 0) {
       super.addTab(title,
-          doPaintCloseIcon ? new CloseTabIcon(null) : null,
+          tabIcon,
           component, "RightClick for actions");
     } else {
       super.insertTab(title,
-          doPaintCloseIcon ? new CloseTabIcon(null) : null,
+          tabIcon,
           component, "RightClick for actions", position);
     }
 
@@ -283,6 +291,24 @@ public class CloseableTabbedPane extends JTabbedPane implements MouseListener,
   }
   //</editor-fold>
 
+  /** Tab titles omit the extension; the context supplies the real filename. */
+  private Icon fileIcon(String title, Component component) {
+    Object fileName = component instanceof JComponent
+        ? ((JComponent) component).getClientProperty("Oculix.fileName") : null;
+    return OculixFileIcons.forName(fileName instanceof String ? (String) fileName : title);
+  }
+
+  @Override
+  public void setTitleAt(int index, String title) {
+    super.setTitleAt(index, title);
+    Component component = getComponentAt(index);
+    if (getUI() instanceof com.formdev.flatlaf.ui.FlatTabbedPaneUI
+        && (!(component instanceof JComponent)
+            || !Boolean.FALSE.equals(((JComponent) component).getClientProperty("isClosable")))) {
+      setIconAt(index, fileIcon(title, component));
+    }
+  }
+
   //<editor-fold desc="04 mouse actions">
   @Override
   public void mouseClicked(MouseEvent e) {
@@ -294,7 +320,8 @@ public class CloseableTabbedPane extends JTabbedPane implements MouseListener,
   @Override
   public void mouseExited(MouseEvent e) {
     for (int i = 0; i < getTabCount(); i++) {
-      CloseTabIcon icon = (CloseTabIcon) getIconAt(i);
+      Icon candidate = getIconAt(i);
+      CloseTabIcon icon = candidate instanceof CloseTabIcon ? (CloseTabIcon) candidate : null;
       if (icon != null) {
         icon.mouseover = false;
       }
@@ -335,7 +362,8 @@ public class CloseableTabbedPane extends JTabbedPane implements MouseListener,
     if (event.getID() == event.MOUSE_PRESSED) {
       return;
     }
-    CloseTabIcon icon = (CloseTabIcon) getIconAt(tabNumber);
+    Icon candidate = getIconAt(tabNumber);
+    CloseTabIcon icon = candidate instanceof CloseTabIcon ? (CloseTabIcon) candidate : null;
     if (icon != null) {
       Rectangle rect = icon.getBounds();
       Point pos = headerViewport == null
@@ -384,7 +412,7 @@ public class CloseableTabbedPane extends JTabbedPane implements MouseListener,
         MouseEvent newEvent = new MouseEvent((Component) event.getSource(),
             event.getID() + 1,
             System.currentTimeMillis(),
-            event.getModifiers(),
+            event.getModifiersEx(),
             rec.x,
             rec.y,
             event.getClickCount(),

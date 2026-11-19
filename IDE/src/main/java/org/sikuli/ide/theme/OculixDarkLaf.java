@@ -51,4 +51,11 @@ public class OculixDarkLaf extends FlatDarkLaf {
   public String getName() {
     return NAME;
   }
+
+  @Override
+  public javax.swing.UIDefaults getDefaults() {
+    javax.swing.UIDefaults defaults = super.getDefaults();
+    TitleBarIcons.install(defaults);
+    return defaults;
+  }
 }

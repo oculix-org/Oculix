@@ -95,9 +95,12 @@ public class Match extends Region implements Comparable<Match> {
     init(region.x, region.y, region.w, region.h, parent);
   }
 
-  protected Match(Rectangle rect, double confidence, String text, Region base) {
+  /**
+   * Text match relocated into a base region; the score is already normalized (0 .. 1).
+   */
+  protected Match(Rectangle rect, double score, String text, Region base) {
     init(rect.x, rect.y, rect.width, rect.height, base == null ? null : base.getScreen());
-    simScore = confidence / 100;
+    simScore = score;
     ocrText = text;
   }
 

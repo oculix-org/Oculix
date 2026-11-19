@@ -142,53 +142,6 @@ public class HelpDevice extends Devices {
     }
     return false;
   }
-
-//              ADBScreen aScr = (ADBScreen) defaultScreen;
-//              aScr.wakeUp(2);
-//              aScr.wait(1.0);
-//              aScr.userCapture("");
-//  sImgNonLocal = (ScreenImage) defaultScreen.action("userCapture");
-
-  public <PFRML> void aTap(PFRML target) throws FindFailed {
-//    adbScreen.action("tap", loc.x, loc.y);
-//    adbScreen.waitAfterAction();
-
-//    if (isAndroid() && adbDevice != null) {
-//      Location loc = getLocationFromTarget(target);
-//      if (loc != null) {
-//        adbDevice.tap(loc.x, loc.y);
-//      }
-//    }
-  }
-
-  public void aInput(String text) {
-//    getScreen().action("input", text);
-
-//    if (isAndroid() && adbDevice != null) {
-//      adbDevice.input(text);
-//    }
-  }
-
-  public void aKey(int key) {
-//    getScreen().action("inputKeyEvent", key);
-
-//    if (isAndroid() && adbDevice != null) {
-//      adbDevice.inputKeyEvent(key);
-//    }
-  }
-
-  public <PFRML> void aSwipe(PFRML from, PFRML to) throws FindFailed {
-//    adbScreen.action("swipe", locFrom.x, locFrom.y, locTo.x, locTo.y);
-//    adbScreen.waitAfterAction();
-
-//    if (isAndroid() && adbDevice != null) {
-//      Location locFrom = getLocationFromTarget(from);
-//      Location locTo = getLocationFromTarget(to);
-//      if (locFrom != null && locTo != null) {
-//        adbDevice.swipe(locFrom.x, locFrom.y, locTo.x, locTo.y);
-//      }
-//    }
-  }
   //</editor-fold>
 }
 

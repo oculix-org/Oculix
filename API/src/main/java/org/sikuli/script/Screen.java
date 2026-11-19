@@ -8,10 +8,12 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.Settings;
+import org.sikuli.natives.MacPermissions;
 import org.sikuli.support.*;
 import org.sikuli.support.devices.*;
 import org.sikuli.util.EventObserver;
@@ -82,13 +84,63 @@ public class Screen extends Region implements IScreen, EventObserver {
     // hang silently in keyboard-only flows. Gating to runningMac() avoids the
     // cosmetic mouse-jump on Linux/Windows where the check is a no-op terminate-wise.
     if (Commons.runningMac()) {
+      stopWhenMacPermissionsMissing();
       MouseDevice.start();
     }
+    warmUpFind();
     log(logLevel, "initScreens: ending");
   }
 
+  /**
+   * Fails the screen set-up on macOS when Screen Recording or Accessibility is not
+   * granted, with a message that names each one and the command that opens its list in
+   * System Settings. The process is put in those lists first. For a program using the
+   * API this is a {@link SikuliXception}: nothing is captured or clicked for nothing.
+   */
+  private static void stopWhenMacPermissionsMissing() {
+    List<MacPermissions.Permission> missing = MacPermissions.missing();
+    if (missing.isEmpty()) {
+      return;
+    }
+    MacPermissions.request(missing);
+    Commons.terminate(999, "%s", MacPermissions.message(missing));
+  }
+
+  /**
+   * Runs the whole find path once, in memory: a corner of the primary screen is
+   * captured, round-tripped through PNG, given its own position and searched with
+   * exists() in a small region. Nothing is written anywhere. The first real
+   * find of the process then costs what every following one costs.
+   */
+  private static void warmUpFind() {
+    if (!Settings.WarmUpFind) {
+      return;
+    }
+    try {
+      Screen s = screens[primaryScreen];
+      java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+      javax.imageio.ImageIO.write(s.capture(s.x, s.y, 32, 32).getImage(), "png", bytes);
+      BufferedImage decoded = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes.toByteArray()));
+      Image patch = new Image(decoded, "oculix-warmup");
+      patch.setLastSeen(new Rectangle(s.x, s.y, 32, 32), 0.99);
+      new Region(s.x, s.y, 64, 64).exists(patch, 0);
+    } catch (Throwable e) {
+      log(logLevel, "initScreens: warm-up skipped: %s", e.getMessage());
+    }
+  }
+
+  /**
+   * detect the monitors again and rebuild the Screen objects<br>
+   * to be used after a monitor was plugged in or out while the script is running
+   */
   public static void resetScreens() {
+    // Reset ScreenDevice state as well, otherwise ScreenDevice.initDevices()
+    // early-returns because its static mainMonitor is still > -1, and the
+    // "re-evaluation" that resetMonitors() promises does nothing. Fix
+    // identified during audit of Epic #442.
     screens = null;
+    primaryScreen = -1;
+    ScreenDevice.reset();
     initScreens();
   }
 
@@ -161,6 +213,9 @@ public class Screen extends Region implements IScreen, EventObserver {
     return theScreen;
   }
 
+  /**
+   * re-read the bounds of this screen from the monitor it stands for
+   */
   public void reset() {
     setup(curID);
   }
@@ -173,6 +228,12 @@ public class Screen extends Region implements IScreen, EventObserver {
     h = (int) bounds.getHeight();
   }
 
+  /**
+   * the shared Screen object of a monitor, without creating a new one
+   *
+   * @param id screen number as OculiX counts them, 0 first
+   * @return the Screen, or Screen 0 if the id is out of range (with an error log)
+   */
   public static Screen as(int id) {
     if (primaryScreen < 0) {
       initScreens();
@@ -323,6 +384,11 @@ public class Screen extends Region implements IScreen, EventObserver {
     return curID;
   }
 
+  /**
+   * the screen number as a String
+   *
+   * @return the id
+   */
   public String getIDString() {
     return "" + getID();
   }
@@ -360,11 +426,26 @@ public class Screen extends Region implements IScreen, EventObserver {
     return Region.create(loc.copyTo(this), width, height);
   }
 
+  /**
+   * a copy of this screen as a Region on this screen
+   *
+   * @param reg ignored
+   * @return the new Region
+   */
   @Override
   public Region newRegion(Region reg) {
     return copyTo(this);
   }
 
+  /**
+   * create a region on this screen, see {@link #newRegion(Location, int, int)}
+   *
+   * @param x position of the top-left corner
+   * @param y position of the top-left corner
+   * @param w width
+   * @param h height
+   * @return the new Region
+   */
   @Override
   public Region newRegion(int x, int y, int w, int h) {
     return newRegion(new Location(x, y), w, h);
@@ -473,7 +554,7 @@ public class Screen extends Region implements IScreen, EventObserver {
   @Override
   public ScreenImage capture() {
     ScreenDevice screenDevice = ScreenDevice.get(getID());
-    return new ScreenImage(screenDevice.asRectangle(), screenDevice.capture());
+    return new ScreenImage(screenDevice.asRectangle(), screenDevice.capture(), ScreenImage.LOGICAL_DPI);
   }
 
   /**
@@ -499,7 +580,7 @@ public class Screen extends Region implements IScreen, EventObserver {
   @Override
   public ScreenImage capture(Rectangle rect) {
     lastCaptureTime = new Date().getTime();
-    ScreenImage simg = new ScreenImage(rect, ScreenDevice.capture(rect)); //globalRobot.captureScreen(rect);
+    ScreenImage simg = new ScreenImage(rect, ScreenDevice.capture(rect), ScreenImage.LOGICAL_DPI);
     if (Settings.FindProfiling) {
       Debug.logp("[FindProfiling] Screen.capture [%d x %d]: %d msec",
           rect.width, rect.height, new Date().getTime() - lastCaptureTime);
@@ -671,6 +752,13 @@ public class Screen extends Region implements IScreen, EventObserver {
     return element.setOtherScreen(this);
   }
 
+  /**
+   * create a location bound to this screen
+   *
+   * @param x horizontal position
+   * @param y vertical position
+   * @return the new Location
+   */
   @Override
   public Location newLocation(int x, int y) {
     return new Location(x, y).setOtherScreen(this);

@@ -51,7 +51,7 @@ class RecorderCodeGenTest {
       Field f = RecorderCodeGen.class.getDeclaredField("codePreview");
       f.setAccessible(true);
       RecorderCodePreview preview = (RecorderCodePreview) f.get(gen);
-      return (DefaultListModel<String>) ((JList<?>) preview).getModel();
+      return (DefaultListModel<String>) preview.getModel();
     } catch (Exception e) {
       throw new AssertionError("reflection failed: " + e.getMessage(), e);
     }
@@ -126,9 +126,9 @@ class RecorderCodeGenTest {
     void robot_count_after_init_matches_lines_pushed() {
       RecorderCodeGen gen = newGen(new RobotFrameworkCodeGenerator());
       gen.initHeaders();
-      assertEquals(6, gen.getHeaderLineCount(),
-          "Robot header is settings/lib/doc/blank/test-cases/test-name → 6 lines");
-      assertEquals(6, previewModel(gen).size());
+      assertEquals(7, gen.getHeaderLineCount(),
+          "Robot header is settings/lib/teardown/doc/blank/test-cases/test-name → 7 lines");
+      assertEquals(7, previewModel(gen).size());
     }
   }
 
@@ -167,9 +167,12 @@ class RecorderCodeGenTest {
       assertEquals("*** Settings ***", m.get(0));
       assertTrue(m.get(1).contains("Library"));
       assertTrue(m.get(1).contains("SikuliLibrary"));
-      assertEquals("", m.get(3));
-      assertEquals("*** Test Cases ***", m.get(4));
-      assertEquals("Recorded Test", m.get(5));
+      // SikuliLibrary starts its Java server on import and never stops it by
+      // itself: without this teardown every recorded run leaves one behind.
+      assertEquals("Suite Teardown    Stop Remote Server", m.get(2));
+      assertEquals("", m.get(4));
+      assertEquals("*** Test Cases ***", m.get(5));
+      assertEquals("Recorded Test", m.get(6));
     }
 
     @Test

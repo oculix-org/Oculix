@@ -3,7 +3,9 @@
  */
 package org.sikuli.ide.ui;
 
-import com.formdev.flatlaf.FlatClientProperties;
+import org.sikuli.ide.theme.OculixUi;
+import org.sikuli.ide.theme.OculixFileIcons;
+import com.formdev.flatlaf.util.UIScale;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import net.miginfocom.swing.MigLayout;
 
@@ -34,6 +36,11 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
   private JScrollPane scrollPane;
   private final List<ScriptCard> cards = new ArrayList<>();
   private int activeIndex = -1;
+  private String workspaceName;
+  private File workspaceDirectory;
+  private final WorkspaceFileTree fileTree = new WorkspaceFileTree();
+  private JSplitPane explorerSplit;
+  private JPanel openScriptsPanel;
 
   // Callbacks
   private ActionListener onCardSelected;
@@ -41,26 +48,36 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
 
   public ScriptExplorer() {
     setLayout(new BorderLayout());
-    setMinimumSize(new Dimension(160, 0));
-    setPreferredSize(new Dimension(200, 0));
+    setMinimumSize(UIScale.scale(new Dimension(160, 0)));
+    setPreferredSize(UIScale.scale(new Dimension(224, 0)));
     // Match the sidebar's surface — paper-100 in OculiX Light, ink-800 in
     // OculiX Dark — so the workspace explorer reads as one continuous brand
     // surface with the sidebar instead of a stark white pane.
     setOpaque(true);
-    setBackground(isDarkTheme()
-        ? new Color(0x0A, 0x10, 0x28)         // OX_INK_800
-        : new Color(0xF8, 0xFA, 0xFD));       // paper-100
+    setBackground(OculixUi.color("explorer.background", "Panel.background"));
 
     // Header
-    JPanel header = new JPanel(new MigLayout("insets 6 10 6 10, fill", "[grow]", "[]"));
+    JPanel header = new JPanel(new MigLayout("insets 12 14 12 14, fillx, wrap 2", "[grow][]", "[]8[]"));
     header.setOpaque(false);
     titleLabel = new JLabel(_I("workspaceTitle"));
     titleLabel.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 12f));
-    header.add(titleLabel);
+    titleLabel.setIconTextGap(UIScale.scale(8));
+    header.add(titleLabel, "growx, wmin 0");
+    collapseButton = new JButton("❮❮");
+    collapseButton.setToolTipText(_I("explorerCollapseTip"));
+    collapseButton.setFocusable(false);
+    collapseButton.setMargin(new Insets(0, 6, 0, 6));
+    collapseButton.setFont(UIManager.getFont("Label.font").deriveFont(11.0f));
+    collapseButton.putClientProperty("JButton.buttonType", "toolBarButton");
+    collapseButton.addActionListener(e -> {
+      if (onCollapse != null) onCollapse.run();
+    });
+    header.add(collapseButton, "wrap");
+    header.add(fileTree.getActionBar(), "growx, span 2");
     add(header, BorderLayout.NORTH);
 
     // Card container (scrollable)
-    cardContainer = new JPanel(new MigLayout("wrap 1, insets 4 6 4 6, gap 4", "[fill, grow]", ""));
+    cardContainer = new OculixSidebar.ViewportWidthPanel(new MigLayout("wrap 1, insets 6 8 6 8, gap 8", "[fill, grow]", ""));
     cardContainer.setOpaque(false);
 
     scrollPane = new JScrollPane(cardContainer);
@@ -73,10 +90,22 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     // Empty state
     emptyLabel = new JLabel("<html><center>No scripts open<br><br><span style='font-size:9px'>Use File &gt; New<br>to create a script</span></center></html>");
     emptyLabel.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
-    emptyLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+    emptyLabel.setForeground(OculixUi.color("sidebar.mutedForeground", "Label.disabledForeground"));
     emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
 
-    add(emptyLabel, BorderLayout.CENTER);
+    openScriptsPanel = new JPanel(new BorderLayout());
+    openScriptsPanel.setOpaque(false);
+    openScriptsPanel.add(emptyLabel, BorderLayout.CENTER);
+    JLabel openTitle = new JLabel(_I("explorerOpenScripts"));
+    openTitle.setBorder(BorderFactory.createEmptyBorder(0, UIScale.scale(10), UIScale.scale(4), 0));
+    openScriptsPanel.add(openTitle, BorderLayout.NORTH);
+    explorerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, openScriptsPanel, fileTree);
+    explorerSplit.setBorder(BorderFactory.createEmptyBorder());
+    explorerSplit.setResizeWeight(0.3);
+    explorerSplit.setDividerLocation(UIScale.scale(180));
+    openScriptsPanel.setMinimumSize(new Dimension(0, UIScale.scale(60)));
+    fileTree.setMinimumSize(new Dimension(0, UIScale.scale(100)));
+    add(explorerSplit, BorderLayout.CENTER);
   }
 
   public void setOnCardSelected(ActionListener listener) {
@@ -84,7 +113,69 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
   }
 
   public void setWorkspaceName(String name) {
+    workspaceName = name;
+    refreshHeader();
+  }
+
+  public void setWorkspaceDirectory(File directory) {
+    workspaceDirectory = directory;
+    refreshHeader();
+  }
+
+  public File getExplorerDirectory() { return fileTree.getDirectory(); }
+
+  /** Read the folder again, for when a file was renamed or captured behind the tree's back. */
+  public void refreshTree() { fileTree.refresh(); }
+
+  private JButton collapseButton;
+  private Runnable onCollapse;
+
+  /** Told by the IDE what to do when the user asks to collapse the panel. */
+  public void setOnCollapse(Runnable action) { this.onCollapse = action; }
+
+  public void setOnSaveAs(Runnable action) { fileTree.setOnSaveAs(action); }
+
+  public void setOnFileOpened(java.util.function.Consumer<File> listener) {
+    fileTree.setOnOpen(listener);
+  }
+
+  public void setOnFileMoved(java.util.function.BiConsumer<java.nio.file.Path, java.nio.file.Path> listener) {
+    fileTree.setOnMoved(listener);
+  }
+
+  /** Show the active script's folder; retain the workspace label when no script is selected. */
+  private void refreshHeader() {
+    String name = workspaceName;
+    String path = null;
+    boolean temporary = false;
+    if (activeIndex >= 0 && activeIndex < cards.size()) {
+      ScriptInfo info = cards.get(activeIndex).currentInfo;
+      temporary = !info.saved;
+      String folderPath = info.path;
+      if (!temporary && folderPath != null && !folderPath.isEmpty()) {
+        File folder = new File(folderPath);
+        name = folder.getName();
+        if (name.isEmpty()) name = folder.getPath();
+        path = folderPath;
+      }
+    }
+    if (temporary) name = _I("explorerUnsaved");
+    File directory = path == null ? workspaceDirectory : new File(path);
+    // Keep the complete explicitly opened workspace when its active script is in a subfolder.
+    // An unrelated active script must never inherit that workspace.
+    if (!temporary && directory != null && workspaceDirectory != null
+        && directory.toPath().toAbsolutePath().normalize()
+            .startsWith(workspaceDirectory.toPath().toAbsolutePath().normalize())) {
+      directory = workspaceDirectory;
+    }
+    fileTree.setDirectory(temporary ? null : directory);
+    fileTree.setSaveEnabled(temporary || fileTree.getDirectory() != null);
     titleLabel.setText(name != null ? name : _I("workspaceTitle"));
+    titleLabel.setToolTipText(path);
+    boolean hasWorkspace = !temporary && name != null && !name.trim().isEmpty();
+    titleLabel.setIcon(!hasWorkspace ? null
+        : name.trim().toLowerCase(java.util.Locale.ROOT).endsWith(".sikuli")
+            ? OculixFileIcons.get("sikuli") : OculixFileIcons.folder(true));
   }
 
   public void setOnCardRenamed(ActionListener listener) {
@@ -100,17 +191,18 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     cardContainer.removeAll();
 
     if (scripts.isEmpty()) {
-      remove(scrollPane);
-      remove(emptyLabel);
-      add(emptyLabel, BorderLayout.CENTER);
+      openScriptsPanel.remove(scrollPane);
+      openScriptsPanel.remove(emptyLabel);
+      openScriptsPanel.add(emptyLabel, BorderLayout.CENTER);
       activeIndex = -1;
+      refreshHeader();
       revalidate();
       repaint();
       return;
     }
 
-    remove(emptyLabel);
-    remove(scrollPane);
+    openScriptsPanel.remove(emptyLabel);
+    openScriptsPanel.remove(scrollPane);
 
     for (int i = 0; i < scripts.size(); i++) {
       ScriptInfo info = scripts.get(i);
@@ -121,7 +213,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
 
     setActiveCard(selectedIndex);
 
-    add(scrollPane, BorderLayout.CENTER);
+    openScriptsPanel.add(scrollPane, BorderLayout.CENTER);
     revalidate();
     repaint();
   }
@@ -134,6 +226,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     for (int i = 0; i < cards.size(); i++) {
       cards.get(i).setActive(i == index);
     }
+    refreshHeader();
   }
 
   /**
@@ -142,6 +235,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
   public void updateCard(int index, ScriptInfo info) {
     if (index >= 0 && index < cards.size()) {
       cards.get(index).updateInfo(info);
+      if (index == activeIndex) refreshHeader();
     }
   }
 
@@ -153,24 +247,23 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     private JLabel infoLabel;
     private JLabel statusLabel;
     private boolean active = false;
+    private ScriptInfo currentInfo;
     private Color hoverBg;
     private Color activeBg;
     private Color normalBg;
 
     ScriptCard(ScriptInfo info, int index) {
       this.index = index;
-      setLayout(new MigLayout("insets 8 10 8 10, gap 4", "[grow][]", "[]2[]"));
+      setLayout(new MigLayout("insets 12 12 12 12, gap 6", "[grow, fill, 0::][]", "[]2[]"));
       setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-      normalBg = UIManager.getColor("Panel.background");
-      hoverBg = UIManager.getColor("List.selectionInactiveBackground");
-      activeBg = UIManager.getColor("List.selectionBackground");
+      normalBg = OculixUi.color("explorer.cardBackground", "Panel.background");
+      hoverBg = OculixUi.color("explorer.hoverBackground", "List.selectionBackground");
+      activeBg = OculixUi.color("explorer.selectedBackground", "List.selectionBackground");
 
-      setOpaque(true);
+      setOpaque(false);
       setBackground(normalBg);
-      setBorder(BorderFactory.createCompoundBorder(
-          BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1),
-          BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+      setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
 
       // Script icon + name
       nameLabel = new JLabel();
@@ -185,7 +278,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
       // Image count
       infoLabel = new JLabel();
       infoLabel.setFont(UIManager.getFont("small.font"));
-      infoLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+      infoLabel.setForeground(OculixUi.color("sidebar.mutedForeground", "Label.disabledForeground"));
       add(infoLabel, "span 2");
 
       updateInfo(info);
@@ -196,7 +289,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
       renameItem.addActionListener(ev -> {
         if (onCardRenamed != null) {
           String newName = JOptionPane.showInputDialog(ScriptExplorer.this,
-              "New name:", info.name);
+              "New name:", currentInfo.name);
           if (newName != null && !newName.trim().isEmpty()) {
             onCardRenamed.actionPerformed(
                 new java.awt.event.ActionEvent(ScriptCard.this, index, newName.trim()));
@@ -230,8 +323,22 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
       });
     }
 
+    @Override protected void paintComponent(Graphics g) {
+      Graphics2D g2 = (Graphics2D) g.create();
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      int arc = UIScale.scale(12);
+      g2.setColor(getBackground());
+      g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
+      g2.setColor(OculixUi.color(active ? "explorer.selectedBorderColor" : "panel.borderColor", "Component.borderColor"));
+      g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
+      g2.dispose();
+      super.paintComponent(g);
+    }
+
     void updateInfo(ScriptInfo info) {
-      nameLabel.setIcon(new FlatSVGIcon("icons/menu/page.svg", 14, 14));
+      currentInfo = info;
+      nameLabel.setIcon(OculixFileIcons.forName(info.name));
+      nameLabel.setIconTextGap(UIScale.scale(8));
       nameLabel.setText(info.name);
       nameLabel.setToolTipText(info.path);
 
@@ -249,7 +356,8 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
       String imgText = info.imageCount + " " + (info.imageCount != 1
           ? _I("workspaceCardImagesPlural")
           : _I("workspaceCardImagesSingular"));
-      infoLabel.setIcon(new FlatSVGIcon("icons/menu/picture.svg", 12, 12));
+      infoLabel.setIcon(OculixFileIcons.get("image"));
+      infoLabel.setIconTextGap(UIScale.scale(8));
       infoLabel.setText(imgText);
     }
 
@@ -261,24 +369,22 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
         infoLabel.setForeground(UIManager.getColor("List.selectionForeground"));
       } else {
         nameLabel.setForeground(UIManager.getColor("Label.foreground"));
-        infoLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+        infoLabel.setForeground(OculixUi.color("sidebar.mutedForeground", "Label.disabledForeground"));
       }
     }
 
     void refreshTheme() {
-      normalBg = UIManager.getColor("Panel.background");
-      hoverBg = UIManager.getColor("List.selectionInactiveBackground");
-      activeBg = UIManager.getColor("List.selectionBackground");
+      normalBg = OculixUi.color("explorer.cardBackground", "Panel.background");
+      hoverBg = OculixUi.color("explorer.hoverBackground", "List.selectionBackground");
+      activeBg = OculixUi.color("explorer.selectedBackground", "List.selectionBackground");
       setBackground(active ? activeBg : normalBg);
-      setBorder(BorderFactory.createCompoundBorder(
-          BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor"), 1),
-          BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+      setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
       if (active) {
         nameLabel.setForeground(UIManager.getColor("List.selectionForeground"));
         infoLabel.setForeground(UIManager.getColor("List.selectionForeground"));
       } else {
         nameLabel.setForeground(UIManager.getColor("Label.foreground"));
-        infoLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+        infoLabel.setForeground(OculixUi.color("sidebar.mutedForeground", "Label.disabledForeground"));
       }
     }
   }
@@ -299,30 +405,32 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     }
 
     public static ScriptInfo fromFolder(String name, File folder, boolean isTemp) {
-      int imgCount = 0;
-      String path = "";
-      if (folder != null && folder.exists()) {
-        File[] pngs = folder.listFiles((dir, fn) -> fn.endsWith(".png"));
-        if (pngs != null) imgCount = pngs.length;
-        path = folder.getAbsolutePath();
-      }
+      int imgCount = countImages(folder);
+      String path = folder != null && folder.exists() ? folder.getAbsolutePath() : "";
       return new ScriptInfo(name, path, imgCount, !isTemp);
+    }
+
+    private static int countImages(File folder) {
+      if (folder == null || !folder.isDirectory()) return 0;
+      try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(folder.toPath())) {
+        return (int) stream.filter(java.nio.file.Files::isRegularFile)
+            .map(p -> p.getFileName().toString().toLowerCase(java.util.Locale.ROOT))
+            .filter(n -> n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg"))
+            .count();
+      } catch (java.io.IOException e) {
+        return 0;
+      }
     }
   }
 
-  private static boolean isDarkTheme() {
-    String theme = org.sikuli.basics.PreferencesUser.get().getIdeTheme();
-    return !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(theme);
-  }
 
   @Override
   public void beforeThemeChange() { }
 
   @Override
   public void afterThemeChange() {
-    setBackground(isDarkTheme()
-        ? new Color(0x0A, 0x10, 0x28)
-        : new Color(0xF8, 0xFA, 0xFD));
+    setBackground(OculixUi.color("explorer.background", "Panel.background"));
+    fileTree.applyTheme();
     for (ScriptCard card : cards) {
       card.refreshTheme();
     }

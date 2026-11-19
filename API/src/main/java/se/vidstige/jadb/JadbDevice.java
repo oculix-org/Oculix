@@ -125,6 +125,33 @@ public class JadbDevice {
     }
 
     /**
+     * Like {@link #execute(String, String...)} for a caller that must stay interruptible: reads on
+     * the socket of this call only time out after {@code readSliceMillis}, and every read, including
+     * the ADB confirmations, resumes until {@code deadlineNanos}. Each command is sent once.
+     * If the transport opens but a command or its confirmation fails, the transport is closed
+     * before the exception propagates: the caller never receives the stream and cannot close it.
+     */
+    public InputStream executeWithDeadline(int readSliceMillis, long deadlineNanos, String command,
+                                           String... args) throws IOException, JadbException {
+        Transport transport = transportFactory.createTransport();
+        try {
+            transport.setReadTimeout(readSliceMillis);
+            transport.send(serial == null ? "host:transport-any" : "host:transport:" + serial);
+            transport.verifyResponse(deadlineNanos);
+            transport.send("exec:" + buildCmdLine(command, args));
+            transport.verifyResponse(deadlineNanos);
+        } catch (IOException | JadbException | RuntimeException failure) {
+            try {
+                transport.close();
+            } catch (IOException closeFailure) {
+                failure.addSuppressed(closeFailure);
+            }
+            throw failure;
+        }
+        return new BufferedInputStream(transport.getInputStream());
+    }
+
+    /**
      * Builds a command line string from the command and its arguments.
      *
      * @param command the command.

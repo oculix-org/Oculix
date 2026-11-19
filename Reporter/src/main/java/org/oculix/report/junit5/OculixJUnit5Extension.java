@@ -47,6 +47,7 @@ public class OculixJUnit5Extension
 
     @Override
     public void beforeAll(ExtensionContext context) {
+        if (OculixReporter.isPlatformListenerActive()) return;
         if (OculixReporter.currentRun() == null) {
             OculixReporter.startSuite(context.getDisplayName());
         }
@@ -59,6 +60,7 @@ public class OculixJUnit5Extension
         // the run. For simple single-class runs this closes correctly; for
         // multi-class suites users should prefer TestNG or write closing
         // glue in their own @AfterAll.
+        if (OculixReporter.isPlatformListenerActive()) return;
         if (isTopLevel(context)) {
             OculixReporter.endSuite();
             try {
@@ -72,6 +74,7 @@ public class OculixJUnit5Extension
 
     @Override
     public void beforeEach(ExtensionContext context) {
+        if (OculixReporter.isPlatformListenerActive()) return;
         OculixReporter.startTest(context.getDisplayName());
     }
 
@@ -85,35 +88,30 @@ public class OculixJUnit5Extension
 
     @Override
     public void testSuccessful(ExtensionContext context) {
+        if (OculixReporter.isPlatformListenerActive()) return;
         OculixReporter.endTest(Outcome.PASSED, null, null);
     }
 
     @Override
     public void testFailed(ExtensionContext context, Throwable cause) {
-        OculixReporter.endTest(Outcome.FAILED,
-            cause == null ? "" : cause.getMessage(),
-            cause == null ? "" : stackOf(cause));
+        if (OculixReporter.isPlatformListenerActive()) return;
+        OculixReporter.endTest(cause instanceof AssertionError ? Outcome.FAILED : Outcome.ERROR,
+            OculixReporter.messageOf(cause), OculixReporter.stackTraceOf(cause));
     }
 
     @Override
     public void testAborted(ExtensionContext context, Throwable cause) {
-        OculixReporter.endTest(Outcome.ERROR,
-            cause == null ? "" : cause.getMessage(),
-            cause == null ? "" : stackOf(cause));
+        if (OculixReporter.isPlatformListenerActive()) return;
+        OculixReporter.endTest(Outcome.SKIPPED, cause == null ? "" : cause.getMessage(), "");
     }
 
     @Override
     public void testDisabled(ExtensionContext context, Optional<String> reason) {
-        OculixReporter.endTest(Outcome.SKIPPED, reason.orElse(""), "");
+        if (OculixReporter.isPlatformListenerActive()) return;
+        OculixReporter.skippedTest(context.getDisplayName(), reason.orElse(""));
     }
 
     private static boolean isTopLevel(ExtensionContext context) {
         return !context.getParent().flatMap(ExtensionContext::getTestClass).isPresent();
-    }
-
-    private static String stackOf(Throwable t) {
-        StringBuilder sb = new StringBuilder();
-        for (StackTraceElement e : t.getStackTrace()) sb.append("    at ").append(e).append('\n');
-        return sb.toString();
     }
 }

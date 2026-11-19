@@ -30,6 +30,22 @@ import javax.imageio.ImageIO;
  */
 public class ScreenImage {
 
+  /** Density of a desktop capture normalized to AWT logical coordinates. */
+  public static final int LOGICAL_DPI = 96;
+
+  // Snapshot provenance, not the current DPI of the machine reading it.
+  private int captureDpi = -1;
+
+  public int getCaptureDpi() {
+    return captureDpi;
+  }
+
+  /** Explicit bitmap density; unknown for untagged or remote captures. */
+  public ScreenImage(Rectangle rect, BufferedImage img, int captureDpi) {
+    this(rect, img);
+    this.captureDpi = captureDpi > 0 ? captureDpi : -1;
+  }
+
 	/**
 	 * x, y, w, h of the stored ROI
 	 *
@@ -80,7 +96,7 @@ public class ScreenImage {
     }
     BufferedImage imgSub = bimg.getSubimage(sub.x - x, sub.y - y, sub.width, sub.height);
     BufferedImage img = Commons.deepCopySameType(imgSub);
-    return new ScreenImage(sub, img);
+    return new ScreenImage(sub, img, captureDpi);
   }
 
 	/**
@@ -118,7 +134,7 @@ public class ScreenImage {
 	 * @return absolute path to stored file
 	 */
   public String save() {
-    return FileManager.saveTimedImage(bimg, Commons.getTempFolder().getAbsolutePath(), "#sikuliximage");
+    return FileManager.saveTimedImage(bimg, Commons.getTempFolder().getAbsolutePath(), "#sikuliximage", captureDpi);
   }
 
 	/**
@@ -140,7 +156,7 @@ public class ScreenImage {
 	 * @return absolute path to stored file
 	 */
   public String save(String path) {
-    return FileManager.saveTimedImage(bimg, path, "#sikuliximage");
+    return FileManager.saveTimedImage(bimg, path, "#sikuliximage", captureDpi);
   }
 
 	/**
@@ -152,7 +168,7 @@ public class ScreenImage {
 	 * @return absolute path to stored file
 	 */
   public String save(String path, String name) {
-    return FileManager.saveTimedImage(bimg, path, name);
+    return FileManager.saveTimedImage(bimg, path, name, captureDpi);
   }
 
 	/**
@@ -207,7 +223,7 @@ public class ScreenImage {
 	private void storeImage(File image) throws IOException {
 		String filename = image.getAbsolutePath();
 		if (!filename.equals(this.filename) || image.getName().startsWith("_")) {
-			FileManager.writePngWithDpi(bimg, image);
+			FileManager.writePngWithDpi(bimg, image, captureDpi);
 			this.filename = filename;
 		}
 	}
@@ -238,7 +254,7 @@ public class ScreenImage {
 
   public void saveLastScreenImage(File fPath) {
     try {
-  		FileManager.writePngWithDpi(bimg, new File(fPath, "LastScreenImage.png"));
+      FileManager.writePngWithDpi(bimg, new File(fPath, "LastScreenImage.png"), captureDpi);
     } catch (Exception ex) {}
   }
 
@@ -304,7 +320,7 @@ public class ScreenImage {
 	public String saveInto(File path) {
 		File fImage = new File(path, String.format("%s-%d.png", "sikuliximage", new Date().getTime()));
 		try {
-			FileManager.writePngWithDpi(bimg, fImage);
+			FileManager.writePngWithDpi(bimg, fImage, captureDpi);
 			Debug.log(3, "ScreenImage::saveImage: %s", fImage);
 		} catch (Exception ex) {
 			Debug.error("ScreenImage::saveInto: did not work: %s (%s)", fImage, ex.getMessage());

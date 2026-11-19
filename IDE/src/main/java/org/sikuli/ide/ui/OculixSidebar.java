@@ -9,6 +9,8 @@ import com.formdev.flatlaf.extras.FlatSVGIcon;
 import net.miginfocom.swing.MigLayout;
 import org.sikuli.basics.PreferencesUser;
 import org.sikuli.ide.theme.OculixColors;
+import org.sikuli.ide.theme.OculixUi;
+import org.sikuli.ide.theme.OculixFileIcons;
 import org.sikuli.ide.theme.OculixDarkLaf;
 import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.ide.theme.OculixLightLaf;
@@ -42,6 +44,7 @@ public class OculixSidebar extends JPanel {
   private SidebarItem navFile;
   private SidebarItem navEdit;
   private SidebarItem navRun;
+  private SidebarItem navView;
   private SidebarItem navTools;
   private SidebarItem navHelp;
 
@@ -60,9 +63,8 @@ public class OculixSidebar extends JPanel {
   private JLabel projectImages;
 
   // Status panel: glowing dot + label + right-aligned value, per row
-  private GlowingDot paddleDot, tesseractDot, javaDot;
-  private JLabel ocrPaddleStatus, ocrTesseractStatus, javaInfo;
-  private JLabel paddleValue, tesseractValue, javaValue;
+  // Engine status widgets moved to SikuliIDEStatusBar; refreshOcrStatus now
+  // forwards to the bottom bar so callers do not need to know where it lives.
 
   // Last run card
   private JLabel lastRunResult;
@@ -75,11 +77,18 @@ public class OculixSidebar extends JPanel {
 
   public OculixSidebar() {
     setLayout(new BorderLayout());
-    setPreferredSize(new Dimension(240, 0));
-    setMinimumSize(new Dimension(240, 0));
-    putClientProperty(FlatClientProperties.STYLE, "background: darken(@background, 3%)");
+    setPreferredSize(new Dimension(180, 0));
+    setMinimumSize(new Dimension(180, 0));
+    putClientProperty(FlatClientProperties.STYLE, "background: $Oculix.sidebar.background");
 
-    mainPanel = new JPanel(new MigLayout("wrap 1, insets 8 14 8 14, gap 0", "[fill, grow]", ""));
+    // The main panel sits in a JScrollPane with no horizontal bar. A plain
+    // JPanel is not Scrollable, so the viewport lays it out at its own
+    // preferred width, and any child wider than the sidebar (a 30-char
+    // script path in the hero card was enough) widens the whole grid and
+    // pushes the right-aligned status values out of the visible area.
+    // Tracking the viewport width pins the content to the sidebar's width
+    // whatever it contains; children that cannot fit ellipsize instead.
+    mainPanel = new ViewportWidthPanel(new MigLayout("wrap 1, insets 8 14 8 14, gap 0", "[fill, grow]", ""));
     mainPanel.setOpaque(false);
 
     footerPanel = new JPanel(new MigLayout("wrap 1, insets 4 14 10 14, gap 6", "[fill, grow]", ""));
@@ -120,7 +129,7 @@ public class OculixSidebar extends JPanel {
     mainPanel.add(wordmarkCard, "growx, gapbottom 8");
 
     // ── Hero script card ──
-    // Soft cyan-tinted card with a glowing border. When no script is open
+    // Rounded project card. When no script is open
     // the card collapses to a single muted "no script" line.
     heroCardRef = new HeroScriptCard();
     projectName = heroCardRef.nameLabel;
@@ -134,7 +143,7 @@ public class OculixSidebar extends JPanel {
     // (e.g. zh_CN, ja) still render the consistent kicker style.
     addSectionHeader(_I("sidebarSectionScript"));
     navFile = new SidebarItem(_I("menuFile"), null);
-    navFile.setIcon(new FlatSVGIcon("icons/sidebar/folder.svg", 18, 18));
+    navFile.setIcon(OculixFileIcons.folder(false));
     navFile.setMnemonic(java.awt.event.KeyEvent.VK_F);
     mainPanel.add(navFile);
     navEdit = new SidebarItem(_I("menuEdit"), null);
@@ -145,6 +154,13 @@ public class OculixSidebar extends JPanel {
     navRun.setIcon(new FlatSVGIcon("icons/sidebar/play.svg", 18, 18));
     navRun.setMnemonic(java.awt.event.KeyEvent.VK_R);
     mainPanel.add(navRun);
+    // View sits where the classic menu bar had it, between Run and Tools.
+    // It went missing when the menu bar was hidden behind the sidebar, and
+    // with it the only visible way to toggle the inline image thumbnails.
+    navView = new SidebarItem(_I("menuView"), null);
+    navView.setIcon(new FlatSVGIcon("icons/sidebar/eye.svg", 18, 18));
+    navView.setMnemonic(java.awt.event.KeyEvent.VK_V);
+    mainPanel.add(navView);
 
     // ── TOOLS section ──
     addSectionHeader(_I("sidebarSectionTools"));
@@ -155,29 +171,8 @@ public class OculixSidebar extends JPanel {
 
     // ── STATUS section ──
     // Three glowing dots + label + value (right-aligned). Each dot is a
-    // GlowingDot painted with a translucent radial halo so it reads "alive".
-    addSectionHeader(_I("sidebarSectionStatus"));
-    JPanel statusPanel = new JPanel(new MigLayout("wrap 3, insets 0 2 0 2, gap 4 6", "[14!][grow][]", ""));
-    statusPanel.setOpaque(false);
-    paddleDot = new GlowingDot(OculixColors.OX_RED_500);
-    statusPanel.add(paddleDot);
-    ocrPaddleStatus = makeStatusLabel("PaddleOCR");
-    statusPanel.add(ocrPaddleStatus, "growx");
-    paddleValue = makeStatusValue(_I("sidebarStatusOffline"));
-    statusPanel.add(paddleValue, "align right");
-    tesseractDot = new GlowingDot(OculixColors.OX_LIME_400);
-    statusPanel.add(tesseractDot);
-    ocrTesseractStatus = makeStatusLabel("Tesseract");
-    statusPanel.add(ocrTesseractStatus, "growx");
-    tesseractValue = makeStatusValue(_I("sidebarStatusBuiltIn"));
-    statusPanel.add(tesseractValue, "align right");
-    javaDot = new GlowingDot(OculixColors.OX_CYAN_500);
-    statusPanel.add(javaDot);
-    javaInfo = makeStatusLabel("Java");
-    statusPanel.add(javaInfo, "growx");
-    javaValue = makeStatusValue(System.getProperty("java.version"));
-    statusPanel.add(javaValue, "align right");
-    mainPanel.add(statusPanel, "gapbottom 8");
+    // (The engine status row lived here; it moved to the bottom status bar
+    // so the sidebar keeps only what a person acts on.)
 
     // ── LAST RUN section ──
     addSectionHeader(_I("sidebarSectionLastRun"));
@@ -226,7 +221,7 @@ public class OculixSidebar extends JPanel {
   private void addSectionHeader(String text) {
     JLabel header = new JLabel(text == null ? null : text.toUpperCase(java.util.Locale.ROOT));
     header.setFont(applyTracking(OculixFonts.mono(10), 0.18f).deriveFont(Font.BOLD));
-    header.setForeground(OculixColors.OX_INK_300);
+    header.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
     header.setBorder(BorderFactory.createEmptyBorder(24, 2, 8, 0));
     mainPanel.add(header);
   }
@@ -257,19 +252,30 @@ public class OculixSidebar extends JPanel {
       return;
     }
     projectName.setText(name);
+    projectName.setIcon(scriptDir != null && scriptDir.getName().endsWith(".sikuli")
+        ? OculixFileIcons.get("sikuli") : OculixFileIcons.forName(name));
     projectPath.setText(scriptDir != null ? truncatePath(scriptDir.getAbsolutePath(), 30) : "");
     projectPath.setToolTipText(scriptDir != null ? scriptDir.getAbsolutePath() : "");
 
-    int imgCount = 0;
-    if (scriptDir != null && scriptDir.exists()) {
-      File[] pngs = scriptDir.listFiles((dir, fn) -> fn.endsWith(".png"));
-      if (pngs != null) imgCount = pngs.length;
-    }
+    int imgCount = countImages(scriptDir);
     // Singular vs plural via two distinct keys; MessageFormat handles the
     // {0,number,integer} interpolation per locale (e.g. some locales prefer
     // grouping with a non-breaking-space).
     String imgKey = imgCount == 1 ? "sidebarImageCountSingular" : "sidebarImageCountPlural";
     projectImages.setText(_I(imgKey, imgCount));
+  }
+
+  /** All PNG, JPG and JPEG files under the folder, so a subfolder of images still counts. */
+  private static int countImages(File folder) {
+    if (folder == null || !folder.isDirectory()) return 0;
+    try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(folder.toPath())) {
+      return (int) stream.filter(java.nio.file.Files::isRegularFile)
+          .map(p -> p.getFileName().toString().toLowerCase(java.util.Locale.ROOT))
+          .filter(n -> n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg"))
+          .count();
+    } catch (java.io.IOException e) {
+      return 0;
+    }
   }
 
   /**
@@ -278,10 +284,10 @@ public class OculixSidebar extends JPanel {
   public void updateLastRun(int exitCode, long durationMs) {
     if (exitCode == 0) {
       lastRunResult.setText(_I("sidebarRunPassed"));
-      lastRunResult.setForeground(OculixColors.OX_LIME_400);
+      lastRunResult.putClientProperty("FlatLaf.style", "foreground: $Oculix.console.logForeground");
     } else {
       lastRunResult.setText(_I("sidebarRunFailed", exitCode));
-      lastRunResult.setForeground(OculixColors.OX_RED_500);
+      lastRunResult.putClientProperty("FlatLaf.style", "foreground: $Oculix.console.errorForeground");
     }
     lastRunDuration.setText(String.format("%.1fs", durationMs / 1000.0));
     lastRunTime.setText(new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()));
@@ -291,37 +297,29 @@ public class OculixSidebar extends JPanel {
    * Refreshes OCR engine status indicators.
    */
   public void refreshOcrStatus() {
-    boolean paddleOk = false;
-    try {
-      Class<?> engineClass = Class.forName("com.sikulix.ocr.PaddleOCREngine");
-      Object engine = engineClass.getDeclaredConstructor().newInstance();
-      paddleOk = (boolean) engineClass.getMethod("isAvailable").invoke(engine);
-    } catch (Exception ignored) {}
-    paddleDot.setColor(paddleOk ? OculixColors.OX_LIME_400 : OculixColors.OX_RED_500);
-    paddleValue.setText(paddleOk ? _I("sidebarStatusOk") : _I("sidebarStatusOffline"));
-
-    // Tesseract is always bundled inside the IDE jar
-    tesseractDot.setColor(OculixColors.OX_LIME_400);
-    tesseractValue.setText(_I("sidebarStatusBuiltIn"));
-
-    javaValue.setText(System.getProperty("java.version"));
+    org.sikuli.ide.SikuliIDEStatusBar bar = org.sikuli.ide.SikulixIDE.getStatusbar();
+    if (bar != null) {
+      bar.refreshEngineStatus();
+    }
   }
 
   // ── Navigation wiring ──
 
-  private SidebarSubmenu fileSub, editSub, runSub, toolsSub, helpSub;
+  private SidebarSubmenu fileSub, editSub, runSub, viewSub, toolsSub, helpSub;
 
   public void initNavigation(SidebarSubmenu fileSub, SidebarSubmenu editSub,
-                              SidebarSubmenu runSub, SidebarSubmenu toolsSub,
-                              SidebarSubmenu helpSub) {
+                              SidebarSubmenu runSub, SidebarSubmenu viewSub,
+                              SidebarSubmenu toolsSub, SidebarSubmenu helpSub) {
     this.fileSub = fileSub;
     this.editSub = editSub;
     this.runSub = runSub;
+    this.viewSub = viewSub;
     this.toolsSub = toolsSub;
     this.helpSub = helpSub;
     navFile.addActionListener(e -> fileSub.showBelow(navFile));
     navEdit.addActionListener(e -> editSub.showBelow(navEdit));
     navRun.addActionListener(e -> runSub.showBelow(navRun));
+    navView.addActionListener(e -> viewSub.showBelow(navView));
     navTools.addActionListener(e -> toolsSub.showBelow(navTools));
     navHelp.addActionListener(e -> helpSub.showBelow(navHelp));
   }
@@ -331,7 +329,7 @@ public class OculixSidebar extends JPanel {
   // each after a theme swap so the next popup render picks up the new LaF
   // instead of showing old Dark colors on a Light theme (and vice-versa).
   public void refreshSubmenuLaF() {
-    for (SidebarSubmenu sub : new SidebarSubmenu[]{fileSub, editSub, runSub, toolsSub, helpSub}) {
+    for (SidebarSubmenu sub : new SidebarSubmenu[]{fileSub, editSub, runSub, viewSub, toolsSub, helpSub}) {
       if (sub != null) SwingUtilities.updateComponentTreeUI(sub);
     }
   }
@@ -365,54 +363,49 @@ public class OculixSidebar extends JPanel {
     versionLabel = new JLabel("v" + version);
     versionLabel.setFont(OculixFonts.mono(10));
     versionLabel.setHorizontalAlignment(SwingConstants.CENTER);
-    versionLabel.setForeground(OculixColors.OX_INK_400);
+    versionLabel.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
     footerPanel.add(versionLabel);
   }
 
+  private Runnable onLocaleChanged;
+
   /**
-   * Persists the new locale + reloads the SikuliIDEI18N bundle, then
-   * surfaces a "restart for full effect" toast on the IDE message panel.
-   * The Welcome tab + Sidebar section headers will pick up the new
-   * locale on the next IDE launch (Java Swing components cache strings
-   * at construction time, so a partial live-refresh is unreliable
-   * across the whole IDE).
+   * What the IDE does once the language has changed: it rebuilds the sidebar
+   * and the Welcome tab in the new language.
    */
-  private void changeLocale(java.util.Locale newLocale) {
+  public void setOnLocaleChanged(Runnable onLocaleChanged) {
+    this.onLocaleChanged = onLocaleChanged;
+  }
+
+  /**
+   * Persists the new locale, reloads the SikuliIDEI18N bundle and hands over
+   * to the IDE, which rebuilds what shows translated text.
+   */
+  public void changeLocale(java.util.Locale newLocale) {
     try {
       PreferencesUser prefs = PreferencesUser.get();
       prefs.setLocale(newLocale);
       prefs.store();
       org.sikuli.support.ide.SikuliIDEI18N.setLocale(newLocale);
-      // Update the picker label to the freshly-selected locale so the
-      // user sees feedback even before restart. setSelectedLocale (not
-      // setLocale) — the latter is inherited from java.awt.Component
-      // and renaming avoids a weak-access override compile error.
       if (languagePicker != null) languagePicker.setSelectedLocale(newLocale);
-
-      // User-facing notice that a restart is required for the full UI
-      // to switch (Welcome tab + Sidebar labels are constructed once,
-      // can't refresh in-place without rebuilding the whole tree).
-      // The popup itself uses _I() with the freshly-set locale, so the
-      // user sees the new translation as proof the change took effect.
-      String displayName = newLocale.getDisplayName(newLocale);
-      if (displayName == null || displayName.isEmpty()) {
-        displayName = newLocale.toLanguageTag();
+      FlatLaf.setPreferredFontFamily(OculixFonts.uiFamily());
+      FlatLaf.setPreferredMonospacedFontFamily(OculixFonts.monoFamily());
+      installLaf();
+      if (onLocaleChanged != null) {
+        onLocaleChanged.run();
       }
-      // Capitalize first letter so 'français' / 'deutsch' look right.
-      displayName = Character.toUpperCase(displayName.charAt(0)) + displayName.substring(1);
-
-      JOptionPane.showMessageDialog(
-          SwingUtilities.getWindowAncestor(this),
-          _I("i18nLanguageChangedBody", displayName),
-          _I("i18nLanguageChangedTitle"),
-          JOptionPane.INFORMATION_MESSAGE);
     } catch (Exception ex) {
       System.err.println("[i18n] failed to change locale: " + ex);
     }
   }
 
   private void toggleTheme() {
-    isDark = !isDark;
+    applyTheme(!isDark);
+  }
+
+  /** Switches the IDE to the dark or the light theme and repaints the pill. */
+  public void applyTheme(boolean dark) {
+    isDark = dark;
     try {
       // Persist the new theme BEFORE installing the LaF so any component
       // that reads PreferencesUser.getIdeTheme() during the swap (e.g.
@@ -420,16 +413,21 @@ public class OculixSidebar extends JPanel {
       PreferencesUser prefs = PreferencesUser.get();
       prefs.setIdeTheme(isDark ? PreferencesUser.THEME_DARK : PreferencesUser.THEME_LIGHT);
       prefs.store();
-      if (isDark) OculixDarkLaf.setup(); else OculixLightLaf.setup();
-      FlatLaf.updateUI();
-      // Force a full LaF propagation on every visible top-level window,
-      // including detached frames (Preferences, More options, splash).
-      // FlatLaf.updateUI() walks the JFrame tree but stale references on
-      // some windows can keep the old LaF until the next focus event.
-      for (java.awt.Window w : java.awt.Window.getWindows()) {
-        if (w.isDisplayable()) SwingUtilities.updateComponentTreeUI(w);
-      }
+      installLaf();
     } catch (Exception ex) {}
+    repaint();
+  }
+
+  /**
+   * Installs the theme again with the preferred font families of the moment
+   * and pushes it to every open window, detached frames included.
+   */
+  private void installLaf() {
+    if (isDark) OculixDarkLaf.setup(); else OculixLightLaf.setup();
+    FlatLaf.updateUI();
+    for (java.awt.Window w : java.awt.Window.getWindows()) {
+      if (w.isDisplayable()) SwingUtilities.updateComponentTreeUI(w);
+    }
   }
 
   public boolean isDarkTheme() { return isDark; }
@@ -491,11 +489,47 @@ public class OculixSidebar extends JPanel {
   private static JLabel makeStatusValue(String text) {
     JLabel l = new JLabel(text);
     l.setFont(OculixFonts.mono(11));
-    l.setForeground(OculixColors.OX_INK_300);
+    l.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
     return l;
   }
 
   // ── Inner components ───────────────────────────────────────────
+
+  /**
+   * A JPanel that always takes the width of the viewport it scrolls in.
+   * Vertical scrolling stays free; horizontal size is pinned, so no child
+   * can widen the sidebar's content beyond the sidebar itself.
+   */
+  static class ViewportWidthPanel extends JPanel implements Scrollable {
+    ViewportWidthPanel(LayoutManager layout) {
+      super(layout);
+    }
+
+    @Override
+    public Dimension getPreferredScrollableViewportSize() {
+      return getPreferredSize();
+    }
+
+    @Override
+    public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+      return 12;
+    }
+
+    @Override
+    public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+      return Math.max(12, visibleRect.height - 12);
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportWidth() {
+      return true;
+    }
+
+    @Override
+    public boolean getScrollableTracksViewportHeight() {
+      return false;
+    }
+  }
 
   /**
    * Wordmark card: soft rounded container around "OculiX IDE". Subtle ink-700
@@ -535,8 +569,7 @@ public class OculixSidebar extends JPanel {
   }
 
   /**
-   * Hero card showing the active script. Soft cyan-tinted background with a
-   * glowing cyan border. When no script is open the card collapses to a
+   * Hero card showing the active script on a theme-aware rounded surface. When no script is open the card collapses to a
    * single muted line — same width, less content, no glow.
    */
   static class HeroScriptCard extends JPanel {
@@ -550,24 +583,30 @@ public class OculixSidebar extends JPanel {
       setOpaque(false);
       setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
+      // "wmin 0" lets each label shrink below its preferred width instead of
+      // forcing the card, and the sidebar behind it, to grow. A JLabel that is
+      // narrower than its text paints "..." by itself; the tooltip on the
+      // path label keeps the full value reachable.
       nameLabel = new JLabel(_I("sidebarNoScript"));
       nameLabel.setFont(OculixFonts.uiBold(13));
       nameLabel.setForeground(UIManager.getColor("Label.foreground"));
-      add(nameLabel);
+      add(nameLabel, "wmin 0");
 
       pathLabel = new JLabel("");
       pathLabel.setFont(OculixFonts.mono(10));
-      pathLabel.setForeground(OculixColors.OX_INK_300);
-      add(pathLabel);
+      pathLabel.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
+      add(pathLabel, "wmin 0");
 
       metaLabel = new JLabel("");
       metaLabel.setFont(OculixFonts.mono(10));
-      metaLabel.setForeground(OculixColors.OX_INK_400);
-      add(metaLabel, "gaptop 4");
+      metaLabel.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
+      add(metaLabel, "gaptop 4, wmin 0");
     }
 
     void setHasScript(boolean v) {
       this.hasScript = v;
+      nameLabel.setIcon(v ? OculixFileIcons.get("sikuli") : null);
+      nameLabel.setIconTextGap(8);
       pathLabel.setVisible(v);
       metaLabel.setVisible(v);
       repaint();
@@ -587,23 +626,9 @@ public class OculixSidebar extends JPanel {
       int h = getHeight();
       int arc = 12;
 
-      // Soft cyan-tinted gradient fill
-      Color fillTop = new Color(0x1EA5FF, true) ;
-      g2.setPaint(new GradientPaint(0, 0,
-          OculixColors.withAlpha(OculixColors.OX_CYAN_500, 22),
-          0, h,
-          OculixColors.withAlpha(OculixColors.OX_CYAN_500, 8)));
+      g2.setColor(OculixUi.color("explorer.cardBackground", "Panel.background"));
       g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
-
-      // Outer glow — three concentric rounded rects with decreasing alpha
-      for (int i = 0; i < 3; i++) {
-        g2.setColor(OculixColors.withAlpha(OculixColors.OX_CYAN_500, 60 - i * 18));
-        g2.setStroke(new BasicStroke(1f + i * 0.6f));
-        g2.drawRoundRect(-i, -i, w - 1 + 2 * i, h - 1 + 2 * i, arc + 2 * i, arc + 2 * i);
-      }
-      // Crisp inner border
-      g2.setStroke(new BasicStroke(1.2f));
-      g2.setColor(OculixColors.withAlpha(OculixColors.OX_CYAN_500, 140));
+      g2.setColor(OculixUi.color("panel.borderColor", "Component.borderColor"));
       g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
 
       g2.dispose();
@@ -662,17 +687,17 @@ public class OculixSidebar extends JPanel {
 
       resultLabel = new JLabel(_I("sidebarRunNotYet"));
       resultLabel.setFont(OculixFonts.uiBold(12));
-      resultLabel.setForeground(OculixColors.OX_INK_200);
+      resultLabel.putClientProperty("FlatLaf.style", "foreground: $Label.foreground");
       add(resultLabel, "growx");
 
       durationLabel = new JLabel("");
       durationLabel.setFont(OculixFonts.mono(10));
-      durationLabel.setForeground(OculixColors.OX_INK_300);
+      durationLabel.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
       add(durationLabel, "align right");
 
       timeLabel = new JLabel("");
       timeLabel.setFont(OculixFonts.mono(10));
-      timeLabel.setForeground(OculixColors.OX_INK_400);
+      timeLabel.putClientProperty("FlatLaf.styleClass", "sidebarMuted");
       add(timeLabel, "span 2, growx");
     }
 
@@ -683,9 +708,9 @@ public class OculixSidebar extends JPanel {
       int w = getWidth();
       int h = getHeight();
       int arc = 8;
-      g2.setColor(OculixColors.withAlpha(OculixColors.OX_INK_700, 120));
+      g2.setColor(OculixUi.color("explorer.cardBackground", "Panel.background"));
       g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
-      g2.setColor(OculixColors.withAlpha(OculixColors.OX_INK_500, 180));
+      g2.setColor(OculixUi.color("panel.borderColor", "Component.borderColor"));
       g2.setStroke(new BasicStroke(1f));
       g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
       g2.dispose();
@@ -756,10 +781,10 @@ public class OculixSidebar extends JPanel {
       // when the locale's translation didn't preserve CAPS.
       String labelDark = _I("sidebarThemeDark").toUpperCase();
       String labelLight = _I("sidebarThemeLight").toUpperCase();
-      g2.setColor(dark ? OculixColors.OX_INK_100 : OculixColors.OX_INK_400);
+      g2.setColor(OculixUi.color(dark ? "tabs.selectedForeground" : "sidebar.mutedForeground", "Label.foreground"));
       int wDark = fm.stringWidth(labelDark);
       g2.drawString(labelDark, (half - wDark) / 2, h / 2 + fm.getAscent() / 2 - 2);
-      g2.setColor(dark ? OculixColors.OX_INK_400 : OculixColors.OX_INK_100);
+      g2.setColor(OculixUi.color(dark ? "sidebar.mutedForeground" : "tabs.selectedForeground", "Label.foreground"));
       int wLight = fm.stringWidth(labelLight);
       g2.drawString(labelLight, half + (half - wLight) / 2, h / 2 + fm.getAscent() / 2 - 2);
 
@@ -786,6 +811,7 @@ public class OculixSidebar extends JPanel {
      *  translate-bundles.py script + en_US source + ta_IN RaiMan-curated. */
     private static final java.util.List<java.util.Locale> AVAILABLE = java.util.List.of(
         new java.util.Locale("en", "US"),
+        new java.util.Locale("en", "GB"),
         new java.util.Locale("fr"),
         new java.util.Locale("de"),
         new java.util.Locale("es"),
@@ -806,11 +832,55 @@ public class OculixSidebar extends JPanel {
         new java.util.Locale("ko"),
         new java.util.Locale("zh", "CN"),
         new java.util.Locale("zh", "TW"),
+        new java.util.Locale("zh", "HK"),
+        new java.util.Locale("zh", "MO"),
+        new java.util.Locale("zh", "SG"),
         new java.util.Locale("ta", "IN"),
         new java.util.Locale("hi"),
         new java.util.Locale("bn"),
         new java.util.Locale("te")
     );
+
+    /** The regions of the picker, i18n key of the region to the locale codes it holds. */
+    private static final java.util.LinkedHashMap<String, String[]> REGIONS = new java.util.LinkedHashMap<>();
+    static {
+      REGIONS.put("languageRegionLatinEurope", new String[]{
+          "en", "en_US", "en_GB", "fr", "de", "es", "it", "nl", "pt", "pt_BR", "sv", "da", "ca"});
+      REGIONS.put("languageRegionSlavicEurope", new String[]{"pl", "ru", "uk", "bg", "tr"});
+      REGIONS.put("languageRegionMiddleEast", new String[]{"he", "ar"});
+      REGIONS.put("languageRegionEastAsia", new String[]{
+          "ja", "ko", "zh", "zh_CN", "zh_TW", "zh_HK", "zh_MO", "zh_SG"});
+      REGIONS.put("languageRegionIndianSubcontinent", new String[]{"hi", "bn", "te", "ta", "ta_IN"});
+    }
+
+    static java.util.Map<String, String[]> regions() {
+      return java.util.Collections.unmodifiableMap(REGIONS);
+    }
+
+    /** The selectable locales whose code is among the given ones, in picker order. */
+    static java.util.List<java.util.Locale> localesOf(String... codes) {
+      java.util.Set<String> wanted = new java.util.HashSet<>(java.util.Arrays.asList(codes));
+      java.util.List<java.util.Locale> out = new java.util.ArrayList<>();
+      for (java.util.Locale loc : AVAILABLE) {
+        if (wanted.contains(localeKey(loc))) out.add(loc);
+      }
+      return out;
+    }
+
+    /** The name of the locale in its own language, capitalised. */
+    static String displayLabel(java.util.Locale loc) {
+      String label = loc.getDisplayName(loc);
+      if (label == null || label.isEmpty()) {
+        return loc.toLanguageTag();
+      }
+      return Character.toUpperCase(label.charAt(0)) + label.substring(1);
+    }
+
+    static boolean sameLocale(java.util.Locale a, java.util.Locale b) {
+      return a.equals(b)
+          || (a.getLanguage().equals(b.getLanguage())
+              && java.util.Objects.equals(a.getCountry(), b.getCountry()));
+    }
 
     private java.util.Locale current;
     private boolean hover;
@@ -858,29 +928,13 @@ public class OculixSidebar extends JPanel {
       // Region grouping. Each submenu carries an SVG icon (Apple Silicon
       // Swing renders Unicode flag emojis as tofu; SVG bypasses the font
       // fallback entirely).
-      addRegionSubmenu(menu, itemFont, _I("languageRegionLatinEurope"),
-          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
-          "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR",
-          "sv", "da", "ca");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionSlavicEurope"),
-          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
-          "pl", "ru", "uk", "bg", "tr");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionMiddleEast"),
-          new FlatSVGIcon("icons/menu/globe-europe.svg", 16, 16),
-          "he", "ar");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionEastAsia"),
-          new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
-          "ja", "ko", "zh", "zh_CN", "zh_TW");
-      addRegionSubmenu(menu, itemFont, _I("languageRegionIndianSubcontinent"),
-          new FlatSVGIcon("icons/menu/globe-asia.svg", 16, 16),
-          "hi", "bn", "te", "ta", "ta_IN");
-
-      // Allow selecting any AVAILABLE locale that wasn't covered above
-      // (defensive — none today, but keeps the picker honest if locales
-      // get added without a region tag).
-      java.util.Set<String> covered = new java.util.HashSet<>();
-      for (java.util.Locale loc : AVAILABLE) covered.add(localeKey(loc));
-      // (no-op for now; the regions above already cover AVAILABLE)
+      for (java.util.Map.Entry<String, String[]> region : REGIONS.entrySet()) {
+        boolean asia = region.getKey().equals("languageRegionEastAsia")
+            || region.getKey().equals("languageRegionIndianSubcontinent");
+        addRegionSubmenu(menu, itemFont, _I(region.getKey()),
+            new FlatSVGIcon(asia ? "icons/menu/globe-asia.svg" : "icons/menu/globe-europe.svg", 16, 16),
+            region.getValue());
+      }
 
       menu.show(this, 0, getHeight());
     }
@@ -895,21 +949,12 @@ public class OculixSidebar extends JPanel {
       JMenu region = new JMenu(label);
       region.setFont(font);
       if (icon != null) region.setIcon(icon);
-      java.util.Set<String> wanted = new java.util.HashSet<>(java.util.Arrays.asList(codes));
-      for (java.util.Locale loc : AVAILABLE) {
-        if (!wanted.contains(localeKey(loc))) continue;
-        String displayLabel = loc.getDisplayName(loc);
-        if (displayLabel == null || displayLabel.isEmpty()) {
-          displayLabel = loc.toLanguageTag();
-        } else {
-          displayLabel = Character.toUpperCase(displayLabel.charAt(0))
-              + displayLabel.substring(1);
-        }
-        boolean isActive = loc.equals(current)
-            || (loc.getLanguage().equals(current.getLanguage())
-                && java.util.Objects.equals(loc.getCountry(), current.getCountry()));
+      for (java.util.Locale loc : localesOf(codes)) {
+        String displayLabel = displayLabel(loc);
+        boolean isActive = sameLocale(loc, current);
         JMenuItem item = new JMenuItem(displayLabel);
-        item.setFont(isActive ? font.deriveFont(Font.BOLD) : font);
+        Font labelFont = OculixFonts.forText(displayLabel, font);
+        item.setFont(isActive ? labelFont.deriveFont(Font.BOLD) : labelFont);
         if (isActive) item.setForeground(OculixColors.OX_LIME_400);
         final java.util.Locale picked = loc;
         item.addActionListener(e -> {
@@ -963,7 +1008,7 @@ public class OculixSidebar extends JPanel {
 
       g2.setFont(applyTracking(OculixFonts.mono(10), 0.16f).deriveFont(Font.BOLD));
       FontMetrics fm = g2.getFontMetrics();
-      g2.setColor(hover ? OculixColors.OX_INK_100 : OculixColors.OX_INK_300);
+      g2.setColor(OculixUi.color(hover ? "tabs.selectedForeground" : "sidebar.mutedForeground", "Label.foreground"));
 
       int iconSize = 14;
       int iconGap = 6;

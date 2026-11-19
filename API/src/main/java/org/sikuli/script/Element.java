@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * INTERNAL: An abstract super-class for {@link Region} and {@link Image}.
@@ -132,7 +133,7 @@ public abstract class Element {
    */
   public <PSI> Match find(PSI target) throws FindFailed {
     //TODO implement find image
-    throw new SikuliXception(String.format("Pixels: find: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: find: not implemented for %s", this.getClass().getCanonicalName()));
     //return match;
   }
   //</editor-fold>
@@ -327,20 +328,33 @@ public abstract class Element {
   //<editor-fold desc="17 find text like find image">
   public Match findText(String text) throws FindFailed {
     //TODO implement findText
-    throw new SikuliXception(String.format("Pixels: findText: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: findText: not implemented for %s", this.getClass().getCanonicalName()));
     //return match;
   }
 
+  /**
+   * same as {@link #findText(String)}
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found
+   */
   public Match findT(String text) throws FindFailed {
     return findText(text);
   }
 
   public Match existsText(String text) {
     //TODO existsText: try: findText:true catch: false
-    throw new SikuliXception(String.format("Pixels: existsText: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: existsText: not implemented for %s", this.getClass().getCanonicalName()));
     //return match;
   }
 
+  /**
+   * same as {@link #existsText(String)}
+   *
+   * @param text the text to look for
+   * @return the match, or null if not found
+   */
   public Match existsT(String text) {
     return existsText(text);
   }
@@ -349,16 +363,28 @@ public abstract class Element {
     return null != existsText(text);
   }
 
+  /**
+   * same as {@link #hasText(String)}
+   *
+   * @param text the text to look for
+   * @return true if found
+   */
   public boolean hasT(String text) {
     return hasText(text);
   }
 
   public List<Match> findAllText(String text) {
     List<Match> matches = new ArrayList<>();
-    throw new SikuliXception(String.format("Pixels: findAllText: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: findAllText: not implemented for %s", this.getClass().getCanonicalName()));
     //return matches;
   }
 
+  /**
+   * same as {@link #findAllText(String)}
+   *
+   * @param text the text to look for
+   * @return the matches (empty if none)
+   */
   public List<Match> findAllT(String text) {
     return findAllText(text);
   }
@@ -386,6 +412,14 @@ public abstract class Element {
     }
   }
 
+  /**
+   * get the pixels of anything that has some
+   *
+   * @param <SFMRISB> String (image file name), File, Match, Region, Image, ScreenImage or BufferedImage
+   * @param whatEver the thing (a Match or Region is captured from the screen)
+   * @return the BufferedImage
+   * @throws IllegalArgumentException for anything else
+   */
   public static <SFMRISB> BufferedImage getBufferedImage(SFMRISB whatEver) {
     if (whatEver instanceof String) {
       return Image.create((String) whatEver).get();
@@ -407,7 +441,7 @@ public abstract class Element {
   }
 
   protected Image getImage() {
-    throw new SikuliXception(String.format("Pixels: getImage: not implemented for", this.getClass().getCanonicalName()));
+    throw new SikuliXception(String.format("Pixels: getImage: not implemented for %s", this.getClass().getCanonicalName()));
   }
 
   protected List<Match> relocate(List<Match> matches) {
@@ -418,11 +452,21 @@ public abstract class Element {
     return match;
   }
 
+  /**
+   * the absolute path of the file this element was loaded from
+   *
+   * @return the path, or null if the element has no file (see {@link #file()})
+   */
   public String fileName() {
     File file = file();
     return (file == null ? null : file.getAbsolutePath());
   }
 
+  /**
+   * the file this element was loaded from: only an {@link Image} can have one
+   *
+   * @return the File, or null (always null for a Region or a Match)
+   */
   public File file() {
     return null;
   }
@@ -463,6 +507,22 @@ public abstract class Element {
    */
   public Iterator<Match> getLastMatches() {
     return lastMatches;
+  }
+
+  /**
+   * The matches of the last findAnyList / waitAnyList on this region, one per target found.
+   * Each search thread adds its own match; the list is replaced, never cleared, when a new
+   * search starts, so a thread still finishing cannot touch the list of the next call.
+   */
+  protected volatile List<Match> lastMatchList = new CopyOnWriteArrayList<>();
+
+  /**
+   * a findAnyList / waitAnyList saves every match it found in this region.
+   *
+   * @return the matches of the last findAnyList / waitAnyList, in target order, empty if none
+   */
+  public List<Match> getLastMatchList() {
+    return lastMatchList;
   }
   //</editor-fold>
 

@@ -80,7 +80,7 @@ public class RobotDesktop extends Robot implements IRobot {
 
   @Override
   public ScreenImage captureScreen(Rectangle rect) {
-    return new ScreenImage(rect, ScreenDevice.capture(rect));
+    return new ScreenImage(rect, ScreenDevice.capture(rect), ScreenImage.LOGICAL_DPI);
   }
 
   @Override

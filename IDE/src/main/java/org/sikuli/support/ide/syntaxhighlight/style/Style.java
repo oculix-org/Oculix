@@ -71,15 +71,9 @@ public class Style extends NestedDef<Style>
 
 		try
 		{
-			return (Style) Jygments.class.getClassLoader().loadClass( fullname ).newInstance();
+			return (Style) Jygments.class.getClassLoader().loadClass( fullname ).getDeclaredConstructor().newInstance();
 		}
-		catch( InstantiationException x )
-		{
-		}
-		catch( IllegalAccessException x )
-		{
-		}
-		catch( ClassNotFoundException x )
+		catch( ReflectiveOperationException x )
 		{
 		}
 

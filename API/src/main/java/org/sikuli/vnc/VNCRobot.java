@@ -7,8 +7,10 @@ import org.sikuli.basics.Settings;
 import org.sikuli.script.*;
 import org.sikuli.support.devices.IRobot;
 import org.sikuli.support.devices.IScreen;
+import org.sikuli.support.devices.KeyboardLayout;
 
 import java.awt.*;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,9 +123,17 @@ class VNCRobot implements IRobot {
   }
 
   @Override
+  public int keyCodeFromText(String token) {
+    // write() key names, in the Java key codes keyToXlib reads, on every client OS (#497).
+    return Key.toAwtKeyCodeFromText(token);
+  }
+
+  @Override
   public void typeChar(char character, KeyMode mode) {
     if (character >= '\ue000' && character < '\ue050') {
-      typeKey(Key.toJavaKeyCode(character)[0], mode);
+      // keyToXlib reads Java key codes. Key.toJavaKeyCode would follow the local keyboard layout,
+      // which on Windows gives Windows virtual-key codes (VK_DELETE 0x2E = Java's VK_PERIOD): #497.
+      typeKey(KeyboardLayout.toAwtKeyCode(character)[0], mode);
     } else {
       typeCode(charToXlib(character), mode);
     }
@@ -371,7 +381,9 @@ class VNCRobot implements IRobot {
       case VK_DIVIDE:
         return org.sikuli.vnc.XKeySym.XK_KP_Divide;
       case VK_DELETE:
-        return org.sikuli.vnc.XKeySym.XK_KP_Delete;
+        // #495: the Delete key. XK_KP_Delete is the keypad key that shares the decimal point:
+        // QNX typed "." for it and macOS Screen Sharing delivered nothing.
+        return org.sikuli.vnc.XKeySym.XK_Delete;
       case VK_NUM_LOCK:
         return org.sikuli.vnc.XKeySym.XK_Num_Lock;
       case VK_SCROLL_LOCK:
@@ -431,7 +443,9 @@ class VNCRobot implements IRobot {
       case VK_HELP:
         return org.sikuli.vnc.XKeySym.XK_Help;
       case VK_META:
-        return org.sikuli.vnc.XKeySym.XK_Meta_L;
+        // #496: META/CMD/WIN is the Super key, the one macOS Screen Sharing delivers as Command.
+        // XK_Meta_L arrived as Option on macOS and as Alt on Xtigervnc. Same keysym as VK_WINDOWS.
+        return org.sikuli.vnc.XKeySym.XK_Super_L;
       case VK_KP_UP:
         return org.sikuli.vnc.XKeySym.XK_KP_Up;
       case VK_KP_DOWN:
@@ -591,19 +605,29 @@ class VNCRobot implements IRobot {
     }
   }
 
+  /**
+   * #493: the RFB button bits for a button spec. Both constant families callers use are
+   * accepted, as the desktop robot accepts them: {@code Mouse.*} (InputEvent.BUTTONn_MASK) and
+   * {@code Button.*} (InputEvent.BUTTONn_DOWN_MASK). The two families do not overlap.
+   */
+  private static int vncButtons(int buttons) {
+    int vnc = 0;
+    if ((buttons & (Mouse.LEFT | InputEvent.BUTTON1_DOWN_MASK)) != 0) vnc |= VNC_POINTER_EVENT_BUTTON_1;
+    if ((buttons & (Mouse.MIDDLE | InputEvent.BUTTON2_DOWN_MASK)) != 0) vnc |= VNC_POINTER_EVENT_BUTTON_2;
+    if ((buttons & (Mouse.RIGHT | InputEvent.BUTTON3_DOWN_MASK)) != 0) vnc |= VNC_POINTER_EVENT_BUTTON_3;
+    return vnc;
+  }
+
   @Override
   public void mouseDown(int buttons) {
-    if ((buttons & Mouse.LEFT) != 0) mouseButtons |= VNC_POINTER_EVENT_BUTTON_1;
-    if ((buttons & Mouse.MIDDLE) != 0) mouseButtons |= VNC_POINTER_EVENT_BUTTON_2;
-    if ((buttons & Mouse.RIGHT) != 0) mouseButtons |= VNC_POINTER_EVENT_BUTTON_3;
+    mouseButtons |= vncButtons(buttons);
     mouseMove(mouseX, mouseY);
   }
 
   @Override
   public int mouseUp(int buttons) {
-    if ((buttons & Mouse.LEFT) != 0) mouseButtons &= ~VNC_POINTER_EVENT_BUTTON_1;
-    if ((buttons & Mouse.MIDDLE) != 0) mouseButtons &= ~VNC_POINTER_EVENT_BUTTON_2;
-    if ((buttons & Mouse.RIGHT) != 0) mouseButtons &= ~VNC_POINTER_EVENT_BUTTON_3;
+    // 0 releases every held button, as Region.mouseUp() documents and the desktop robot does.
+    mouseButtons &= buttons == 0 ? 0 : ~vncButtons(buttons);
     mouseMove(mouseX, mouseY);
 
     int remainingButtons = 0;

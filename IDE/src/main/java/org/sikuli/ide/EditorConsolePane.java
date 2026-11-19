@@ -4,6 +4,9 @@
 package org.sikuli.ide;
 
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.formdev.flatlaf.util.UIScale;
+import org.sikuli.ide.theme.OculixUi;
+import org.sikuli.ide.ui.ConsoleToolbarLayout;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -13,6 +16,8 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -64,6 +69,13 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   private volatile String filterTerm = "";
   private volatile boolean autoScroll = true;
   private JTextField filterField;
+  private JPanel toolbar;
+  private JCheckBox autoScrollCb;
+  private JButton saveBtn;
+  private JButton copyBtn;
+  private JButton clearBtn;
+  private JButton reportBtn;
+  private JMenuItem clearMenuItem;
   Thread errorThrower; // just for testing (Throws an Exception at this Console)
 
   class PopupListener extends MouseAdapter {
@@ -103,6 +115,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     textArea.setEditorKit(kit);
     textArea.setTransferHandler(new JTextPaneHTMLTransferHandler());
     textArea.setEditable(false);
+    textArea.setMargin(UIScale.scale(new Insets(10, 14, 12, 14)));
 
     setLayout(new BorderLayout());
 
@@ -114,15 +127,23 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     // the filter restores the full scrollback. New log lines arriving while a
     // filter is active are also filtered before being appended.
 
-    JPanel leftToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
-    leftToolbar.setOpaque(false);
-
-    JLabel filterLabel = new JLabel(new FlatSVGIcon("icons/menu/magnifier.svg", 16, 16));
-    filterLabel.setToolTipText("Live filter — show only lines containing this text (case-insensitive)");
-    leftToolbar.add(filterLabel);
-
+    toolbar = new JPanel(new ConsoleToolbarLayout());
+    toolbar.setBorder(BorderFactory.createEmptyBorder(UIScale.scale(8), UIScale.scale(12),
+            UIScale.scale(8), UIScale.scale(12)));
+    // A wrapped toolbar must report its new height to BorderLayout after a resize.
+    toolbar.addComponentListener(new java.awt.event.ComponentAdapter() {
+      @Override public void componentResized(java.awt.event.ComponentEvent e) {
+        revalidate();
+      }
+    });
     filterField = new JTextField(20);
-    filterField.setToolTipText("Live filter — show only lines containing this text (case-insensitive)");
+    filterField.putClientProperty("FlatLaf.styleClass", "consoleFilter");
+    filterField.putClientProperty("JTextField.leadingIcon",
+        new FlatSVGIcon("icons/menu/magnifier.svg", 16, 16));
+    filterField.putClientProperty("JTextField.placeholderText", _I("consoleFilterPlaceholder"));
+    filterField.putClientProperty("JTextField.showClearButton", true);
+    filterField.setToolTipText(_I("consoleFilterTooltip"));
+    filterField.getAccessibleContext().setAccessibleName(_I("consoleFilterPlaceholder"));
     filterField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
       @Override public void insertUpdate(javax.swing.event.DocumentEvent e)  { onChange(); }
       @Override public void removeUpdate(javax.swing.event.DocumentEvent e)  { onChange(); }
@@ -132,20 +153,16 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         rebuildView();
       }
     });
-    leftToolbar.add(filterField);
+    toolbar.add(filterField);
 
-    JCheckBox autoScrollCb = new JCheckBox("Auto-scroll", true);
-    autoScrollCb.setFocusable(false);
+    autoScrollCb = new JCheckBox(_I("consoleAutoScroll"), true);
     autoScrollCb.setOpaque(false);
     autoScrollCb.setToolTipText("Auto-scroll to the latest line as new logs arrive");
     autoScrollCb.addActionListener(e -> autoScroll = autoScrollCb.isSelected());
-    leftToolbar.add(autoScrollCb);
+    toolbar.add(autoScrollCb);
 
-    JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
-    rightToolbar.setOpaque(false);
 
-    JButton saveBtn = new JButton("Save…", new FlatSVGIcon("icons/menu/floppy.svg", 16, 16));
-    saveBtn.setFocusable(false);
+    saveBtn = new JButton(_I("consoleSave"), new FlatSVGIcon("icons/menu/floppy.svg", 16, 16));
     saveBtn.setToolTipText("Save the entire log to a .txt file (UTF-8)");
     saveBtn.addActionListener(e -> {
       JFileChooser fc = new JFileChooser();
@@ -161,10 +178,10 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         }
       }
     });
-    rightToolbar.add(saveBtn);
+    saveBtn.putClientProperty("FlatLaf.styleClass", "consoleAction");
+    toolbar.add(saveBtn);
 
-    JButton copyBtn = new JButton("Copy all", new FlatSVGIcon("icons/menu/copy.svg", 16, 16));
-    copyBtn.setFocusable(false);
+    copyBtn = new JButton(_I("consoleCopyAll"), new FlatSVGIcon("icons/menu/copy.svg", 16, 16));
     copyBtn.setToolTipText("Copy entire log to clipboard (plain text)");
     copyBtn.addActionListener(e -> {
       try {
@@ -176,63 +193,24 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
       }
     });
-    rightToolbar.add(copyBtn);
+    copyBtn.putClientProperty("FlatLaf.styleClass", "consoleAction");
+    toolbar.add(copyBtn);
 
-    JButton clearBtn = new JButton("Clear", new FlatSVGIcon("icons/menu/clear.svg", 16, 16));
-    clearBtn.setFocusable(false);
+    clearBtn = new JButton(_I("consoleClear"), new FlatSVGIcon("icons/menu/clear.svg", 16, 16));
     clearBtn.setToolTipText("Clear log buffer and view");
     clearBtn.addActionListener(e -> {
       textArea.setText("");
       rawLines.clear();
     });
-    rightToolbar.add(clearBtn);
+    clearBtn.putClientProperty("FlatLaf.styleClass", "consoleAction");
+    toolbar.add(clearBtn);
 
-    JButton reportBtn = new JButton("Report bug…", new FlatSVGIcon("icons/menu/ladybug.svg", 16, 16));
-    reportBtn.setFocusable(false);
+    reportBtn = new JButton(_I("consoleReportBug"), new FlatSVGIcon("icons/menu/ladybug.svg", 16, 16));
     reportBtn.setToolTipText("Copy log to clipboard and open the OculiX bug report form on GitHub");
-    reportBtn.addActionListener(e -> {
-      // 1) Copy plain-text log to clipboard so the user can paste it directly.
-      try {
-        String plain = textArea.getDocument().getText(0, textArea.getDocument().getLength());
-        StringSelection sel = new StringSelection(plain);
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
-      } catch (BadLocationException ble) {
-        StringSelection sel = new StringSelection(textArea.getText());
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
-      }
-      // 2) Inform the user — what was done, what to paste, where to paste it.
-      java.awt.Image geckoRaw = new ImageIcon(getClass().getResource("/icons/gecko_cyclope.png")).getImage();
-      ImageIcon gecko = new ImageIcon(geckoRaw.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
-      JOptionPane.showMessageDialog(
-          EditorConsolePane.this,
-          "Your log has been copied to the clipboard.\n\n"
-              + "The OculiX bug report form will open in your browser.\n"
-              + "Please paste the log into the \"Logs / console output\" field,\n"
-              + "fill in the other sections, then submit.\n\n"
-              + "Thanks for helping us improve OculiX.",
-          "Report a bug",
-          JOptionPane.INFORMATION_MESSAGE,
-          gecko);
-      // 3) Open the bug_report.yml template — no API call, no auto-creation,
-      // the user stays in full control of what gets submitted.
-      try {
-        Desktop.getDesktop().browse(java.net.URI.create(
-            "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml"));
-      } catch (Exception ex) {
-        JOptionPane.showMessageDialog(
-            EditorConsolePane.this,
-            "Could not open the browser. Please go to:\n"
-                + "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml",
-            "Report a bug",
-            JOptionPane.WARNING_MESSAGE);
-      }
-    });
-    rightToolbar.add(reportBtn);
+    reportBtn.addActionListener(e -> askBeforeReportingBug());
+    reportBtn.putClientProperty("FlatLaf.styleClass", "consoleAction");
+    toolbar.add(reportBtn);
 
-    JPanel toolbar = new JPanel(new BorderLayout());
-    toolbar.setOpaque(false);
-    toolbar.add(leftToolbar, BorderLayout.WEST);
-    toolbar.add(rightToolbar, BorderLayout.EAST);
     add(toolbar, BorderLayout.NORTH);
 
     scrollPane = new JScrollPane(textArea);
@@ -242,14 +220,14 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
     //Create the popup menu.
     popup = new JPopupMenu();
-    JMenuItem menuItem = new JMenuItem(_I("editorConsoleCtxClear"));
+    clearMenuItem = new JMenuItem(_I("editorConsoleCtxClear"));
     // Add ActionListener that clears the textArea
-    menuItem.addActionListener(new ActionListener() {
+    clearMenuItem.addActionListener(new ActionListener() {
       public void actionPerformed(ActionEvent e) {
-        textArea.setText("");
+        clear();
       }
     });
-    popup.add(menuItem);
+    popup.add(clearMenuItem);
 
     //Add listener to components that can bring up popup menus.
     MouseListener popupListener = new PopupListener(popup);
@@ -257,47 +235,92 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   }
 
   /**
-   * True when the user's IDE theme preference is set to dark.
-   * <p>
-   * Reads {@link org.sikuli.basics.PreferencesUser#getIdeTheme()} — the same
-   * source of truth that {@code Sikulix.main()} uses to decide which LaF to
-   * install at startup. This is deliberately independent of
-   * {@code UIManager.getLookAndFeel()}, which can return a transient state at
-   * the moment {@code EditorConsolePane.init()} runs (e.g. when AWT image
-   * loading via {@code setIconImage()} primes Swing UIDefaults before FlatLaf
-   * is fully resolved). Reading the user preference removes any timing
-   * dependency on the Swing init order.
+   * Re-reads every toolbar and context-menu label from the active locale.
+   * Called by the IDE after a live language change, like the tray.
    */
-  private static boolean isDarkLaf() {
-    String theme = org.sikuli.basics.PreferencesUser.get().getIdeTheme();
-    return !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(theme);
+  public void relabel() {
+    if (toolbar == null) {
+      return;
+    }
+    filterField.putClientProperty("JTextField.placeholderText", _I("consoleFilterPlaceholder"));
+    filterField.setToolTipText(_I("consoleFilterTooltip"));
+    filterField.getAccessibleContext().setAccessibleName(_I("consoleFilterPlaceholder"));
+    autoScrollCb.setText(_I("consoleAutoScroll"));
+    saveBtn.setText(_I("consoleSave"));
+    copyBtn.setText(_I("consoleCopyAll"));
+    clearBtn.setText(_I("consoleClear"));
+    reportBtn.setText(_I("consoleReportBug"));
+    clearMenuItem.setText(_I("editorConsoleCtxClear"));
+    toolbar.revalidate();
+    toolbar.repaint();
   }
 
+  private static final String BUG_REPORT_URL = "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml";
+
   /**
-   * Re-applies the theme-dependent background / caret colors on the textArea,
-   * the panel itself and the scroll pane viewport. Called once from init() and
-   * again from {@link #afterThemeChange()} when the user toggles the IDE
-   * theme so the console surface tracks the new palette without requiring a
-   * restart.
-   *
-   * <p>The {@code htmlize()} call site reads {@link #isDarkLaf()} on every
-   * log message, so future logs already pick up the new palette automatically;
-   * existing log content keeps the colors it was rendered with (intentional —
-   * re-flowing the entire scrollback through htmlize on every toggle would be
-   * expensive and visually noisy).
+   * Explains what "Report bug…" is about to do and waits for an explicit OK.
+   * Cancel, ESC and a click anywhere outside the dialog leave the IDE exactly
+   * as it was: nothing copied, no browser opened.
    */
+  private void askBeforeReportingBug() {
+    java.awt.Image geckoRaw = new ImageIcon(getClass().getResource("/icons/gecko_cyclope.png")).getImage();
+    ImageIcon gecko = new ImageIcon(geckoRaw.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
+    JOptionPane pane = new JOptionPane(
+        "Your log will be copied to the clipboard and the OculiX bug report form\n"
+            + "will open in your browser.\n\n"
+            + "Paste the log into the \"Logs / console output\" field,\n"
+            + "fill in the other sections, then submit.\n\n"
+            + "Thanks for helping us improve OculiX.",
+        JOptionPane.INFORMATION_MESSAGE, JOptionPane.OK_CANCEL_OPTION, gecko);
+    JDialog dialog = pane.createDialog(this, "Report a bug");
+    dialog.setModal(false);
+    dialog.addWindowFocusListener(new WindowAdapter() {
+      @Override
+      public void windowLostFocus(WindowEvent w) {
+        dialog.dispose();
+      }
+    });
+    pane.addPropertyChangeListener(JOptionPane.VALUE_PROPERTY, ev -> {
+      boolean ok = Integer.valueOf(JOptionPane.OK_OPTION).equals(pane.getValue());
+      dialog.dispose();
+      if (ok) {
+        reportBug();
+      }
+    });
+    dialog.setVisible(true);
+  }
+
+  private void reportBug() {
+    String plain;
+    try {
+      plain = textArea.getDocument().getText(0, textArea.getDocument().getLength());
+    } catch (BadLocationException ble) {
+      plain = textArea.getText();
+    }
+    StringSelection sel = new StringSelection(plain);
+    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+    try {
+      Desktop.getDesktop().browse(java.net.URI.create(BUG_REPORT_URL));
+    } catch (Exception ex) {
+      JOptionPane.showMessageDialog(this,
+          "Could not open the browser. Please go to:\n" + BUG_REPORT_URL,
+          "Report a bug", JOptionPane.WARNING_MESSAGE);
+    }
+  }
+
+  /** Theme defaults also colour existing scrollback when afterThemeChange rebuilds it. */
   private void applyThemeColors() {
-    boolean dark = isDarkLaf();
-    Color bg = dark ? new Color(0x05, 0x08, 0x1A) : new Color(0xF8, 0xFA, 0xFD);
-    Color caret = dark ? new Color(0x1E, 0xA5, 0xFF) : new Color(0x0F, 0x8D, 0xDB);
+    Color bg = OculixUi.color("console.background", "TextPane.background");
     if (textArea != null) {
       textArea.setBackground(bg);
-      textArea.setCaretColor(caret);
+      textArea.setForeground(OculixUi.color("console.foreground", "TextPane.foreground"));
+      textArea.setCaretColor(OculixUi.color("editor.caretForeground", "TextPane.caretForeground"));
+      textArea.setSelectionColor(OculixUi.color("editor.selectionBackground", "TextPane.selectionBackground"));
+      textArea.setSelectedTextColor(OculixUi.color("editor.selectionForeground", "TextPane.selectionForeground"));
     }
     setBackground(bg);
-    if (scrollPane != null) {
-      scrollPane.getViewport().setBackground(bg);
-    }
+    if (toolbar != null) toolbar.setBackground(OculixUi.color("console.toolbarBackground", "Panel.background"));
+    if (scrollPane != null) scrollPane.getViewport().setBackground(bg);
   }
 
   /**
@@ -327,22 +350,13 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   @Override
   public void afterThemeChange() {
     applyThemeColors();
-    // Re-render every line of scrollback under the new palette so existing
-    // logs match the new theme (otherwise they keep the colors they had at
-    // insertion time). Cheap in practice — typical scrollback is < a few
-    // hundred lines.
-    if (textArea != null) {
-      synchronized (textArea) {
-        java.util.List<String> snapshot;
-        synchronized (rawLines) {
-          snapshot = new java.util.ArrayList<>(rawLines);
-        }
-        textArea.setText("");
-        for (String line : snapshot) {
-          appendMsg(htmlize(line));
-        }
-      }
-    }
+    // Keep the active filter and reading position while recolouring the log.
+    int position = scrollPane.getVerticalScrollBar().getValue();
+    rebuildView();
+    SwingUtilities.invokeLater(() -> {
+      if (autoScroll) scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
+      else scrollPane.getVerticalScrollBar().setValue(position);
+    });
     revalidate();
     repaint();
   }
@@ -505,19 +519,11 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         .replace("<", "&lt;")
         .replace(">", "&gt;");
 
-    // Picked per-theme so the existing [debug] / [info] / [log] / [error]
-    // tag detection still drives the color, but the actual hex is chosen
-    // for AA contrast against the active console bg (paper-100 in light,
-    // ink-900 in dark).
-    boolean dark = isDarkLaf();
-    // Dark palette unchanged — only light mode hexes were tweaked for AA
-    // contrast on near-white bg (the previous values washed out at common
-    // monitor gamma / brightness on Windows).
-    String normal = dark ? "#BBBBBB" : "#2F3D6E";
-    String error  = dark ? "#FF6B6B" : "#B91C1C";   // light: deeper red, more punchy on white
-    String debug  = dark ? "#C0A000" : "#9A4A06";   // light: dark orange (Jython startup, debug detail)
-    String log    = dark ? "#3DDBA4" : "#1B5E20";   // light: forest / wood green (success actions like CLICK)
-    String info   = dark ? "#6CB6FF" : "#0B5394";   // light: deeper blue (was washed-out medium blue)
+    String normal = OculixUi.hex("console.foreground", "TextPane.foreground");
+    String error = OculixUi.hex("console.errorForeground", "TextPane.foreground");
+    String debug = OculixUi.hex("console.debugForeground", "TextPane.foreground");
+    String log = OculixUi.hex("console.logForeground", "TextPane.foreground");
+    String info = OculixUi.hex("console.infoForeground", "TextPane.foreground");
 
     String color = "color: " + normal + ";";
 
@@ -530,8 +536,8 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         else if (logType.contains("log")) color = "color: " + log + ";";
         else if (logType.contains("info")) color = "color: " + info + ";";
       }
-      String font = "font-family:monospace; font-size: medium;";
-      int margin = 0;
+      String font = "font-family:monospace; font-size: " + UIScale.scale(13) + "pt;";
+      int margin = UIScale.scale(2);
       line = String.format("<pre style=\"margin: %d; %s %s\">%s</pre>", margin, font, color, line);
       sb.append(line);
     }

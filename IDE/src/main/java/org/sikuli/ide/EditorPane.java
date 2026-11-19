@@ -67,11 +67,13 @@ public class EditorPane extends JTextPane implements ThemeAware {
   EditorPane() {
     addMouseListener(new MouseInputAdapter() {
       @Override
-      public void mouseClicked(MouseEvent e) {
-        if (e.getButton() == MouseEvent.BUTTON3) {
-          new Thread(() -> handlePopup()).start();
-        }
-        super.mouseClicked(e);
+      public void mousePressed(MouseEvent e) {
+        if (e.isPopupTrigger()) handlePopup(e);
+      }
+
+      @Override
+      public void mouseReleased(MouseEvent e) {
+        if (e.isPopupTrigger()) handlePopup(e);
       }
     });
     scrollPane = new JScrollPane(this);
@@ -143,34 +145,34 @@ public class EditorPane extends JTextPane implements ThemeAware {
     popMenuCompletion = null; //TODO popMenu
 
     setFont(new Font(PreferencesUser.get().getFontName(), Font.PLAIN, PreferencesUser.get().getFontSize()));
-    setMargin(new Insets(3, 3, 3, 3));
-    // Editor background stays white regardless of IDE theme; force dark foreground
-    // and caret so the blinking caret and text remain clearly readable (issue #165).
-    setBackground(Color.WHITE);
-    setForeground(Color.BLACK);
-    setCaretColor(Color.BLACK);
-    if (getCaret() != null) {
-      getCaret().setBlinkRate(500);
-    }
-    if (!Settings.isMac()) {
-      setSelectionColor(new Color(170, 200, 255));
-    }
+    setMargin(com.formdev.flatlaf.util.UIScale.scale(new Insets(8, 10, 8, 10)));
+    applyEditorTheme();
+    if (getCaret() != null) getCaret().setBlinkRate(500);
 
     SikulixIDE.getStatusbar().setType(paneType);
     log("InitTab: (%s)", paneType);
   }
 
-  // Re-apply editor colors after a LaF change so the caret/foreground stay
-  // readable on the white editor background regardless of dark/light theme.
+  private void applyEditorTheme() {
+    setBackground(org.sikuli.ide.theme.OculixUi.color("editor.background", "TextPane.background"));
+    setForeground(org.sikuli.ide.theme.OculixUi.color("editor.foreground", "TextPane.foreground"));
+    setCaretColor(org.sikuli.ide.theme.OculixUi.color("editor.caretForeground", "TextPane.caretForeground"));
+    setSelectionColor(org.sikuli.ide.theme.OculixUi.color("editor.selectionBackground", "TextPane.selectionBackground"));
+    setSelectedTextColor(org.sikuli.ide.theme.OculixUi.color("editor.selectionForeground", "TextPane.selectionForeground"));
+    if (scrollPane != null) {
+      scrollPane.getViewport().setBackground(getBackground());
+      if (scrollPane.getRowHeader() != null
+          && scrollPane.getRowHeader().getView() instanceof EditorLineNumberView) {
+        ((EditorLineNumberView) scrollPane.getRowHeader().getView()).applyTheme();
+      }
+    }
+    repaint();
+  }
+
   @Override
   public void updateUI() {
     super.updateUI();
-    setBackground(Color.WHITE);
-    setForeground(Color.BLACK);
-    setCaretColor(Color.BLACK);
-    if (!Settings.isMac()) {
-      setSelectionColor(new Color(170, 200, 255));
-    }
+    applyEditorTheme();
   }
 
   // Theme lifecycle: the LaF swap invalidates the ButtonUI of any embedded
@@ -205,16 +207,7 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   @Override
   public void afterThemeChange() {
-    // The script editor surface is the user's canvas — its colours must not
-    // move under a Dark/Light toggle. Mirror initBeforeLoad() and updateUI()
-    // so the white background + black foreground + black caret + light blue
-    // selection are the single visual constant across theme switches.
-    setBackground(Color.WHITE);
-    setForeground(Color.BLACK);
-    setCaretColor(Color.BLACK);
-    if (!Settings.isMac()) {
-      setSelectionColor(new Color(170, 200, 255));
-    }
+    applyEditorTheme();
     if (savedThumbButtons == null || savedThumbButtons.isEmpty()) return;
     if (!(getDocument() instanceof DefaultStyledDocument)) return;
     DefaultStyledDocument doc = (DefaultStyledDocument) getDocument();
@@ -242,8 +235,22 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   public void loadContent(InputStreamReader isr) throws IOException {
     read(new BufferedReader(isr), null);
-    getDocument().addDocumentListener(new DirtyHandler());
-    getDocument().addUndoableEditListener(getUndoRedo());
+    listenToDocument();
+  }
+
+  private Document listenedDocument;
+
+  /**
+   * Hooks undo and the unsaved-changes marker onto the document the pane holds
+   * now, once per document. Every read() swaps in a fresh document; one that
+   * nobody listens to takes keystrokes that can neither be undone nor saved.
+   */
+  void listenToDocument() {
+    Document document = getDocument();
+    if (document == listenedDocument) return;
+    document.addDocumentListener(getDirtyHandler());
+    document.addUndoableEditListener(getUndoRedo());
+    listenedDocument = document;
   }
 
   EditorPaneUndoRedo getUndoRedo() {
@@ -273,8 +280,8 @@ public class EditorPane extends JTextPane implements ThemeAware {
   private SikuliIDEPopUpMenu popMenuCompletion;
 
   //TODO right mouse click in tab text
-  private void handlePopup() {
-    trace("text popup");
+  private void handlePopup(MouseEvent e) {
+    SikulixIDE.get().showEditorMenu(this, e.getX(), e.getY());
   }
 
   void updateDocumentListeners(String source) { //TODO when is it needed?
@@ -544,7 +551,7 @@ public class EditorPane extends JTextPane implements ThemeAware {
     Point p = me.getLocationOnScreen();
     Point pp = getLocationOnScreen();
     p.translate(-pp.x, -pp.y);
-    int pos = viewToModel(p);
+    int pos = viewToModel2D(p);
     Element root = getDocument().getDefaultRootElement();
     int e = root.getElementIndex(pos);
     if (e == -1) {
@@ -639,6 +646,46 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   public String getPatternString(org.sikuli.script.Image img, double sim, Location off, float rFactor, String mask) {
     return codeGenerator.pattern(org.sikuli.script.Pattern.make(img, sim, off, rFactor, mask));
+  }
+
+  private String imageNameForCode(String imageFile) {
+    return nameForCode(editorPaneFolder, imageFile);
+  }
+
+  /**
+   * The image as the code must name it: relative to the script folder when it lives under
+   * it, so a file kept in a subfolder is still found, and its bare name otherwise.
+   */
+  public static String nameForCode(File scriptFolder, String imageFile) {
+    if (imageFile == null || imageFile.isEmpty()) {
+      return imageFile;
+    }
+    File file = new File(imageFile);
+    if (!file.isAbsolute()) {
+      return imageFile.replace('\\', '/');
+    }
+    if (scriptFolder == null) {
+      return file.getName();
+    }
+    java.nio.file.Path root = scriptFolder.toPath().toAbsolutePath().normalize();
+    java.nio.file.Path path = file.toPath().toAbsolutePath().normalize();
+    if (!path.startsWith(root) || path.equals(root)) {
+      return file.getName();
+    }
+    return root.relativize(path).toString().replace('\\', '/');
+  }
+
+  /** The image file behind an Image, or the given fallback when it does not come from a file. */
+  private static String imageFileOf(Image img, String fallback) {
+    java.net.URL url = img == null ? null : img.getURL();
+    if (url == null || !"file".equals(url.getProtocol())) {
+      return fallback;
+    }
+    try {
+      return new File(url.toURI()).getAbsolutePath();
+    } catch (java.net.URISyntaxException e) {
+      return fallback;
+    }
   }
 
   private void insertString(int pos, String str) {
@@ -791,14 +838,51 @@ public class EditorPane extends JTextPane implements ThemeAware {
     return false;
   }
 
+  /**
+   * Replaces one thumbnail by the code it stands for, every value written
+   * out, in place, and puts the caret at the end of that code so it can be
+   * edited right away. The next reparse of the script turns the code back
+   * into a thumbnail.
+   *
+   * @return false when the button is not in this document
+   */
+  public boolean showAsText(EditorImageButton btn) {
+    if (!(getDocument() instanceof DefaultStyledDocument)) return false;
+    DefaultStyledDocument doc = (DefaultStyledDocument) getDocument();
+    int len = doc.getLength();
+    int i = 0;
+    while (i < len) {
+      Element el = doc.getCharacterElement(i);
+      int next = el.getEndOffset();
+      if (next <= i) break;
+      if (StyleConstants.ComponentElementName.equals(el.getName())
+          && StyleConstants.getComponent(el.getAttributes()) == btn) {
+        int pos = el.getStartOffset();
+        String code = btn.toEditableCode();
+        try {
+          doc.remove(pos, 1);
+          doc.insertString(pos, code, null);
+        } catch (BadLocationException e) {
+          error("showAsText: cannot replace the thumbnail at %d: %s", pos, e.getMessage());
+          return false;
+        }
+        setCaretPosition(pos + code.length());
+        requestFocusInWindow();
+        return true;
+      }
+      i = next;
+    }
+    return false;
+  }
+
   public String getPatternString(String ifn, float sim, Location off, Image img, float resizeFactor, String mask) {
 //TODO ifn really needed??
     if (ifn == null) {
       return "\"" + EditorPatternLabel.CAPTURE + "\"";
     }
-    String imgName = new File(ifn).getName();
+    String imgName = imageNameForCode(ifn);
     if (img != null) {
-      imgName = new File(img.getName()).getName();
+      imgName = imageNameForCode(imageFileOf(img, img.getName()));
     }
     String pat = "Pattern(\"" + imgName + "\")";
     String patternString = "";
@@ -1207,7 +1291,7 @@ public class EditorPane extends JTextPane implements ThemeAware {
     doc.insertString(pos - 1, _tabString, null);
   }
 
-  private Class _historyBtnClass;
+  private Class<?> _historyBtnClass;
 
   private void setHistoryCaptureButton(ButtonCapture btn) {
     _historyBtnClass = btn.getClass();

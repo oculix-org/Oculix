@@ -522,16 +522,6 @@ public class FileManager {
    * Uses the current system screen resolution as DPI value.
    */
   public static void writePngWithDpi(BufferedImage img, File file) throws IOException {
-    Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("png");
-    if (!writers.hasNext()) {
-      ImageIO.write(img, "png", file);
-      return;
-    }
-    ImageWriter writer = writers.next();
-    ImageWriteParam writeParam = writer.getDefaultWriteParam();
-    ImageTypeSpecifier typeSpec = ImageTypeSpecifier.createFromRenderedImage(img);
-    IIOMetadata metadata = writer.getDefaultImageMetadata(typeSpec, writeParam);
-
     int dpi;
     try {
       java.awt.GraphicsDevice gd = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
@@ -545,6 +535,25 @@ public class FileManager {
         dpi = 96;
       }
     }
+
+    writePngWithDpi(img, file, dpi);
+  }
+
+  /** Writes the bitmap's known density; a nonpositive value leaves DPI unspecified. */
+  public static void writePngWithDpi(BufferedImage img, File file, int dpi) throws IOException {
+    if (dpi <= 0) {
+      ImageIO.write(img, "png", file);
+      return;
+    }
+    Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("png");
+    if (!writers.hasNext()) {
+      ImageIO.write(img, "png", file);
+      return;
+    }
+    ImageWriter writer = writers.next();
+    ImageWriteParam writeParam = writer.getDefaultWriteParam();
+    ImageTypeSpecifier typeSpec = ImageTypeSpecifier.createFromRenderedImage(img);
+    IIOMetadata metadata = writer.getDefaultImageMetadata(typeSpec, writeParam);
 
     String metaFormat = "javax_imageio_png_1.0";
     try {
@@ -571,26 +580,40 @@ public class FileManager {
   }
 
   public static String saveTimedImage(BufferedImage img, String path, String name) {
+    return saveTimedImage(img, path, name, (Integer) null);
+  }
+
+  /** Saves a capture without substituting the reader's desktop DPI. */
+  public static String saveTimedImage(BufferedImage img, String path, String name, int dpi) {
+    return saveTimedImage(img, path, name, Integer.valueOf(dpi));
+  }
+
+  private static String saveTimedImage(BufferedImage img, String path, String name, Integer dpi) {
     Commons.pause(0.01f);
     if (null == path) {
       return null;
     }
-    File fImage = new File(path, name);
     String formatName = "png";
+    File fImage;
     if (name == null) {
-      fImage = new File(path, String.format("noname-%d.png", name, new Date().getTime()));
+      fImage = new File(path, String.format("noname-%d.png", new Date().getTime()));
     } else if (name.startsWith("#")) {
       fImage = new File(path, String.format("%s-%d.png", name.substring(1), new Date().getTime()));
-    } else if (!name.isEmpty()) {
-      if (!name.contains(".")) {
-        fImage = new File(path, name + ".png");
-      } else {
+    } else if (!name.isEmpty() && !name.contains(".")) {
+      fImage = new File(path, name + ".png");
+    } else {
+      fImage = new File(path, name);
+      if (name.contains(".")) {
         formatName = name.substring(name.lastIndexOf(".") + 1);
       }
     }
     try {
       if ("png".equals(formatName)) {
-        writePngWithDpi(img, fImage);
+        if (dpi == null) {
+          writePngWithDpi(img, fImage);
+        } else {
+          writePngWithDpi(img, fImage, dpi);
+        }
       } else {
         ImageIO.write(img, formatName, fImage);
       }

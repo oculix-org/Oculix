@@ -234,6 +234,15 @@ public class OverlayCapturePrompt extends JFrame implements EventSubject {
   }
 
   void setPromptImage() {
+    // #387: give DWM (or the equivalent compositor on X11) enough time to actually
+    // repaint the region uncovered by the just-hidden caller windows (recorder popup,
+    // recorder assistant, IDE...). setVisible(false) posts WM_SHOWWINDOW asynchronously
+    // to dwm.exe; without this pause the framebuffer read below still contains those
+    // windows' pixels, which get baked into scr_img_original and then into every
+    // subsequent cropSelection(). 50 ms = 3 vsync frames at 60 Hz — safe under load,
+    // imperceptible to the user, and this is the exact single point where the
+    // framebuffer is sampled so every caller benefits.
+    try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     scr_img_original = screen.capture();
     if (Debug.getDebugLevel() > 2) {
       //TODO scr_img_original.getFile(Commons.getAppDataStore().getAbsolutePath(), "lastScreenShot");
@@ -307,6 +316,24 @@ public class OverlayCapturePrompt extends JFrame implements EventSubject {
 
   public Rectangle getSelectionRectangle() {
     return rectSelected;
+  }
+
+  /**
+   * The selection in global screen coordinates, without cropping any image. getSelectionRectangle()
+   * is relative to the screen this prompt covers until getSelectionImage() shifts it in place, so
+   * call this one before getSelectionImage(), never after. On the screen at (0, 0) both agree, which
+   * is why the difference only shows on a second monitor. A click without a drag never fills the
+   * selection, so it comes back as an empty rectangle at the clicked point.
+   *
+   * @return a new rectangle, the selection moved by the origin of this prompt's screen; width and
+   * height 0 at the clicked point when nothing was dragged
+   */
+  public Rectangle getSelectionOnScreen() {
+    Rectangle onScreen = startX == endX && startY == endY
+        ? new Rectangle(startX, startY, 0, 0)
+        : new Rectangle(rectSelected);
+    onScreen.translate(screen.x(), screen.y());
+    return onScreen;
   }
 
   private BufferedImage cropSelection() {

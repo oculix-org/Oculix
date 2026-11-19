@@ -1,0 +1,9 @@
+<aspectj>
+    <weaver options="-warn:none -Xlint:ignore">
+        <include within="org.openqa.selenium..*"/>
+        <include within="org.oculix.report.selenium.SeleniumStepsAspect"/>
+    </weaver>
+    <aspects>
+        <aspect name="org.oculix.report.selenium.SeleniumStepsAspect"/>
+    </aspects>
+</aspectj>

@@ -100,29 +100,33 @@ public class CommandArgs {
       // Multiple files are now passed by repeating the flag: -l A -l B.
       builder.numberOfArgs(1);
     }
-    return builder.build();
+    return builder.get();
   }
 
   /**
    * Prints the help
    */
   public void printHelp() {
-    HelpFormatter formatter = new HelpFormatter();
-    formatter.printHelp(80, "\n",
-        "----- Running SikuliX " + "-------------",
-        cmdArgs,
-        "-----\n-r or -l: one script file per -l or -r, multiple -l or -r allowed\n"
-            + "file as folder: the base folder for the following -l or -r\n"
-            + ".sikuli, .py can be omitted\n"
-            + "path relative to current working directory or absolute path\n"
-            + "though deprecated: so called executables .skl can be used too\n"
-            + "------\nanything after --\nor after something beginning with --\n"
-            + "go to script as user parameters (respecting enclosing \")\n"
-            + "------\n-d use this option if you encounter any weird problems\n"
-            + "DebugLevel=3 and all output goes to <workingFolder>/SikuliLog.text\n"
-            + "BE CAREFUL with -q only use it if you do not need the startup infos\n"
-            + "----------------------------------------------------------------",
-        true);
+    org.apache.commons.cli.help.HelpFormatter formatter = org.apache.commons.cli.help.HelpFormatter.builder().get();
+    try {
+      formatter.printHelp("\n",
+          "----- Running SikuliX " + "-------------",
+          cmdArgs,
+          "-----\n-r or -l: one script file per -l or -r, multiple -l or -r allowed\n"
+              + "file as folder: the base folder for the following -l or -r\n"
+              + ".sikuli, .py can be omitted\n"
+              + "path relative to current working directory or absolute path\n"
+              + "though deprecated: so called executables .skl can be used too\n"
+              + "------\nanything after --\nor after something beginning with --\n"
+              + "go to script as user parameters (respecting enclosing \")\n"
+              + "------\n-d use this option if you encounter any weird problems\n"
+              + "DebugLevel=3 and all output goes to <workingFolder>/SikuliLog.text\n"
+              + "BE CAREFUL with -q only use it if you do not need the startup infos\n"
+              + "----------------------------------------------------------------",
+          true);
+    } catch (java.io.IOException e) {
+      System.out.println("[error] printing the command line help: " + e.getMessage());
+    }
   }
 
   static String argsOrg = "";

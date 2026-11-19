@@ -36,16 +36,33 @@ public class Settings {
   public static boolean ThrowException = true; // throw FindFailed exception
   public static float AutoWaitTimeout = 3f; // in seconds
   public static float WaitScanRate = 3f; // frames per second
+  /** Seconds a running script thread may stay on the same stack frame, runnable or blocked, before the IDE tray icon reports it as stuck. */
+  public static int TrayStuckSeconds = 30;
   public static float ObserveScanRate = 3f; // frames per second
   public static int ObserveMinChangedPixels = 50; // in pixels
   public static int RepeatWaitTime = 1; // wait 1 second for visual to vanish after action
   public static double MinSimilarity = 0.7;
   public static float AlwaysResize = 0;
+  /**
+   * true: when the search in colour fails, the image search also compares in grayscale and accepts
+   * the same drawing in other colours (an application that changes theme); false (default): a button
+   * in another colour is never taken for the searched one
+   */
+  public static boolean AnyColor = false;
+  /**
+   * true: the grayscale comparison also accepts the searched image in negative, light on dark
+   * instead of dark on light (an application switched between a light and a dark theme); as a
+   * theme change usually changes colours too, it also accepts the same drawing in other colours,
+   * like AnyColor; a normal match always wins over a negative one; false (default): a negative
+   * is never taken for the searched image
+   */
+  public static boolean AnyTheme = false;
   public static int DefaultPadding = 50;
   public static boolean AutoDetectKeyboardLayout = true;  
 
   public static boolean CheckLastSeen = true;
   public static float CheckLastSeenSimilar = 0.95f;
+  public static boolean WarmUpFind = true; // one in-memory find at screen init, so the first real find is not the slow one
 
   public static org.sikuli.script.ImageCallback ImageCallback = null;
 
@@ -92,9 +109,14 @@ public class Settings {
   public static String BundlePath = null;
   public static boolean OverwriteImages = false;
 
-  public static final String OcrLanguageDefault = "eng";
+  /** "auto": the language of the system the JVM runs on, fetched on first use if it is not bundled; else a Tesseract code. */
+  public static final String OcrLanguageDefault = "auto";
   public static String OcrLanguage = OcrLanguageDefault;
   public static String OcrDataPath = null;
+  /** Where a missing language model is fetched from: {@code <url><code>.traineddata}; a local or mirror URL works too. */
+  public static String OcrTessdataUrl = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/";
+  /** The language used when the system language has no model and none can be fetched. */
+  public static final String OcrLanguageFallback = "eng";
   public static boolean OcrTextSearch = true;
   public static boolean OcrTextRead = true;
   public static boolean SwitchToText = false;

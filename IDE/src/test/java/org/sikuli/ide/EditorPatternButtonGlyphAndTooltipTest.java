@@ -6,6 +6,8 @@ package org.sikuli.ide;
 import org.junit.jupiter.api.Test;
 import org.sikuli.script.Location;
 
+import java.io.File;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -32,12 +34,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class EditorPatternButtonGlyphAndTooltipTest {
 
+  /** An absolute image path on the machine running the tests, whatever its OS. */
+  private static final String FOO_PNG =
+      new File(System.getProperty("java.io.tmpdir"), "foo.png").getAbsolutePath();
+
   // ----------------------------------------------------- Step 3 — tooltip
 
   @Test
   void getToolTipText_returnsBareQuotedFilename_whenNoModifiers() {
     EditorPatternButton btn = new EditorPatternButton();
-    setPrivate(btn, "_imgFilename", "/some/path/foo.png");
+    setPrivate(btn, "_imgFilename", FOO_PNG);
     setPrivate(btn, "_similarity", 0.7);   // DEFAULT_SIMILARITY
     setPrivate(btn, "_offset", new Location(0, 0));
     setPrivate(btn, "_exact", false);
@@ -50,7 +56,7 @@ class EditorPatternButtonGlyphAndTooltipTest {
   @Test
   void getToolTipText_includesSimilar_whenNonDefault() {
     EditorPatternButton btn = new EditorPatternButton();
-    setPrivate(btn, "_imgFilename", "/p/foo.png");
+    setPrivate(btn, "_imgFilename", FOO_PNG);
     setPrivate(btn, "_similarity", 0.85);
     setPrivate(btn, "_offset", new Location(0, 0));
     setPrivate(btn, "_exact", false);
@@ -63,7 +69,7 @@ class EditorPatternButtonGlyphAndTooltipTest {
   @Test
   void getToolTipText_includesTargetOffset_whenNonZero() {
     EditorPatternButton btn = new EditorPatternButton();
-    setPrivate(btn, "_imgFilename", "/p/foo.png");
+    setPrivate(btn, "_imgFilename", FOO_PNG);
     setPrivate(btn, "_similarity", 0.7);
     setPrivate(btn, "_offset", new Location(10, -20));
     setPrivate(btn, "_exact", false);
@@ -76,7 +82,7 @@ class EditorPatternButtonGlyphAndTooltipTest {
   @Test
   void getToolTipText_chains_similar_then_targetOffset_inThatOrder() {
     EditorPatternButton btn = new EditorPatternButton();
-    setPrivate(btn, "_imgFilename", "/p/foo.png");
+    setPrivate(btn, "_imgFilename", FOO_PNG);
     setPrivate(btn, "_similarity", 0.92);
     setPrivate(btn, "_offset", new Location(5, 5));
     setPrivate(btn, "_exact", false);
@@ -92,7 +98,7 @@ class EditorPatternButtonGlyphAndTooltipTest {
   @Test
   void getToolTipText_emitsExact_overSimilar_whenExactIsTrue() {
     EditorPatternButton btn = new EditorPatternButton();
-    setPrivate(btn, "_imgFilename", "/p/foo.png");
+    setPrivate(btn, "_imgFilename", FOO_PNG);
     setPrivate(btn, "_exact", true);
     setPrivate(btn, "_similarity", 0.85);   // ignored when exact
     setPrivate(btn, "_offset", new Location(0, 0));
@@ -110,7 +116,7 @@ class EditorPatternButtonGlyphAndTooltipTest {
     // cached at button creation. Otherwise the SXDialog Optimize flow
     // would never surface its updates in the tooltip.
     EditorPatternButton btn = new EditorPatternButton();
-    setPrivate(btn, "_imgFilename", "/p/foo.png");
+    setPrivate(btn, "_imgFilename", FOO_PNG);
     setPrivate(btn, "_similarity", 0.7);
     setPrivate(btn, "_offset", new Location(0, 0));
     setPrivate(btn, "_exact", false);

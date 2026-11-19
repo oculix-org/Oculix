@@ -1,13 +1,15 @@
 #globals; m 5; c; f 12; b 1; p 3
 
-#action; Rename; rename
+#icon; /icons/thumb/saveas.png; rename; Rename
 ---
-#action; Optimize; optimize
+#icon; /icons/thumb/optimize.png; optimize; Optimize
 ---
-#action; As Pattern; pattern
+#icon; /icons/thumb/aspattern.png; pattern; As Pattern
 ---
-#action; Find; find
+#icon; /icons/thumb/editcode.png; code; Edit code
 ---
-#action; Recapture; capture
+#icon; /icons/thumb/find.png; find; Find
+---
+#icon; /icons/thumb/recapture.png; capture; Recapture
 ---3
 #close; ESC or Click; f 10

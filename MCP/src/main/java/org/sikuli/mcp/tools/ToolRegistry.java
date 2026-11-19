@@ -117,7 +117,7 @@ public final class ToolRegistry {
     r.register(new TypeTextTool());
     r.register(new KeyComboTool());
     r.register(new FindTextTool());
-    r.register(new ClickTextTool());
+    r.register(new ClickTextTool(mode == Mode.OPEN));
     r.register(new ScrollTool());
     r.register(new WaitForStableTool());
 

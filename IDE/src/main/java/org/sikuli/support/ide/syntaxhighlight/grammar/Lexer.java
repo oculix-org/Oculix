@@ -88,7 +88,7 @@ public class Lexer extends Grammar
 		try
 		{
       Class<Lexer> cLexer = (Class<Lexer>) cl.loadClass( fullname );
-      Lexer iLexer = (Lexer) (cLexer.newInstance());
+      Lexer iLexer = cLexer.getDeclaredConstructor().newInstance();
       return iLexer;
 		}
 		catch( Exception x )

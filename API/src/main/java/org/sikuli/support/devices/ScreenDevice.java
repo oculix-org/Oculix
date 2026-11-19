@@ -1,5 +1,6 @@
 package org.sikuli.support.devices;
 
+import org.sikuli.natives.WinDesktopCapture;
 import org.sikuli.script.Image;
 import org.sikuli.script.Region;
 import org.sikuli.script.Screen;
@@ -7,6 +8,7 @@ import org.sikuli.support.Commons;
 import org.sikuli.util.OverlayCapturePrompt;
 
 import java.awt.*;
+import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -130,6 +132,18 @@ public class ScreenDevice extends Devices {
         } else {
           nScreen++;
         }
+        // #441 defensive fix: when no screen contains (0,0), nScreen can overflow
+        // past nDevices and hit AIOOBE on devices[actualScreen]. Fall back to the
+        // first null slot so every screen is preserved and the loop finishes.
+        // Reproduces on Manjaro KDE Plasma 6.6.5 + OpenJDK 26 (issue #441).
+        if (actualScreen >= nDevices) {
+          for (int k = 0; k < nDevices; k++) {
+            if (devices[k] == null) {
+              actualScreen = k;
+              break;
+            }
+          }
+        }
         final ScreenDevice device = new ScreenDevice(currentBounds, gdev);
         device.id = i;
         device.screenId = actualScreen;
@@ -147,6 +161,20 @@ public class ScreenDevice extends Devices {
 
   public static int numDevices() {
     return nDevices;
+  }
+
+  /**
+   * Reset the static device state so {@link #initDevices()} runs again on the
+   * next call. Called by {@link org.sikuli.script.Screen#resetScreens()} to make
+   * monitor re-evaluation actually work after a hot-plug or resolution change.
+   * Fixes the {@code resetMonitors()} early-return identified during audit of
+   * Epic #442 — the "experimental" reset used to be a no-op because {@code
+   * initDevices()} early-returns as long as {@code mainMonitor > -1}.
+   */
+  public static void reset() {
+    mainMonitor = -1;
+    devices = null;
+    nDevices = 0;
   }
 
   public static ScreenDevice primary() {
@@ -224,6 +252,9 @@ public class ScreenDevice extends Devices {
   }
 
   public static BufferedImage capture(Rectangle rect) {
+    if (Commons.runningWindows() && !rect.isEmpty()) {
+      return captureOnWindows(rect);
+    }
     ScreenDevice screen = getScreenDeviceForPoint(rect.getLocation());
     if (screen != null) {
       rect = screen.bounds.intersection(rect);
@@ -232,6 +263,40 @@ public class ScreenDevice extends Devices {
       rect = new Rectangle(0, 0, 1, 1);
     }
     return screen.getRobot().createScreenCapture(rect);
+  }
+
+  /**
+   * Windows: a request inside one monitor goes straight to that monitor's Robot.
+   * Otherwise each monitor captures its own part (logical size, its own DPI), and
+   * the part outside every monitor is filled with the windows covering it.
+   * Space covered by no monitor and no window stays black. The image always has
+   * the requested logical size.
+   */
+  private static BufferedImage captureOnWindows(Rectangle rect) {
+    for (ScreenDevice screen : get()) {
+      if (screen.bounds.contains(rect)) {
+        return screen.getRobot().createScreenCapture(rect);
+      }
+    }
+    BufferedImage canvas = new BufferedImage(rect.width, rect.height, BufferedImage.TYPE_INT_RGB);
+    Area missing = new Area(rect);
+    Graphics2D g = canvas.createGraphics();
+    try {
+      for (ScreenDevice screen : get()) {
+        Rectangle part = screen.bounds.intersection(rect);
+        if (part.isEmpty()) {
+          continue;
+        }
+        g.drawImage(screen.getRobot().createScreenCapture(part), part.x - rect.x, part.y - rect.y, null);
+        missing.subtract(new Area(part));
+      }
+    } finally {
+      g.dispose();
+    }
+    if (!missing.isEmpty()) {
+      WinDesktopCapture.fillOffScreen(canvas, rect, missing);
+    }
+    return canvas;
   }
 
   private static AtomicBoolean capturePromptActive = new AtomicBoolean(false);

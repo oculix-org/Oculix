@@ -5,9 +5,6 @@
 package org.sikuli.support.runner;
 
 import org.apache.commons.io.FilenameUtils;
-import org.reflections8.Reflections;
-import org.reflections8.scanners.SubTypesScanner;
-import org.reflections8.util.ClasspathHelper;
 import org.sikuli.basics.Debug;
 import org.sikuli.script.ImagePath;
 import org.sikuli.support.runner.IRunner.EffectiveRunner;
@@ -15,7 +12,6 @@ import org.sikuli.support.Commons;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 public class Runner {
@@ -36,6 +32,12 @@ public class Runner {
   // #371: identifiers already flagged for a missing engine — see getRunner().
   private static final java.util.Set<String> noticedMissingEngine = new java.util.HashSet<>();
 
+  /**
+   * Loads the runners once, in the order of META-INF/services/org.sikuli.support.runner.IRunner,
+   * so the first runner able to handle a file is always the same one. A runner that cannot be
+   * created is logged and skipped; the next ones still load. A runner from another jar joins by
+   * shipping its own services file.
+   */
   public static void initRunners() {
     synchronized (runners) {
       if (isReady) {
@@ -44,20 +46,24 @@ public class Runner {
 
       if (runners.isEmpty()) {
 
-        Reflections reflections = new Reflections(ClasspathHelper.forPackage("org.sikuli.support.runner"),
-            new SubTypesScanner());
+        Iterator<IRunner> found = ServiceLoader.load(IRunner.class, Runner.class.getClassLoader()).iterator();
+        // ServiceLoader only does its best to move on after an error: a bound keeps a broken
+        // services file from spinning here forever.
+        int errors = 0;
 
-        Set<Class<? extends AbstractRunner>> classes = reflections.getSubTypesOf(AbstractRunner.class);
-
-        for (Class<? extends AbstractRunner> cl : classes) {
-          IRunner current = null;
+        while (true) {
+          IRunner current;
 
           try {
-            current = cl.getConstructor().newInstance();
-          } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-              | InvocationTargetException | NoSuchMethodException | SecurityException e) {
-
-            log(lvl, "init: %s: warning: not possible", cl);
+            if (!found.hasNext()) {
+              break;
+            }
+            current = found.next();
+          } catch (ServiceConfigurationError e) {
+            log(lvl, "init: warning: not possible: %s", e.getMessage());
+            if (++errors > 32) {
+              break;
+            }
             continue;
           }
 

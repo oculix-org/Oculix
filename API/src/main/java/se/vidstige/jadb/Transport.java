@@ -6,20 +6,27 @@ package se.vidstige.jadb;
 
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 
 class Transport {
 
+    private final Socket socket;
     private final OutputStream outputStream;
     private final InputStream inputStream;
 
-    private Transport(OutputStream outputStream, InputStream inputStream) {
-        this.outputStream = outputStream;
-        this.inputStream = inputStream;
+    public Transport(Socket socket) throws IOException {
+        this.socket = socket;
+        this.outputStream = socket.getOutputStream();
+        this.inputStream = socket.getInputStream();
     }
 
-    public Transport(Socket socket) throws IOException {
-        this(socket.getOutputStream(), socket.getInputStream());
+    /**
+     * Bounds each blocking read on this transport's own socket. A read that waits longer throws
+     * SocketTimeoutException and leaves the socket usable; 0 means wait forever.
+     */
+    public void setReadTimeout(int millis) throws SocketException {
+        socket.setSoTimeout(millis);
     }
 
     public String readString() throws IOException {
@@ -44,11 +51,29 @@ class Transport {
         }
     }
 
+    /**
+     * Like {@link #verifyResponse()}, reading with {@link SliceReader}: a read timeout on this
+     * socket does not fail the confirmation, interruption and the deadline do.
+     */
+    public void verifyResponse(long deadlineNanos) throws IOException, JadbException {
+        String response = readString(4, deadlineNanos);
+        if (!"OKAY".equals(response)) {
+            int length = Integer.parseInt(readString(4, deadlineNanos), 16);
+            throw new JadbException("command failed: " + readString(length, deadlineNanos));
+        }
+    }
+
     public String readString(int length) throws IOException {
         DataInput reader = new DataInputStream(inputStream);
         byte[] responseBuffer = new byte[length];
         reader.readFully(responseBuffer);
         return new String(responseBuffer, StandardCharsets.UTF_8);
+    }
+
+    private String readString(int length, long deadlineNanos) throws IOException {
+        byte[] buffer = new byte[length];
+        SliceReader.readFully(inputStream, buffer, deadlineNanos);
+        return new String(buffer, StandardCharsets.UTF_8);
     }
 
     private String getCommandLength(String command) {
