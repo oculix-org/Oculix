@@ -5672,7 +5672,8 @@ public class Region extends Element {
     // type(text, modifiers) intentionally stay on the keystroke path
     // since holding Shift / Ctrl / Cmd while pasting Unicode does not
     // map to a meaningful gesture.
-    if (containsNonAscii(text)) {
+    // #494 — only on a local screen: see pastesThroughLocalClipboard.
+    if (pastesThroughLocalClipboard(text)) {
       return paste(text);
     }
     try {
@@ -5680,6 +5681,18 @@ public class Region extends Element {
     } catch (FindFailed ex) {
       return 0;
     }
+  }
+
+  /**
+   * Whether {@code type()} should hand this text to the clipboard instead of
+   * typing it: only for non-ASCII text, and only when the robot drives the
+   * machine OculiX runs on. The clipboard written by {@link #paste} is the
+   * local one, so for a remote robot (VNC, Android) the text would never
+   * reach the target while {@code type()} still reported success (#494).
+   * Remote robots type the characters themselves instead.
+   */
+  private boolean pastesThroughLocalClipboard(String text) {
+    return containsNonAscii(text) && !getRobotForRegion().isRemote();
   }
 
   private static boolean containsNonAscii(String text) {
@@ -5753,8 +5766,8 @@ public class Region extends Element {
   public <PFRML> int type(PFRML target, String text) throws FindFailed {
     // Same Unicode fallback as the no-target variant — see #232. Click
     // the target first to focus, then route through paste for non-ASCII
-    // input so the clipboard-based path takes over.
-    if (containsNonAscii(text)) {
+    // input so the clipboard-based path takes over, on a local screen only (#494).
+    if (pastesThroughLocalClipboard(text)) {
       return paste(target, text);
     }
     return keyin(target, text, 0);
@@ -5868,6 +5881,8 @@ public class Region extends Element {
   /**
    * first does a click(target) at the given target position to gain focus/carret <br> and then pastes the text <br>
    * using the clipboard and strg/ctrl/cmd-v (paste keyboard shortcut)
+   * <br>On a remote screen (VNC, Android) the clipboard OculiX can write is the local one, which the target never
+   * sees, and the paste shortcut would be the local system's: there the text is typed instead (#494).
    *
    * @param <PFRML> Pattern, Filename, Text, Region, Match or Location target
    * @param target  Pattern, Filename, Text, Region, Match or Location
@@ -5878,6 +5893,10 @@ public class Region extends Element {
   public <PFRML> int paste(PFRML target, String text) throws FindFailed {
     if (target != null && 0 == click(target, 0)) {
       return 0;
+    }
+    if (text != null && getRobotForRegion().isRemote()) {
+      Debug.log(3, "paste: remote screen, the local clipboard does not reach it: typing the text instead");
+      return keyin(null, text, 0);
     }
     if (text != null) {
       App.setClipboard(text);

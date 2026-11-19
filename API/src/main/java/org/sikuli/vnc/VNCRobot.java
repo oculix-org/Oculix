@@ -212,6 +212,13 @@ class VNCRobot implements IRobot {
       case '\u001b':
         return org.sikuli.vnc.XKeySym.XK_Escape;
       default:
+        // Beyond Latin-1, X11 defines one keysym per Unicode code point:
+        // 0x01000000 | code point. Whether a server can type it depends on the
+        // server (#494). A lone surrogate half (emoji and other characters outside
+        // the BMP) has no keysym.
+        if (c > 0x00FF && !Character.isSurrogate(c)) {
+          return 0x01000000 | c;
+        }
         throw new IllegalArgumentException("Cannot type character " + c);
     }
   }
