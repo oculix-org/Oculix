@@ -3,7 +3,10 @@
  */
 package org.sikuli.script;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+
+import java.awt.GraphicsEnvironment;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,6 +28,7 @@ class MatchUtilsTest {
 
   @Test
   void regionToArrayReturnsCorrectArray() {
+    Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "needs a screen");
     Region region = new Region(10, 20, 300, 400);
 
     int[] result = MatchUtils.regionToArray(region);
