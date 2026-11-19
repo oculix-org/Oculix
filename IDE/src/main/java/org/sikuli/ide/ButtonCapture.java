@@ -23,6 +23,7 @@ import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.function.Supplier;
 
 class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver {
 
@@ -136,33 +137,9 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
     ocp.close();
 
     if (capturedImage != null) {
-      if (givenName.isEmpty()) {
-        final PreferencesUser prefs = PreferencesUser.get();
-        int naming = prefs.getAutoNamingMethod();
-        if (naming == PreferencesUser.AUTO_NAMING_TIMESTAMP) {
-          givenName = Settings.getTimestamp();
-        } else if (naming == PreferencesUser.AUTO_NAMING_OCR) {
-          givenName = PatternPaneNaming.getFilenameFromImage(capturedImage);
-          if (givenName == null || givenName.isEmpty()) {
-            givenName = Settings.getTimestamp();
-          }
-        } else {
-          // AUTO_NAMING_OFF: run OCR silently for a suggested name, then pop the
-          // input dialog with it pre-filled so the user can accept or edit it.
-          String nameOCR = "";
-          try {
-            nameOCR = PatternPaneNaming.getFilenameFromImage(capturedImage);
-          } catch (Exception e) {
-            // OCR failure is silent — fall back to a blank suggestion
-          }
-          givenName = askForScreenshotName(
-              (nameOCR == null || nameOCR.isEmpty()) ? "noname" : nameOCR);
-          if (givenName == null || givenName.isEmpty()) {
-            givenName = Settings.getTimestamp();
-          }
-        }
-      }
       SikulixIDE.PaneContext context = SikulixIDE.get().getActiveContext();
+      final BufferedImage named = capturedImage;
+      givenName = captureName(context.getImageFolder(), givenName, () -> preferredName(named));
       final File imgFile = new File(context.getImageFolder(), givenName + ".png");
       try {
         org.sikuli.support.FileManager.writePngWithDpi(capturedImage, imgFile, ScreenImage.LOGICAL_DPI);
@@ -198,6 +175,71 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
    * _line = elmLine;
    * }*/
   //</editor-fold>
+
+  /**
+   * The name the naming preference gives a capture: a timestamp, the text read in the image,
+   * or the name the user types (with the text read in the image suggested).
+   */
+  private static String preferredName(BufferedImage capturedImage) {
+    String name;
+    final PreferencesUser prefs = PreferencesUser.get();
+    int naming = prefs.getAutoNamingMethod();
+    if (naming == PreferencesUser.AUTO_NAMING_TIMESTAMP) {
+      name = Settings.getTimestamp();
+    } else if (naming == PreferencesUser.AUTO_NAMING_OCR) {
+      name = PatternPaneNaming.getFilenameFromImage(capturedImage);
+    } else {
+      // AUTO_NAMING_OFF: run OCR silently for a suggested name, then pop the
+      // input dialog with it pre-filled so the user can accept or edit it.
+      String nameOCR = "";
+      try {
+        nameOCR = PatternPaneNaming.getFilenameFromImage(capturedImage);
+      } catch (Exception e) {
+        // OCR failure is silent — fall back to a blank suggestion
+      }
+      name = askForScreenshotName(
+          (nameOCR == null || nameOCR.isEmpty()) ? "noname" : nameOCR);
+    }
+    if (name == null || name.isEmpty()) {
+      name = Settings.getTimestamp();
+    }
+    return name;
+  }
+
+  /**
+   * The file name, without ".png", for a new capture in {@code imageFolder}. The name taken
+   * from the code line ({@code lineName}, "" if the line gave none) is used when no image of
+   * that name is there yet. Otherwise the naming preference decides. Either way the result is
+   * never the name of an image already in the folder: a taken name gets "-1", "-2", ...
+   * A capture never overwrites an image the script may already use.
+   */
+  static String captureName(File imageFolder, String lineName, Supplier<String> preferredName) {
+    String name = lineName;
+    if (name == null || name.isEmpty() || new File(imageFolder, name + ".png").exists()) {
+      if (name != null && !name.isEmpty()) {
+        Debug.log(3, "ButtonCapture: %s.png already exists, naming by preference", name);
+      }
+      name = preferredName.get();
+    }
+    String free = freeImageName(imageFolder, name);
+    if (!free.equals(name)) {
+      Debug.log(3, "ButtonCapture: %s.png already exists, saved as %s.png", name, free);
+    }
+    return free;
+  }
+
+  /** {@code name} if name.png is not in {@code imageFolder}, else the first free name-1, name-2, ... */
+  static String freeImageName(File imageFolder, String name) {
+    if (!new File(imageFolder, name + ".png").exists()) {
+      return name;
+    }
+    for (int n = 1; ; n++) {
+      String candidate = name + "-" + n;
+      if (!new File(imageFolder, candidate + ".png").exists()) {
+        return candidate;
+      }
+    }
+  }
 
   /**
    * Asks for the filename to save a capture under.
