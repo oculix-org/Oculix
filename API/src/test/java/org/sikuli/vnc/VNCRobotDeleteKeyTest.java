@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * #495: {@code type(Key.DELETE)} on a VNCScreen must send {@code XK_Delete} (0xffff), the Delete
@@ -43,9 +42,6 @@ class VNCRobotDeleteKeyTest {
   @Test
   @Timeout(value = 60, unit = TimeUnit.SECONDS)
   void keyDelete_sendsXK_Delete() throws Exception {
-    // A Windows client takes Key.* through the Windows VK layout and sends 0x002e ("."): that is
-    // #497, a separate defect. Remove this assumption when #497 is fixed.
-    assumeFalse(System.getProperty("os.name").startsWith("Windows"), "Windows client: Oculix#497");
     assertPressRelease(typeAndRecord(Key.DELETE), XKeySym.XK_Delete);
   }
 
