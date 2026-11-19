@@ -63,12 +63,15 @@ class FinderAnyThemeTest {
   }
 
   private static BufferedImage screen(Color background, Object... patchesAndPositions) {
+    if (patchesAndPositions.length % 3 != 0) {
+      throw new IllegalArgumentException("patches come in triples: image, x, y");
+    }
     BufferedImage image = new BufferedImage(420, 200, BufferedImage.TYPE_INT_RGB);
     Graphics2D g = image.createGraphics();
     try {
       g.setColor(background);
       g.fillRect(0, 0, image.getWidth(), image.getHeight());
-      for (int i = 0; i < patchesAndPositions.length; i += 3) {
+      for (int i = 0; i + 2 < patchesAndPositions.length; i += 3) {
         g.drawImage((BufferedImage) patchesAndPositions[i],
             (Integer) patchesAndPositions[i + 1], (Integer) patchesAndPositions[i + 2], null);
       }
