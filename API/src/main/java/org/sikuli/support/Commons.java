@@ -1331,7 +1331,11 @@ public class Commons {
         newFile = new File(folder, newName + "-" + ++ix +"." + ext);
       }
     } else {
-      newFile = new File(folder, newName + "-1." + ext);
+      int ix = 1;
+      newFile = new File(folder, newName + "-" + ix + "." + ext);
+      while (newFile.exists()) {
+        newFile = new File(folder, newName + "-" + ++ix + "." + ext);
+      }
     }
     return newFile;
   }
