@@ -402,6 +402,25 @@ public class PreferencesUser {
     return new Point(Integer.parseInt(x_y[0]), Integer.parseInt(x_y[1]));
   }
 
+  /**
+   * Remembers whether the IDE window was maximized, so that it reopens maximized
+   * instead of as a normal window of the maximized size (#518).
+   *
+   * @param maximized true when the window is maximized
+   */
+  public void setIdeMaximized(boolean maximized) {
+    pref.putBoolean("IDE_MAXIMIZED", maximized);
+  }
+
+  /**
+   * Tells whether the IDE window was maximized the last time its state changed.
+   *
+   * @return true when it was maximized
+   */
+  public boolean getIdeMaximized() {
+    return pref.getBoolean("IDE_MAXIMIZED", false);
+  }
+
   // ***** IDE Editor options
   public void setPrefMoreImageThumbs(boolean flag) {
     pref.putBoolean("PREF_MORE_IMAGE_THUMBS", flag);
