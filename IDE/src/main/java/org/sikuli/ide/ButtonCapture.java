@@ -3,6 +3,7 @@
  */
 package org.sikuli.ide;
 
+import org.apache.commons.io.FilenameUtils;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.PreferencesUser;
 import org.sikuli.basics.Settings;
@@ -30,7 +31,6 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
   protected EditorPane _codePane;
   private boolean captureCancelled = false;
   private EditorPatternLabel _lbl = null;
-  private String givenName = "";
 
   public static boolean debugTrace = true;
 
@@ -74,9 +74,9 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
 
   public void capture(int delay) {
     // No active script context — the Welcome tab is showing, or every script tab is
-    // closed. There is then nowhere to save the image and no line to name it from.
+    // closed. There is then nowhere to save the image.
     // Bail out *before* hiding the IDE: otherwise the window vanishes, capture dies
-    // on an NPE deep in getLineTextAtCaret(), and the IDE is left hidden with nothing
+    // on an NPE when it reaches for the image folder, and the IDE is left hidden with nothing
     // on screen to explain it. Reachable from the toolbar button and, more easily,
     // from the capture hotkey.
     if (SikulixIDE.get().getActiveContext() == null) {
@@ -92,8 +92,6 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
       delay = Math.max(delay, 500);
       SikulixIDE.doHide();
     }
-
-    givenName = SikulixIDE.get().getImageNameFromLine();
 
     Commons.pause(delay);
     OverlayCapturePrompt.capturePrompt(this, SikulixIDE._I("captureOverlayPrompt"));
@@ -136,34 +134,54 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
     ocp.close();
 
     if (capturedImage != null) {
-      if (givenName.isEmpty()) {
-        final PreferencesUser prefs = PreferencesUser.get();
-        int naming = prefs.getAutoNamingMethod();
-        if (naming == PreferencesUser.AUTO_NAMING_TIMESTAMP) {
-          givenName = Settings.getTimestamp();
-        } else if (naming == PreferencesUser.AUTO_NAMING_OCR) {
-          givenName = PatternPaneNaming.getFilenameFromImage(capturedImage);
-          if (givenName == null || givenName.isEmpty()) {
-            givenName = Settings.getTimestamp();
+      // The naming preference alone decides the name, and a capture never replaces
+      // an image the script may already use (#519).
+      SikulixIDE.PaneContext context = SikulixIDE.get().getActiveContext();
+      final File folder = context.getImageFolder();
+      final int naming = PreferencesUser.get().getAutoNamingMethod();
+      File imgFile;
+      if (naming == PreferencesUser.AUTO_NAMING_TIMESTAMP) {
+        imgFile = Commons.getUniqueFilename(new File(folder, Settings.getTimestamp() + ".png"));
+      } else if (naming == PreferencesUser.AUTO_NAMING_OCR) {
+        String name = PatternPaneNaming.getFilenameFromImage(capturedImage);
+        if (name == null || name.isEmpty()) {
+          name = Settings.getTimestamp();
+        }
+        // The same word read in two captures: ok.png, ok-1.png, ok-2.png ...
+        imgFile = Commons.getUniqueFilename(new File(folder, name + ".png"));
+      } else {
+        // AUTO_NAMING_OFF: run OCR silently for a suggested name, then pop the
+        // input dialog with it pre-filled so the user can accept or edit it.
+        // A name already taken is refused and asked again until a free one comes.
+        String suggestion = "";
+        try {
+          suggestion = PatternPaneNaming.getFilenameFromImage(capturedImage);
+        } catch (Exception e) {
+          // OCR failure is silent — fall back to a blank suggestion
+        }
+        if (suggestion == null || suggestion.isEmpty()) {
+          suggestion = "noname";
+        }
+        String message = SikuliIDEI18N._I("msgEnterScreenshotFilename");
+        while (true) {
+          String name = askForScreenshotName(suggestion, message);
+          // A capture is always written as PNG: a typed "name.png" means "name".
+          if (name != null && name.toLowerCase().endsWith(".png")) {
+            name = name.substring(0, name.length() - 4);
           }
-        } else {
-          // AUTO_NAMING_OFF: run OCR silently for a suggested name, then pop the
-          // input dialog with it pre-filled so the user can accept or edit it.
-          String nameOCR = "";
-          try {
-            nameOCR = PatternPaneNaming.getFilenameFromImage(capturedImage);
-          } catch (Exception e) {
-            // OCR failure is silent — fall back to a blank suggestion
+          if (name == null || name.isEmpty()) {
+            imgFile = Commons.getUniqueFilename(new File(folder, Settings.getTimestamp() + ".png"));
+            break;
           }
-          givenName = askForScreenshotName(
-              (nameOCR == null || nameOCR.isEmpty()) ? "noname" : nameOCR);
-          if (givenName == null || givenName.isEmpty()) {
-            givenName = Settings.getTimestamp();
+          imgFile = new File(folder, name + ".png");
+          if (!imgFile.exists()) {
+            break;
           }
+          suggestion = name;
+          message = SikuliIDEI18N._I("msgScreenshotFilenameExists", imgFile.getName());
         }
       }
-      SikulixIDE.PaneContext context = SikulixIDE.get().getActiveContext();
-      final File imgFile = new File(context.getImageFolder(), givenName + ".png");
+      final String givenName = FilenameUtils.getBaseName(imgFile.getName());
       try {
         org.sikuli.support.FileManager.writePngWithDpi(capturedImage, imgFile, ScreenImage.LOGICAL_DPI);
         if (context.getScreenshotFolder().exists()) {
@@ -223,16 +241,18 @@ class ButtonCapture extends ButtonOnToolbar implements Cloneable, EventObserver 
    *
    * @param suggestedName value the input starts pre-filled and selected with; the
    *                      OCR-derived suggestion when AUTO_NAMING_OFF found text,
-   *                      otherwise "noname"
+   *                      otherwise "noname"; the refused name when asking again
+   * @param message       text shown above the input: the plain request the first
+   *                      time, the reason of the refusal when the name was taken
    * @return the chosen name, or null if cancelled
    */
-  private static String askForScreenshotName(String suggestedName) {
+  private static String askForScreenshotName(String suggestedName, String message) {
     Window owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
     if (owner == null || !owner.isShowing()) {
       owner = SikulixIDE.get();
     }
     JOptionPane pane = new JOptionPane(
-        SikuliIDEI18N._I("msgEnterScreenshotFilename"),
+        message,
         JOptionPane.PLAIN_MESSAGE,
         JOptionPane.OK_CANCEL_OPTION,
         null, null, null);
