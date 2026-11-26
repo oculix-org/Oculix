@@ -126,7 +126,62 @@ public class SikulixIDE extends JFrame {
     if (windowSize.height < 500) {
       windowSize.height = 600;
     }
-    return new Rectangle(windowLocation, windowSize);
+    return fitToScreens(new Rectangle(windowLocation, windowSize));
+  }
+
+  /**
+   * Finds the screen a window rectangle belongs to: the one that holds its centre,
+   * the default screen when none does (the screen it was saved on is gone).
+   *
+   * @param window the rectangle the window would get
+   * @return the bounds of that screen
+   */
+  static Rectangle screenOf(Rectangle window) {
+    java.awt.GraphicsEnvironment env = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment();
+    Point centre = new Point((int) window.getCenterX(), (int) window.getCenterY());
+    for (java.awt.GraphicsDevice device : env.getScreenDevices()) {
+      Rectangle bounds = device.getDefaultConfiguration().getBounds();
+      if (bounds.contains(centre)) {
+        return bounds;
+      }
+    }
+    return env.getDefaultScreenDevice().getDefaultConfiguration().getBounds();
+  }
+
+  /**
+   * Tells whether a window rectangle is wider or taller than the screen it opens on.
+   *
+   * @param window the rectangle the window would get
+   * @return true when it cannot fit that screen
+   */
+  static boolean exceedsScreen(Rectangle window) {
+    Rectangle screen = screenOf(window);
+    return window.width > screen.width || window.height > screen.height;
+  }
+
+  /**
+   * Brings a saved window rectangle back where it can be seen. A rectangle that lies
+   * entirely on the screens present, across two of them included, is returned as it
+   * is. Any other one, saved on a screen that is gone or left hanging past an edge,
+   * is moved inside the screen it belongs to, its size unchanged.
+   *
+   * @param window the saved rectangle
+   * @return the rectangle to open the window with
+   */
+  static Rectangle fitToScreens(Rectangle window) {
+    java.awt.geom.Area screens = new java.awt.geom.Area();
+    for (java.awt.GraphicsDevice device
+        : java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+      screens.add(new java.awt.geom.Area(device.getDefaultConfiguration().getBounds()));
+    }
+    if (screens.contains(window)) {
+      return window;
+    }
+    Rectangle screen = screenOf(window);
+    Rectangle fitted = new Rectangle(window);
+    fitted.x = Math.max(screen.x, Math.min(fitted.x, screen.x + screen.width - fitted.width));
+    fitted.y = Math.max(screen.y, Math.min(fitted.y, screen.y + screen.height - fitted.height));
+    return fitted;
   }
 
   public static Point getWindowCenter() {
@@ -293,6 +348,13 @@ public class SikulixIDE extends JFrame {
 
     ideWindow.setSize(ideWindowRect.getSize());
     ideWindow.setLocation(ideWindowRect.getLocation());
+    if (PreferencesUser.get().getIdeMaximized() || exceedsScreen(ideWindowRect)) {
+      // Closed while maximized: reopen maximized, not as a normal window of the
+      // maximized size, which runs past the screen edges on Windows (#518).
+      // Saved bounds larger than the screen are what a maximized window left
+      // behind before its state was remembered: they are maximized as well.
+      ideWindow.setExtendedState(JFrame.MAXIMIZED_BOTH);
+    }
 
     Debug.log("IDE: Adding components to window");
     initMenuBars(ideWindow);
@@ -456,6 +518,8 @@ public class SikulixIDE extends JFrame {
       public void windowStateChanged(java.awt.event.WindowEvent e) {
         int oldState = e.getOldState();
         int newState = e.getNewState();
+        PreferencesUser.get().setIdeMaximized(
+            (newState & java.awt.Frame.MAXIMIZED_BOTH) == java.awt.Frame.MAXIMIZED_BOTH);
         boolean wasMaximised = (oldState & java.awt.Frame.MAXIMIZED_BOTH) != 0;
         boolean isNormal     = (newState & (java.awt.Frame.MAXIMIZED_BOTH | java.awt.Frame.ICONIFIED)) == 0;
         if (wasMaximised && isNormal) {
@@ -2818,28 +2882,6 @@ public class SikulixIDE extends JFrame {
   int lineNumber = 0;
   public String uncompleteStringError = "uncomplete_string_error";
 
-  public String getImageNameFromLine() {
-    String line = getLineTextAtCaret().strip();
-    Pattern aName = Pattern.compile("^([A-Za-z0-9_]+).*?=");
-    Matcher matcher = aName.matcher(line);
-    if (matcher.find()) {
-      return matcher.group(1);
-    }
-    return "";
-  }
-
-  String getLineTextAtCaret() {
-    // getActiveContext() is null whenever no script tab is selected — the Welcome
-    // tab, or all tabs closed. Callers ask this to guess a name from the current
-    // line, so "no line" is a perfectly good answer; throwing here previously left
-    // the capture path dead with the IDE hidden.
-    PaneContext context = getActiveContext();
-    if (context == null) {
-      return "";
-    }
-    return context.getPane().getLineTextAtCaret();
-  }
-
   void zzzzzzz() {
   }
 //</editor-fold>
@@ -4329,25 +4371,15 @@ public class SikulixIDE extends JFrame {
 
     @Override
     public void actionPerformed(ActionEvent ae) {
-      final String name = sikulixIDE.getImageNameFromLine();
       final PaneContext context = getActiveContext();
       EditorPane codePane = context.getPane();
       File file = new SikulixFileChooser(ideWindow).loadImage();
       if (file == null) {
         return;
       }
+      // The inserted image keeps the name of the imported file (#519); a name
+      // already taken in the script folder gets a -N suffix from the copy.
       File imgFile = codePane.copyFileToBundle(file); //TODO context
-      if (!name.isEmpty()) {
-        final File newFile = new File(imgFile.getParentFile(), name + "." + FilenameUtils.getExtension(imgFile.getName()));
-        if (!newFile.exists()) {
-          if (imgFile.renameTo(newFile)) {
-            imgFile = newFile;
-          }
-        } else {
-          final String msg = String.format("%s already exists - stored as %s", newFile.getName(), imgFile.getName());
-          SX.popError(msg, "IDE: Insert Image");
-        }
-      }
       if (context.getShowThumbs()) {
         codePane.insertComponent(new EditorImageButton(imgFile));
       } else {
